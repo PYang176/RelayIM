@@ -1,0 +1,26 @@
+go get -u gorm.io/gorm
+go get -u gorm.io/driver/sqlite
+go get -u github.com/gin-gonic/gin
+go get github.com/spf13/viper
+
+//先下载swagger命令行工具
+go install github.com/swaggo/swag/cmd/swag@latest
+//然后下载swagger源码依赖
+go get -u github.com/swaggo/swag/cmd/swag
+//然后下载 swagger 的静态文件库，html，css，js 之类的，都被嵌到了 go 代码中。
+go get github.com/swaggo/files@latest
+//最后下载 swagger 的 gin 适配库
+go get github.com/swaggo/gin-swagger@latest
+
+//校验库
+go get github.com/go-playground/validator/v10
+//jwt令牌
+go get -u github.com/golang-jwt/jwt/v5
+//引入redis
+go get github.com/redis/go-redis/v9
+
+//安装 gorilla/websocket 库
+go get -u github.com/gorilla/websocket
+
+//安装 雪花算法来生成id
+go get github.com/bwmarrin/snowflake

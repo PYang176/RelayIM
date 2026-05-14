@@ -1,0 +1,169 @@
+definitions:
+  dto.UserCreateDTO:
+    properties:
+      confirm_password:
+        type: string
+      name:
+        maxLength: 20
+        minLength: 2
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - confirm_password
+    - name
+    - password
+    type: object
+  dto.UserLoginDTO:
+    properties:
+      name:
+        type: string
+      password:
+        type: string
+    required:
+    - name
+    - password
+    type: object
+  dto.UserUpdateDTO:
+    properties:
+      email:
+        type: string
+      name:
+        maxLength: 20
+        minLength: 2
+        type: string
+      phone:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /:
+    get:
+      description: 返回系统欢迎语
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: 首页欢迎信息
+      tags:
+      - index
+  /users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: 新增一个用户
+      parameters:
+      - description: 用户信息
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserCreateDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 创建用户
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      description: 根据用户ID删除用户（逻辑删除）
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 删除用户
+      tags:
+      - users
+    put:
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 用户信息
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserUpdateDTO'
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新用户
+      tags:
+      - users
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: 用户登录并返回 JWT Token
+      parameters:
+      - description: 登录信息
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserLoginDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 认证失败
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户登录
+      tags:
+      - users
+swagger: "2.0"
