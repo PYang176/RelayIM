@@ -7,6 +7,7 @@ import (
 	"ginChatProject/internal/online"
 	"ginChatProject/internal/repository"
 	"ginChatProject/utils/snowflake"
+	"time"
 )
 
 type MessageService struct {
@@ -65,16 +66,17 @@ func (s *MessageService) sendText(ctx context.Context, params SendMessageParams)
 	}
 
 	// 判断是否在线
-	if s.onlineChecker.IsOnline(uint(params.ReceiverID)) {
-		msg.Status = model.MsgDelivered // 在线 → 已送达
-	} else {
-		msg.Status = model.MsgUndelivered // 离线 → 未送达
-	}
+	//if s.onlineChecker.IsOnline(uint(params.ReceiverID)) {
+	//	msg.Status = model.MsgDelivered // 在线 → 已送达
+	//} else {
+	//	msg.Status = model.MsgUndelivered // 离线 → 未送达
+	//}
+	msg.Status = model.MsgUndelivered // 离线 → 未送达
 
 	return msg.MessageID, s.repo.Create(ctx, msg)
 }
 
-// PullOfflineMessages 拉取离线消息并标记
+// PullOfflineMessages 拉取离线消息
 func (s *MessageService) PullOfflineMessages(ctx context.Context, userID uint) ([]*model.Message, error) {
 	msgs, err := s.repo.GetOfflineMessages(ctx, userID)
 	if err != nil {
@@ -82,9 +84,45 @@ func (s *MessageService) PullOfflineMessages(ctx context.Context, userID uint) (
 	}
 
 	// 标记为已送达，避免重复拉取
-	for _, msg := range msgs {
-		_ = s.repo.UpdateStatus(ctx, msg.MessageID, model.MsgDelivered)
-	}
+	//for _, msg := range msgs {
+	//	_ = s.repo.UpdateStatus(ctx, msg.MessageID, model.MsgDelivered)
+	//}
 
 	return msgs, nil
+}
+
+// AckMessage 客户端消息确认
+func (s *MessageService) AckMessage(ctx context.Context, messageID string, userID uint) error {
+	// 检查ack的userID是否与receiverID相符
+	message, err := s.repo.FindByMessageID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+	if message.ReceiverID != uint64(userID) {
+		return errors.New("非法的ACK")
+	}
+	return s.repo.UpdateStatus(ctx, messageID, model.MsgDelivered)
+}
+
+// ReadMessage 消息已读
+func (s *MessageService) ReadMessage(ctx context.Context, messageID string, userID uint) error {
+	// 检查ack的userID是否与receiverID相符
+	message, err := s.repo.FindByMessageID(ctx, messageID)
+	if err != nil {
+		return err
+	}
+	if message.ReceiverID != uint64(userID) {
+		return errors.New("非法的ACK")
+	}
+	now := time.Now()
+	updates := repository.MessageUpdateFields{
+		MessageID: messageID,
+		Status:    model.MsgRead,
+		ReadTime:  &now,
+	}
+
+	return s.repo.UpdateStatusAndTime(
+		ctx,
+		updates,
+	)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"ginChatProject/internal/model"
 	"gorm.io/gorm"
+	"time"
 )
 
 type MessageRepository struct {
@@ -13,6 +14,13 @@ type MessageRepository struct {
 // NewMessageRepository 构造函数
 func NewMessageRepository(db *gorm.DB) *MessageRepository {
 	return &MessageRepository{db: db}
+}
+
+// MessageUpdateFields 仅包含允许更新的字段
+type MessageUpdateFields struct {
+	MessageID string
+	Status    model.MsgStatus
+	ReadTime  *time.Time
 }
 
 // Create 插入一条消息
@@ -36,4 +44,20 @@ func (r *MessageRepository) UpdateStatus(ctx context.Context, messageID string, 
 		Model(&model.Message{}).
 		Where("message_id = ?", messageID).
 		Update("status", status).Error
+}
+
+// UpdateStatusAndTime 更新消息状态与时间
+func (r *MessageRepository) UpdateStatusAndTime(ctx context.Context, fields MessageUpdateFields) error {
+	return r.db.WithContext(ctx).
+		Model(&model.Message{}).
+		Where("message_id = ?", fields.MessageID).
+		Updates(fields).Error
+}
+
+func (r *MessageRepository) FindByMessageID(ctx context.Context, messageID string) (*model.Message, error) {
+	var msg model.Message
+	err := r.db.WithContext(ctx).
+		Where("message_id = ?", messageID).
+		First(&msg).Error
+	return &msg, err
 }

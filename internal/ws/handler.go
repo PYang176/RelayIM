@@ -84,6 +84,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 				MsgType:    int(message.MsgType),
 				Content:    message.Content,
 				URL:        message.URL,
+				Action:     ActionMessage,
 			})
 			Manager.Send(uid, data)
 		}
@@ -91,12 +92,39 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 
 	// 保持连接
 	for {
-		_, _, err := conn.ReadMessage()
+		_, raw, err := conn.ReadMessage()
 		if err != nil {
 			fmt.Println("ws closed:", err)
 			break
 		}
+
 		time.Sleep(time.Second)
+
+		var msg WsMessage
+		// 将接收到的消息绑定到msg上
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			continue
+		}
+
+		switch msg.Action {
+		// 接收客户端确认已送达
+		case ActionAck:
+			go func() {
+				err := h.msgService.AckMessage(context.Background(), msg.MessageID, userID)
+				if err != nil {
+					fmt.Println("ack出错了：", err)
+				}
+			}()
+
+		// 接收客户端确认已读
+		case ActionRead:
+			go func() {
+				err := h.msgService.ReadMessage(context.Background(), msg.MessageID, userID)
+				if err != nil {
+					fmt.Println("read出错了：", err)
+				}
+			}()
+		}
 	}
 
 }

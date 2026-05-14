@@ -7,16 +7,6 @@ import (
 	"sync"
 )
 
-// WsMessage WebSocket 消息结构
-type WsMessage struct {
-	MessageID  string `json:"message_id"`
-	SenderID   uint64 `json:"sender_id"`
-	ReceiverID uint64 `json:"receiver_id"`
-	MsgType    int    `json:"msg_type"`
-	Content    string `json:"content"`
-	URL        string `json:"url"`
-}
-
 // ConnManager 在线连接管理器
 type ConnManager struct {
 	// key: userID, value: *websocket.Conn
@@ -98,7 +88,7 @@ func (m *ConnManager) Broadcast(message []byte) {
 }
 
 // IsOnline 判断是否在线
-func (m *ConnManager) IsOnline(userID uint64) bool {
+func (m *ConnManager) IsOnline(userID uint) bool {
 	_, ok := m.connections.Load(userID)
 	return ok
 }
