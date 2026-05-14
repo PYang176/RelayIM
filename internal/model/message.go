@@ -28,10 +28,11 @@ const (
 type MsgStatus int
 
 const (
-	MsgUnsent    MsgStatus = 1 // 未发送
-	MsgSent      MsgStatus = 2 // 已发送
-	MsgDelivered MsgStatus = 3 // 已送达
-	MsgRead      MsgStatus = 4 // 已读
+	MsgUnsent      MsgStatus = 1 // 未发送
+	MsgSent        MsgStatus = 2 // 已发送
+	MsgUndelivered MsgStatus = 3 // 未送达 （离线未推送）
+	MsgDelivered   MsgStatus = 4 // 已送达（在线并推送成功）
+	MsgRead        MsgStatus = 5 // 已读
 )
 
 // Message 消息主表
@@ -53,7 +54,7 @@ type Message struct {
 	FileID  *uint64 // (文件表索引id)可选
 
 	// ===== 消息状态 =====
-	Status MsgStatus `gorm:"type:tinyint;default:1"` // 1未发送 2已发送 3已送达 4已读
+	Status MsgStatus `gorm:"type:tinyint;default:1"` // 1未发送 2已发送 3离线未推送 4在线已推送 5已读
 
 	// ===== 时间 =====
 	ReadTime *time.Time

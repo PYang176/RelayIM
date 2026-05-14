@@ -1,7 +1,10 @@
 package ws
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"ginChatProject/internal/service"
 	"ginChatProject/utils/jwt"
 	"ginChatProject/utils/redis_util"
 	"github.com/gin-gonic/gin"
@@ -16,8 +19,17 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type WebsocketHandler struct {
+	msgService *service.MessageService
+}
+
+// NewWebsocketHandler 注入messageService
+func NewWebsocketHandler(svc *service.MessageService) *WebsocketHandler {
+	return &WebsocketHandler{msgService: svc}
+}
+
 // Connect websocket 连接入口
-func Connect(c *gin.Context) {
+func (h *WebsocketHandler) Connect(c *gin.Context) {
 	// 从URL中获取token
 	tokenStr := c.Query("token")
 	if tokenStr == "" {
@@ -55,6 +67,27 @@ func Connect(c *gin.Context) {
 	// 保存到 ConnManager
 	Manager.Add(userID, conn)
 	defer Manager.Remove(userID)
+
+	// 用户上线后自动推送离线消息
+	go func(uid uint) {
+		messages, err := h.msgService.PullOfflineMessages(context.Background(), uid)
+		if err != nil {
+			fmt.Println("ws 拉取离线消息出错了:", err)
+			return
+		}
+		// 遍历消息集进行消息发送
+		for _, message := range messages {
+			data, _ := json.Marshal(WsMessage{
+				MessageID:  message.MessageID,
+				SenderID:   message.SenderID,
+				ReceiverID: message.ReceiverID,
+				MsgType:    int(message.MsgType),
+				Content:    message.Content,
+				URL:        message.URL,
+			})
+			Manager.Send(uid, data)
+		}
+	}(userID)
 
 	// 保持连接
 	for {

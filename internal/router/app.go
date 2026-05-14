@@ -8,8 +8,8 @@ import (
 	"ginChatProject/internal/router/index"
 	"ginChatProject/internal/router/message"
 	"ginChatProject/internal/router/user"
+	"ginChatProject/internal/router/ws"
 	"ginChatProject/internal/service"
-	"ginChatProject/internal/ws"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -52,7 +52,7 @@ func Router(db *gorm.DB) *gin.Engine {
 	}
 
 	// websocket
-	r.GET("/ws", ws.Connect)
+	ws.Register(r, db)
 
 	// index
 	index.Register(r)

@@ -77,3 +77,21 @@ func (h *MessageHandler) Count(c *gin.Context) {
 	str := fmt.Sprintf("在线人数为%d", ws.Manager.Count())
 	c.JSON(http.StatusOK, str)
 }
+
+// PullOffline 离线消息推送
+func (h *MessageHandler) PullOffline(c *gin.Context) {
+	// 从token中拿到接收者id
+	userID := c.MustGet("user_id").(uint)
+
+	// 获取未推送的离线消息
+	msgs, err := h.msgService.PullOfflineMessages(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "拉取离线消息失败"})
+		return
+	}
+
+	// 返回离线消息
+	c.JSON(http.StatusOK, gin.H{
+		"offline_messages": msgs,
+	})
+}

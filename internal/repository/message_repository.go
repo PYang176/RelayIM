@@ -21,11 +21,19 @@ func (r *MessageRepository) Create(ctx context.Context, msg *model.Message) erro
 }
 
 // GetOfflineMessages 获取某用户的离线消息（未读）
-func (r *MessageRepository) GetOfflineMessages(ctx context.Context, userID uint) ([]model.Message, error) {
-	var messages []model.Message
+func (r *MessageRepository) GetOfflineMessages(ctx context.Context, userID uint) ([]*model.Message, error) {
+	var messages []*model.Message
 	err := r.db.WithContext(ctx).
-		Where("receiver_id = ? AND status < ?", userID, model.MsgRead). //小于4的为未读
-		Order("created_at ASC").                                        //升序排序
+		Where("receiver_id = ? AND status < ?", userID, model.MsgDelivered). //小于4的为未读
+		Order("created_at ASC").                                             //升序排序
 		Find(&messages).Error
 	return messages, err
+}
+
+// UpdateStatus 更新消息状态
+func (r *MessageRepository) UpdateStatus(ctx context.Context, messageID string, status model.MsgStatus) error {
+	return r.db.WithContext(ctx).
+		Model(&model.Message{}).
+		Where("message_id = ?", messageID).
+		Update("status", status).Error
 }

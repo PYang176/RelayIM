@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"ginChatProject/internal/model"
+	"ginChatProject/internal/online"
 	"ginChatProject/internal/repository"
 	"ginChatProject/utils/snowflake"
 )
 
 type MessageService struct {
-	repo *repository.MessageRepository
+	repo          *repository.MessageRepository
+	onlineChecker online.OnlineChecker
 }
 
 // SendMessageParams 发送消息参数
@@ -22,8 +24,9 @@ type SendMessageParams struct {
 	URL        string
 }
 
-func NewMessageService(repo *repository.MessageRepository) *MessageService {
-	return &MessageService{repo: repo}
+func NewMessageService(repo *repository.MessageRepository, checker online.OnlineChecker) *MessageService {
+	return &MessageService{repo: repo,
+		onlineChecker: checker}
 }
 
 // Send 发送消息总方法，根据消息类型进行处理
@@ -49,6 +52,7 @@ func (s *MessageService) sendText(ctx context.Context, params SendMessageParams)
 		params.SendType = model.SendPrivate
 	}
 
+	// 构造消息参数
 	msg := &model.Message{
 		MessageID:  snowflake.GenerateString(),
 		SenderID:   params.SenderID,
@@ -57,7 +61,30 @@ func (s *MessageService) sendText(ctx context.Context, params SendMessageParams)
 		MsgType:    params.MsgType,
 		Content:    params.Content,
 		URL:        params.URL,
-		Status:     model.MsgSent,
+		Status:     model.MsgSent, // 默认为已发送
 	}
+
+	// 判断是否在线
+	if s.onlineChecker.IsOnline(uint(params.ReceiverID)) {
+		msg.Status = model.MsgDelivered // 在线 → 已送达
+	} else {
+		msg.Status = model.MsgUndelivered // 离线 → 未送达
+	}
+
 	return msg.MessageID, s.repo.Create(ctx, msg)
+}
+
+// PullOfflineMessages 拉取离线消息并标记
+func (s *MessageService) PullOfflineMessages(ctx context.Context, userID uint) ([]*model.Message, error) {
+	msgs, err := s.repo.GetOfflineMessages(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 标记为已送达，避免重复拉取
+	for _, msg := range msgs {
+		_ = s.repo.UpdateStatus(ctx, msg.MessageID, model.MsgDelivered)
+	}
+
+	return msgs, nil
 }
