@@ -32,8 +32,8 @@ func (r *MessageRepository) Create(ctx context.Context, msg *model.Message) erro
 func (r *MessageRepository) GetOfflineMessages(ctx context.Context, userID uint) ([]*model.Message, error) {
 	var messages []*model.Message
 	err := r.db.WithContext(ctx).
-		Where("receiver_id = ? AND status < ?", userID, model.MsgDelivered). //小于4的为未读
-		Order("created_at ASC").                                             //升序排序
+		Where("receiver_id = ? AND status = ?", userID, model.MsgUndelivered). //3的为未读
+		Order("created_at ASC").                                               //升序排序
 		Find(&messages).Error
 	return messages, err
 }

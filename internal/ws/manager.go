@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"sync"
+	"time"
 )
 
 // ConnManager 在线连接管理器
@@ -46,6 +47,8 @@ func (m *ConnManager) Remove(userID uint) {
 	// 如果连接存在则关闭
 	if conn, ok := m.connections.Load(userID); ok {
 		err := conn.(*websocket.Conn).Close()
+		// 删除旧连接的键
+		m.connections.Delete(userID)
 		if err != nil {
 			fmt.Println("连接关闭失败", err)
 			return
@@ -58,7 +61,14 @@ func (m *ConnManager) Remove(userID uint) {
 // Send 给指定用户发送消息
 func (m *ConnManager) Send(userID uint, message []byte) bool {
 	if conn, ok := m.connections.Load(userID); ok {
-		err := conn.(*websocket.Conn).WriteMessage(websocket.TextMessage, message)
+		// 设置写超时，防止阻塞
+		err := conn.(*websocket.Conn).SetWriteDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			log.Printf("发送消息 %d 超时失败，错误为%v\n", userID, err)
+			return false
+		}
+
+		err = conn.(*websocket.Conn).WriteMessage(websocket.TextMessage, message)
 		if err != nil {
 			log.Printf("发送消息 %d 失败，错误为%v\n", userID, err)
 			//发送消息失败，移除无效连接
