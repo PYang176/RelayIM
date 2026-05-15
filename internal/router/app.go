@@ -5,6 +5,7 @@ import (
 	"ginChatProject/internal/handler"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/repository"
+	"ginChatProject/internal/router/friend"
 	"ginChatProject/internal/router/index"
 	"ginChatProject/internal/router/message"
 	"ginChatProject/internal/router/user"
@@ -49,6 +50,13 @@ func Router(db *gorm.DB) *gin.Engine {
 	msgGroup.Use(middleware.AuthMiddleware())
 	{
 		message.Register(msgGroup, db)
+	}
+
+	// 好友相关模块--拦截
+	friendGroup := r.Group("/friends")
+	friendGroup.Use(middleware.AuthMiddleware())
+	{
+		friend.Register(friendGroup, db)
 	}
 
 	// websocket

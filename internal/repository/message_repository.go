@@ -25,13 +25,16 @@ type MessageUpdateFields struct {
 
 // Create 插入一条消息
 func (r *MessageRepository) Create(ctx context.Context, msg *model.Message) error {
-	return r.db.WithContext(ctx).Create(msg).Error
+	return r.db.WithContext(ctx).
+		Model(&model.Message{}).
+		Create(msg).Error
 }
 
 // GetOfflineMessages 获取某用户的离线消息（未读）
 func (r *MessageRepository) GetOfflineMessages(ctx context.Context, userID uint) ([]*model.Message, error) {
 	var messages []*model.Message
 	err := r.db.WithContext(ctx).
+		Model(&model.Message{}).
 		Where("receiver_id = ? AND status = ?", userID, model.MsgUndelivered). //3的为未读
 		Order("created_at ASC").                                               //升序排序
 		Find(&messages).Error
@@ -57,6 +60,7 @@ func (r *MessageRepository) UpdateStatusAndTime(ctx context.Context, fields Mess
 func (r *MessageRepository) FindByMessageID(ctx context.Context, messageID string) (*model.Message, error) {
 	var msg model.Message
 	err := r.db.WithContext(ctx).
+		Model(&model.Message{}).
 		Where("message_id = ?", messageID).
 		First(&msg).Error
 	return &msg, err
