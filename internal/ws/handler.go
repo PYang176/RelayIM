@@ -15,6 +15,8 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
 		return true //允许跨域，仅限开发环境
 	},
@@ -69,14 +71,43 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	Manager.Add(userID, conn)
 	defer Manager.Remove(userID)
 
+	// 心跳检测
+	// 设置读超时（60秒没收到消息就断开）
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+	// 设置 Pong 回调（客户端回复 Pong 时重置计时器）
+	conn.SetPongHandler(func(string) error {
+		fmt.Println(" 收到客户端 Pong，userID =", userID)
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	// 定时发送 Ping（每 30 秒）
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	// 启动一个 goroutine 专门发送 Ping
+	go func() {
+		for range ticker.C {
+			fmt.Println(" 发送 Ping 给 userID =", userID)
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				fmt.Println(" 发送 Ping 失败:", err)
+				return
+			}
+		}
+	}()
+	// 心跳检测分割线-----------
+
 	// 用户上线后自动推送离线消息
 	go func(uid uint) {
 		// 记录出错时候的堆栈信息
 		defer func() {
-			fmt.Println("卡在这里了！！！---------")
+			fmt.Println("1卡在这里了！！！---------")
 			if r := recover(); r != nil {
 				log.Printf("推送离线消息 panic: %v\n", r)
 			}
+			fmt.Println("2卡在这里了！！！---------")
+
 		}()
 
 		messages, err := h.msgService.PullOfflineMessages(context.Background(), uid)
