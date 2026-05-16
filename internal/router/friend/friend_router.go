@@ -16,5 +16,9 @@ func Register(r *gin.RouterGroup, db *gorm.DB) {
 	friendHandler := handler.NewFriendHandler(friendService)
 
 	r.POST("/request", friendHandler.SendRequest)
+	r.GET("/receiveReq", friendHandler.GetReceiveRequest)
+	r.GET("/sendReq", friendHandler.GetSendRequest)
+	r.POST("/accept", friendHandler.AcceptRequest)
+	r.POST("/reject", friendHandler.RejectRequest)
 
 }

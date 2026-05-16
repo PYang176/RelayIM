@@ -40,13 +40,11 @@ func (s *FriendService) SendRequest(ctx context.Context, fromUserID uint64, toUs
 		return errors.New("已经是好友了，不能重复添加")
 	}
 
-	// 是否有待处理的好友申请
-	isPending, err := s.repo.HasPendingRequest(ctx, fromUserID, toUserID)
-	if err != nil {
-		return err
-	}
-	if isPending {
-		return errors.New("已经提交过好友申请啦，请等待对方处理")
+	// 检查双向是否有待处理申请
+	pending1, _ := s.repo.HasPendingRequest(ctx, fromUserID, toUserID)
+	pending2, _ := s.repo.HasPendingRequest(ctx, toUserID, fromUserID)
+	if pending1 || pending2 {
+		return errors.New("已存在待处理的好友申请")
 	}
 
 	// 构建好友申请的参数
@@ -57,4 +55,67 @@ func (s *FriendService) SendRequest(ctx context.Context, fromUserID uint64, toUs
 		Remark:     remark,
 	}
 	return s.repo.CreateRequest(ctx, req)
+}
+
+// AcceptRequest 接受好友申请
+func (s *FriendService) AcceptRequest(ctx context.Context, requestID uint, userID uint64) error {
+	// 检查是否存在好友申请
+	req, err := s.repo.FindByRequestID(ctx, requestID)
+	if err != nil {
+		return err
+	}
+
+	// 如果接受人ID与传进来的userID不匹配，则拒绝该申请
+	if req.ToUserID != userID {
+		return errors.New("无权操作此申请")
+	}
+
+	if req.Status != model.FriendRequestPending {
+		return errors.New("处理的申请状态不正确")
+	}
+
+	// 创建双向好友关系
+	err = s.repo.CreateRelation(ctx, req.FromUserID, req.ToUserID)
+	if err != nil {
+		return err
+	}
+
+	// 更改好友申请状态
+	return s.repo.UpdateRequestStatus(ctx, requestID, model.FriendRequestAccepted)
+}
+
+// RejectRequest 拒绝好友申请
+func (s *FriendService) RejectRequest(ctx context.Context, requestID uint, userID uint64) error {
+	// 检查是否存在好友申请
+	req, err := s.repo.FindByRequestID(ctx, requestID)
+	if err != nil {
+		return err
+	}
+
+	// 如果接受人ID与传进来的userID不匹配，则拒绝该申请
+	if req.ToUserID != userID {
+		return errors.New("无权操作此申请")
+	}
+
+	if req.Status != model.FriendRequestPending {
+		return errors.New("处理的申请状态不正确")
+	}
+
+	// 更改好友申请状态
+	return s.repo.UpdateRequestStatus(ctx, requestID, model.FriendRequestRejected)
+}
+
+// ListReceiveFriendRequest 获取自己收到的好友申请列表
+func (s *FriendService) ListReceiveFriendRequest(ctx context.Context, userID uint) ([]*model.FriendRequest, error) {
+	return s.repo.GetReceiveRequests(ctx, userID)
+}
+
+// ListSendFriendRequest 获取自己发出的好友申请列表
+func (s *FriendService) ListSendFriendRequest(ctx context.Context, userID uint) ([]*model.FriendRequest, error) {
+	return s.repo.GetSentRequests(ctx, userID)
+}
+
+// ListFriends 获取好友列表
+func (s *FriendService) ListFriends(ctx context.Context, userID uint64) ([]*model.FriendRelation, error) {
+	return s.repo.ListFriends(ctx, userID)
 }

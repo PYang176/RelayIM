@@ -53,7 +53,7 @@ func (r *FriendRepository) GetSentRequests(ctx context.Context, userID uint) ([]
 }
 
 // UpdateRequestStatus 变更申请状态
-func (r *FriendRepository) UpdateRequestStatus(ctx context.Context, requestID uint64, status model.FriendRequestStatus) error {
+func (r *FriendRepository) UpdateRequestStatus(ctx context.Context, requestID uint, status model.FriendRequestStatus) error {
 	return r.db.WithContext(ctx).
 		Model(&model.FriendRequest{}).
 		Where("id = ?", requestID).
@@ -62,6 +62,15 @@ func (r *FriendRepository) UpdateRequestStatus(ctx context.Context, requestID ui
 
 // CreateRelation 创建好友关系
 func (r *FriendRepository) CreateRelation(ctx context.Context, userID, friendID uint64) error {
+	// 检查是否已存在好友关系
+	exists, err := r.CheckFriendShip(ctx, userID, friendID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil // 已存在，直接返回
+	}
+
 	// 双向插入
 	relations := []*model.FriendRelation{
 		{UserID: userID, FriendID: friendID},
@@ -101,4 +110,14 @@ func (r *FriendRepository) HasPendingRequest(ctx context.Context, fromUserID, to
 		).
 		Count(&count).Error
 	return count > 0, err
+}
+
+// FindByRequestID 根据好友申请ID获取好友申请
+func (r *FriendRepository) FindByRequestID(ctx context.Context, requestID uint) (*model.FriendRequest, error) {
+	var req model.FriendRequest
+	err := r.db.WithContext(ctx).
+		Model(&model.FriendRequest{}).
+		Where("id = ?", requestID).
+		First(&req).Error
+	return &req, err
 }
