@@ -12,6 +12,7 @@ import (
 
 type MessageService struct {
 	repo          *repository.MessageRepository
+	friendRepo    *repository.FriendRepository
 	onlineChecker online.OnlineChecker
 }
 
@@ -25,13 +26,29 @@ type SendMessageParams struct {
 	URL        string
 }
 
-func NewMessageService(repo *repository.MessageRepository, checker online.OnlineChecker) *MessageService {
+func NewMessageService(repo *repository.MessageRepository, friendRepo *repository.FriendRepository, checker online.OnlineChecker) *MessageService {
 	return &MessageService{repo: repo,
+		friendRepo:    friendRepo,
 		onlineChecker: checker}
 }
 
 // Send 发送消息总方法，根据消息类型进行处理
 func (s *MessageService) Send(ctx context.Context, params SendMessageParams) (string, error) {
+	// 私聊时检查好友关系
+	if params.SendType == model.SendPrivate {
+		isFriend, err := s.friendRepo.CheckFriendShip(
+			ctx,
+			params.SenderID,
+			params.ReceiverID,
+		)
+		if err != nil {
+			return "", err
+		}
+		if !isFriend {
+			return "", errors.New("非好友关系，无法发送消息")
+		}
+	}
+
 	switch params.MsgType {
 	case model.MsgText:
 		return s.sendText(ctx, params)
@@ -82,11 +99,6 @@ func (s *MessageService) PullOfflineMessages(ctx context.Context, userID uint) (
 	if err != nil {
 		return nil, err
 	}
-
-	// 标记为已送达，避免重复拉取
-	//for _, msg := range msgs {
-	//	_ = s.repo.UpdateStatus(ctx, msg.MessageID, model.MsgDelivered)
-	//}
 
 	return msgs, nil
 }

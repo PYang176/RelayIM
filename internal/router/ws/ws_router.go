@@ -12,8 +12,10 @@ import (
 func Register(r *gin.Engine, db *gorm.DB) {
 	// 在线状态
 	onlineChecker := ws.Manager
+	friendRepo := repository.NewFriendRepository(db)
+
 	msgRepo := repository.NewMessageRepository(db)
-	msgService := service.NewMessageService(msgRepo, onlineChecker)
+	msgService := service.NewMessageService(msgRepo, friendRepo, onlineChecker)
 	wsHandler := ws.NewWebsocketHandler(msgService)
 	r.GET("/ws", wsHandler.Connect)
 
