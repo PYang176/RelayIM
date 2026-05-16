@@ -73,8 +73,8 @@ func (r *FriendRepository) CreateRelation(ctx context.Context, userID, friendID 
 
 	// 双向插入
 	relations := []*model.FriendRelation{
-		{UserID: userID, FriendID: friendID},
-		{UserID: friendID, FriendID: userID},
+		{UserID: userID, FriendID: friendID, Status: model.FriendNormal},
+		{UserID: friendID, FriendID: userID, Status: model.FriendNormal},
 	}
 	return r.db.WithContext(ctx).Create(&relations).Error
 }
@@ -120,4 +120,25 @@ func (r *FriendRepository) FindByRequestID(ctx context.Context, requestID uint) 
 		Where("id = ?", requestID).
 		First(&req).Error
 	return &req, err
+}
+
+// DeleteFriend 删除好友
+func (r *FriendRepository) DeleteFriend(ctx context.Context, userID, friendID uint64) error {
+	// 开启事务保证原子性
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 删除 userID -> friendID
+		if err := tx.Where("user_id = ? AND friend_id = ?", userID, friendID).
+			Delete(&model.FriendRelation{}).Error; err != nil {
+			return err
+		}
+
+		// 删除 friendID -> userID
+		if err := tx.Where("user_id = ? AND friend_id = ?", friendID, userID).
+			Delete(&model.FriendRelation{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 }

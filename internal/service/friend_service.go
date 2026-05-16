@@ -119,3 +119,17 @@ func (s *FriendService) ListSendFriendRequest(ctx context.Context, userID uint) 
 func (s *FriendService) ListFriends(ctx context.Context, userID uint64) ([]*model.FriendRelation, error) {
 	return s.repo.ListFriends(ctx, userID)
 }
+
+// DeleteFriend 删除好友
+func (s *FriendService) DeleteFriend(ctx context.Context, userID, friendID uint64) error {
+	// 检查两人是否是好友
+	isFriend, err := s.repo.CheckFriendShip(ctx, userID, friendID)
+	if err != nil {
+		return err
+	}
+	if !isFriend {
+		return errors.New("双方不是好友关系")
+	}
+	// 删除好友
+	return s.repo.DeleteFriend(ctx, userID, friendID)
+}

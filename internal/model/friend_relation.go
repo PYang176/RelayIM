@@ -15,13 +15,13 @@ const (
 // FriendRelation 好友关系表
 type FriendRelation struct {
 	gorm.Model
-
-	UserID   uint64 `gorm:"uniqueIndex:uk_user_friend"` // 用户
-	FriendID uint64 `gorm:"uniqueIndex:uk_user_friend"` // 好友
-	//UserID   uint64 `gorm:"index"` // 用户
-	//FriendID uint64 `gorm:"index"` // 好友
 	// 联合唯一索引（防止重复好友）
 	//UNIQUE KEY uk_user_friend (user_id, friend_id)
+	//UserID   uint64 `gorm:"uniqueIndex:uk_user_friend"` // 用户
+	//FriendID uint64 `gorm:"uniqueIndex:uk_user_friend"` // 好友
+
+	UserID   uint64 `gorm:"index"` // 用户
+	FriendID uint64 `gorm:"index"` // 好友
 
 	Remark string // 备注名（可选）
 

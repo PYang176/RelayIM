@@ -123,3 +123,30 @@ func (h *FriendHandler) ListFriends(c *gin.Context) {
 
 	c.JSON(http.StatusOK, request)
 }
+
+// DeleteFriend 删除好友
+func (h *FriendHandler) DeleteFriend(c *gin.Context) {
+	// token中拿userID
+	userID := c.MustGet("user_id").(uint)
+
+	var req struct {
+		FriendID uint64 `json:"friend_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	err := h.friendService.DeleteFriend(
+		c.Request.Context(),
+		uint64(userID),
+		req.FriendID,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "好友已删除"})
+}
