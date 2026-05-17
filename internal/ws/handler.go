@@ -143,8 +143,6 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 			break
 		}
 
-		time.Sleep(time.Second)
-
 		var msg WsMessage
 		// 将接收到的消息绑定到msg上
 		if err := json.Unmarshal(raw, &msg); err != nil {

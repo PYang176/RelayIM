@@ -42,7 +42,7 @@ func (r *UserRepository) Delete(ctx context.Context, user *model.UserBasic) erro
 }
 
 // Update 修改用户
-func (r *UserRepository) Update(ctx context.Context, id uint, updates UserUpdateFields) error {
+func (r *UserRepository) Update(ctx context.Context, id uint, updates *model.UserBasic) error {
 	return r.db.WithContext(ctx).
 		Model(&model.UserBasic{}).
 		Where("id = ? AND deleted_at IS NULL", id).

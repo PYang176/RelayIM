@@ -15,6 +15,17 @@ import (
 	"time"
 )
 
+type UserDeviceInfo struct {
+	//客户端ip
+	ClientIp string
+	//客户端端口
+	ClientPort string
+	//登录时间
+	LoginTime *time.Time
+	//设备信息
+	DeviceInfo string
+}
+
 type UserService struct {
 	repo *repository.UserRepository
 }
@@ -81,22 +92,31 @@ func (s *UserService) UpdateUser(ctx context.Context, req dto.UserUpdateDTO) err
 	}
 
 	// 3. 构造更新字段
-	updates := repository.UserUpdateFields{}
+	//updates := repository.UserUpdateFields{}
+	//if req.Name != "" {
+	//	updates.Name = &req.Name
+	//}
+	//if req.Phone != "" {
+	//	updates.Phone = &req.Phone
+	//}
+	//if req.Email != "" {
+	//	updates.Email = &req.Email
+	//}
+	updates := model.UserBasic{}
 	if req.Name != "" {
-		updates.Name = &req.Name
+		updates.Name = req.Name
 	}
 	if req.Phone != "" {
-		updates.Phone = &req.Phone
+		updates.Phone = req.Phone
 	}
 	if req.Email != "" {
-		updates.Email = &req.Email
+		updates.Email = req.Email
 	}
-
-	return s.repo.Update(ctx, req.ID, updates)
+	return s.repo.Update(ctx, req.ID, &updates)
 }
 
 // Login 登录方法
-func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO) (string, error) {
+func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO, deviceInfo UserDeviceInfo) (string, error) {
 
 	// 1. 查用户
 	user, err := s.repo.FindByName(ctx, req.Name)
@@ -115,6 +135,22 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO) (string, 
 		return "", err
 	}
 
+	// 更新数据库登录数据
+	{
+		user.LoginTime = deviceInfo.LoginTime
+		user.ClientIp = deviceInfo.ClientIp
+		user.ClientPort = deviceInfo.ClientPort
+		user.DeviceInfo = deviceInfo.DeviceInfo
+		user.IsLogout = false
+		user.LogoutTime = nil
+		user.HeartbeatTime = nil
+	}
+
+	//  关键：保存到数据库
+	if err := s.repo.Update(ctx, user.ID, user); err != nil {
+		return "", errors.New("更新登录信息失败")
+	}
+
 	// 4. 存入 Redis（key = token，value = userID）
 	key := fmt.Sprintf("token:%s", token)
 	err = redis_util.RDB.Set(
@@ -126,4 +162,20 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO) (string, 
 	).Err()
 
 	return token, nil
+}
+
+// Logout 退出登录
+func (s *UserService) Logout(ctx context.Context, userID uint, logoutTime time.Time) error {
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 更新登出信息
+	user.LogoutTime = &logoutTime
+	user.IsLogout = true
+	user.HeartbeatTime = nil // 清空心跳时间
+
+	return s.repo.Update(ctx, userID, user)
+
 }

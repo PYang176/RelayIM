@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"ginChatProject/internal/dto"
 	"ginChatProject/internal/service"
+	"ginChatProject/utils/jwt"
+	"ginChatProject/utils/redis_util"
 	"github.com/gin-gonic/gin"
+	"net"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type UserHandler struct {
@@ -158,7 +162,19 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.svc.Login(c.Request.Context(), req)
+	// 正确获取 IP 和端口
+	clientIP, clientPort := getClientIPAndPort(c)
+
+	now := time.Now()
+	// 获取客户端信息
+	deviceInfo := service.UserDeviceInfo{
+		ClientIp:   clientIP,
+		ClientPort: clientPort,
+		LoginTime:  &now,
+		DeviceInfo: c.GetHeader("User-Agent"),
+	}
+
+	token, err := h.svc.Login(c.Request.Context(), req, deviceInfo)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -168,4 +184,51 @@ func (h *UserHandler) Login(c *gin.Context) {
 		"message": "登录成功",
 		"token":   token,
 	})
+}
+
+// Logout 退出登录
+func (h *UserHandler) Logout(c *gin.Context) {
+	// 获取token和userID
+	tokenStr := c.GetHeader("Authorization")
+	userID := c.MustGet("user_id").(uint)
+
+	// 更新数据库：登出时间和状态
+	now := time.Now()
+	if err := h.svc.Logout(c.Request.Context(), userID, now); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "退出登录失败"})
+		return
+	}
+
+	// 加入黑名单
+	claims, _ := jwt.ParseToken(tokenStr)
+	blacklistKey := fmt.Sprintf("blacklist:%s", claims.JTI)
+	ttl := time.Until(claims.ExpiresAt.Time)
+	redis_util.RDB.Set(c, blacklistKey, "1", ttl)
+
+	// 删除 Redis 中的 token
+	redisKey := fmt.Sprintf("token:%s", tokenStr)
+	redis_util.RDB.Del(c, redisKey)
+
+	c.JSON(http.StatusOK, gin.H{"message": "退出成功"})
+}
+
+// 解析客户端 IP 和端口
+func getClientIPAndPort(c *gin.Context) (string, string) {
+	// 获取真实 IP（支持代理）
+	clientIP := c.ClientIP()
+
+	// 从 RemoteAddr 解析端口
+	remoteAddr := c.Request.RemoteAddr
+	host, port, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		// 如果没有端口，返回空
+		return clientIP, ""
+	}
+
+	// 如果 clientIP 是代理的，使用 RemoteAddr 的 IP
+	if clientIP == "127.0.0.1" || clientIP == "::1" {
+		clientIP = host
+	}
+
+	return clientIP, port
 }

@@ -17,4 +17,5 @@ func Register(r *gin.RouterGroup, db *gorm.DB) {
 	r.GET("", h.List)
 	r.DELETE("/:id", h.Delete)
 	r.PUT("/:id", h.Update)
+	r.POST("/logout", h.Logout)
 }
