@@ -13,6 +13,7 @@ import (
 type MessageService struct {
 	repo          *repository.MessageRepository
 	friendRepo    *repository.FriendRepository
+	groupRepo     *repository.GroupRepository
 	onlineChecker online.OnlineChecker
 }
 
@@ -26,9 +27,23 @@ type SendMessageParams struct {
 	URL        string
 }
 
-func NewMessageService(repo *repository.MessageRepository, friendRepo *repository.FriendRepository, checker online.OnlineChecker) *MessageService {
+// SendGroupMessageParams 发送群消息参数
+type SendGroupMessageParams struct {
+	GroupID  uint64
+	SenderID uint64
+	MsgType  model.MsgType
+	Content  string
+	URL      string
+}
+
+func NewMessageService(repo *repository.MessageRepository,
+	friendRepo *repository.FriendRepository,
+	groupRepo *repository.GroupRepository,
+	checker online.OnlineChecker,
+) *MessageService {
 	return &MessageService{repo: repo,
 		friendRepo:    friendRepo,
+		groupRepo:     groupRepo,
 		onlineChecker: checker}
 }
 
@@ -137,4 +152,44 @@ func (s *MessageService) ReadMessage(ctx context.Context, messageID string, user
 		ctx,
 		updates,
 	)
+}
+
+// SendGroupMessage 群消息发送
+func (s *MessageService) SendGroupMessage(ctx context.Context, params SendGroupMessageParams) (*model.Message, []uint64, error) {
+	// 1. 检查是否在群里
+	isMember, err := s.groupRepo.CheckMembership(ctx, params.GroupID, params.SenderID)
+	if err != nil || !isMember {
+		return nil, nil, errors.New("不在群聊中")
+	}
+
+	// 2. 创建消息
+	msg := &model.Message{
+		MessageID:  snowflake.GenerateString(),
+		SenderID:   params.SenderID,
+		ReceiverID: params.GroupID,
+		SendType:   model.SendGroup,
+		MsgType:    params.MsgType,
+		Content:    params.Content,
+		URL:        params.URL,
+		Status:     model.MsgUndelivered,
+	}
+
+	if err := s.repo.Create(ctx, msg); err != nil {
+		return nil, nil, err
+	}
+
+	// 3. 获取需要推送的用户列表
+	members, err := s.groupRepo.GetGroupMembers(ctx, params.GroupID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	userIDs := make([]uint64, 0)
+	for _, member := range members {
+		if member.UserID != params.SenderID {
+			userIDs = append(userIDs, member.UserID)
+		}
+	}
+
+	return msg, userIDs, nil
 }

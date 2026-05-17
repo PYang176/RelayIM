@@ -18,10 +18,10 @@ const (
 type GroupMember struct {
 	gorm.Model
 
-	GroupID uint64 `gorm:"uniqueIndex:uk_group_user"`
-	UserID  uint64 `gorm:"uniqueIndex:uk_group_user"`
-	//GroupID uint64 `gorm:"index"`
-	//UserID  uint64 `gorm:"index"`
+	//GroupID uint64 `gorm:"uniqueIndex:uk_group_user"`
+	//UserID  uint64 `gorm:"uniqueIndex:uk_group_user"`
+	GroupID uint64 `gorm:"index"`
+	UserID  uint64 `gorm:"index"`
 
 	Role GroupRole `gorm:"type:tinyint;default:1"`
 

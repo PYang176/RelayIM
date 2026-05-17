@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"ginChatProject/internal/dto"
+	"ginChatProject/internal/model"
 	"ginChatProject/internal/service"
 	"ginChatProject/internal/ws"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 )
 
 type MessageHandler struct {
@@ -94,4 +96,92 @@ func (h *MessageHandler) PullOffline(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"offline_messages": msgs,
 	})
+}
+
+// SendGroupMessage 发送群消息
+func (h *MessageHandler) SendGroupMessage(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+	groupIDStr := c.Param("id")
+	groupID, err := strconv.ParseUint(groupIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	var req struct {
+		MsgType model.MsgType `json:"msg_type" binding:"required"`
+		Content string        `json:"content"`
+		URL     string        `json:"url"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 构造参数结构体
+	params := service.SendGroupMessageParams{
+		GroupID:  groupID,
+		SenderID: uint64(userID),
+		MsgType:  req.MsgType,
+		Content:  req.Content,
+		URL:      req.URL,
+	}
+
+	msg, userIDs, err := h.msgService.SendGroupMessage(
+		c.Request.Context(),
+		params,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 推送消息
+	go h.broadcastToGroup(msg, userIDs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "发送成功",
+		"message_id": msg.MessageID,
+	})
+}
+
+// broadcastToGroup 推送群消息给在线成员
+func (h *MessageHandler) broadcastToGroup(msg *model.Message, userIDs []uint64) {
+	// 1. 准备推送消息
+	pushMsg := ws.WsMessage{
+		Action:     ws.ActionMessage,
+		MessageID:  msg.MessageID,
+		SenderID:   msg.SenderID,
+		ReceiverID: msg.ReceiverID,
+		MsgType:    int(msg.MsgType),
+		Content:    msg.Content,
+		URL:        msg.URL,
+	}
+
+	// 2. 序列化为 JSON
+	data, err := json.Marshal(pushMsg)
+	if err != nil {
+		fmt.Printf("群消息序列化失败: %v\n", err)
+		return
+	}
+
+	// 3. 遍历推送
+	for _, userID := range userIDs {
+		// 跳过发送者
+		if userID == msg.SenderID {
+			continue
+		}
+
+		// 只推送给在线用户
+		if !ws.Manager.IsOnline(uint(userID)) {
+			continue
+		}
+
+		// 发送消息
+		ok := ws.Manager.Send(uint(userID), data)
+		if !ok {
+			fmt.Printf("用户 %d 推送失败\n", userID)
+		}
+	}
 }
