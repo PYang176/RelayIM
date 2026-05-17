@@ -79,6 +79,18 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	conn.SetPongHandler(func(string) error {
 		fmt.Println(" 收到客户端 Pong，userID =", userID)
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+		// 更新 Redis 中的心跳时间
+		go func(uid uint) {
+			key := fmt.Sprintf("heartbeat:%d", uid)
+			redis_util.RDB.Set(
+				context.Background(),
+				key,
+				time.Now().Unix(),
+				70*time.Second, // 略大于心跳超时时间
+			)
+		}(userID)
+
 		return nil
 	})
 

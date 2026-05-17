@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
+	"ginChatProject/internal/task"
 	"ginChatProject/utils"
 	"github.com/spf13/viper"
 )
@@ -26,6 +28,11 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("数据库连接失败: %v", err))
 	}
+
+	// 启动心跳同步任务
+	userRepo := repository.NewUserRepository(db)
+	heartbeatTask := task.NewHeartbeatSyncTask(userRepo)
+	go heartbeatTask.Start()
 
 	r := router.Router(db)
 	err = r.Run(":8081") // listens on 0.0.0.0:8080 by default

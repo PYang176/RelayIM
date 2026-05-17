@@ -4,6 +4,7 @@ import (
 	"context"
 	"ginChatProject/internal/model"
 	"gorm.io/gorm"
+	"time"
 )
 
 type UserRepository struct {
@@ -80,4 +81,12 @@ func (r *UserRepository) ExistsByName(
 		Count(&count).Error
 
 	return count > 0, err
+}
+
+// UpdateHeartbeatTime 更新用户心跳时间
+func (r *UserRepository) UpdateHeartbeatTime(ctx context.Context, userID uint64, heartbeatTime time.Time) error {
+	return r.db.WithContext(ctx).
+		Model(&model.UserBasic{}).
+		Where("id = ?", userID).
+		Update("heartbeat_time", heartbeatTime).Error
 }

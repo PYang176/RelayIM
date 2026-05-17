@@ -179,3 +179,27 @@ func (s *UserService) Logout(ctx context.Context, userID uint, logoutTime time.T
 	return s.repo.Update(ctx, userID, user)
 
 }
+
+// IsUserOnline 判断用户是否在线
+func (s *UserService) IsUserOnline(ctx context.Context, userID uint64) (bool, error) {
+	//  1. 先查 Redis
+	key := fmt.Sprintf("heartbeat:%d", userID)
+	ts, err := redis_util.RDB.Get(ctx, key).Int64()
+	if err == nil {
+		// Redis 中有数据，判断是否超时
+		heartbeatTime := time.Unix(ts, 0)
+		return time.Since(heartbeatTime).Seconds() <= 60, nil
+	}
+
+	//  2. Redis 中没有，再查数据库
+	user, err := s.repo.FindByID(ctx, uint(userID))
+	if err != nil {
+		return false, err
+	}
+
+	if user.HeartbeatTime == nil {
+		return false, nil
+	}
+
+	return time.Since(*user.HeartbeatTime).Seconds() <= 60, nil
+}
