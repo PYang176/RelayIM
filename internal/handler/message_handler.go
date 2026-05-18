@@ -128,7 +128,7 @@ func (h *MessageHandler) SendGroupMessage(c *gin.Context) {
 		URL:      req.URL,
 	}
 
-	msg, userIDs, err := h.msgService.SendGroupMessage(
+	msg, err := h.msgService.SendGroupMessage(
 		c.Request.Context(),
 		params,
 	)
@@ -137,12 +137,11 @@ func (h *MessageHandler) SendGroupMessage(c *gin.Context) {
 		return
 	}
 
-	// 推送消息
-	go h.broadcastToGroup(msg, userIDs)
-
+	// 不再直接推送，交给 Redis Stream 消费者处理
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "发送成功",
 		"message_id": msg.MessageID,
+		"note":       "消息已进入异步处理队列",
 	})
 }
 

@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"ginChatProject/internal/model"
 	"ginChatProject/internal/online"
 	"ginChatProject/internal/repository"
+	"ginChatProject/utils/redis_util"
 	"ginChatProject/utils/snowflake"
 	"time"
 )
@@ -155,11 +158,11 @@ func (s *MessageService) ReadMessage(ctx context.Context, messageID string, user
 }
 
 // SendGroupMessage 群消息发送
-func (s *MessageService) SendGroupMessage(ctx context.Context, params SendGroupMessageParams) (*model.Message, []uint64, error) {
+func (s *MessageService) SendGroupMessage(ctx context.Context, params SendGroupMessageParams) (*model.Message, error) {
 	// 1. 检查是否在群里
 	isMember, err := s.groupRepo.CheckMembership(ctx, params.GroupID, params.SenderID)
 	if err != nil || !isMember {
-		return nil, nil, errors.New("不在群聊中")
+		return nil, errors.New("不在群聊中")
 	}
 
 	// 2. 创建消息
@@ -175,21 +178,33 @@ func (s *MessageService) SendGroupMessage(ctx context.Context, params SendGroupM
 	}
 
 	if err := s.repo.Create(ctx, msg); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// 3. 获取需要推送的用户列表
-	members, err := s.groupRepo.GetGroupMembers(ctx, params.GroupID)
-	if err != nil {
-		return nil, nil, err
-	}
+	//members, err := s.groupRepo.GetGroupMembers(ctx, params.GroupID)
+	//if err != nil {
+	//	return nil, nil, err
+	//}
+	//
+	//userIDs := make([]uint64, 0)
+	//for _, member := range members {
+	//	if member.UserID != params.SenderID {
+	//		userIDs = append(userIDs, member.UserID)
+	//	}
+	//}
 
-	userIDs := make([]uint64, 0)
-	for _, member := range members {
-		if member.UserID != params.SenderID {
-			userIDs = append(userIDs, member.UserID)
+	// 3.  发送到 Redis Stream（异步）
+	go func() {
+		payload, _ := json.Marshal(msg)
+		_, err := redis_util.ProduceMessage(context.Background(), redis_util.GroupMsgStream, map[string]interface{}{
+			"message_id": msg.MessageID,
+			"payload":    string(payload),
+		})
+		if err != nil {
+			fmt.Printf("发送消息到 Stream 失败: %v\n", err)
 		}
-	}
+	}()
 
-	return msg, userIDs, nil
+	return msg, nil
 }

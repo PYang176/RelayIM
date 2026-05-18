@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/consumer"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/task"
@@ -33,6 +34,11 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	heartbeatTask := task.NewHeartbeatSyncTask(userRepo)
 	go heartbeatTask.Start()
+
+	// 启动 Redis Stream 消费者
+	msgRepo := repository.NewMessageRepository(db)
+	msgConsumer := consumer.NewGroupMsgConsumer(msgRepo)
+	go msgConsumer.Start()
 
 	r := router.Router(db)
 	err = r.Run(":8081") // listens on 0.0.0.0:8080 by default
