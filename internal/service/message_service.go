@@ -105,8 +105,13 @@ func (s *MessageService) sendText(ctx context.Context, params SendMessageParams)
 	//	msg.Status = model.MsgUndelivered // 离线 → 未送达
 	//}
 	msg.Status = model.MsgUndelivered // 离线 → 未送达
+	// 3. 异步入库（不阻塞响应）
+	go func() {
+		s.repo.Create(context.Background(), msg)
+	}()
 
-	return msg.MessageID, s.repo.Create(ctx, msg)
+	// 4. 立即返回
+	return msg.MessageID, nil
 }
 
 // PullOfflineMessages 拉取离线消息

@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"ginChatProject/internal/model"
+	"ginChatProject/utils/redis_util"
 	"gorm.io/gorm"
+	"time"
 )
 
 type FriendRepository struct {
@@ -15,14 +18,37 @@ func NewFriendRepository(db *gorm.DB) *FriendRepository {
 	return &FriendRepository{db: db}
 }
 
-// CheckFriendShip 检查是否为好友
+// CheckFriendShip 检查是否为好友(增加带缓存版本)
 func (r *FriendRepository) CheckFriendShip(ctx context.Context, userID uint64, friendID uint64) (bool, error) {
+	// 1. 先查 Redis
+	cacheKey := fmt.Sprintf("friend:relation:%d:%d", userID, friendID)
+	val, err := redis_util.RDB.Get(ctx, cacheKey).Int()
+	if err == nil {
+		return val == 1, nil // 命中缓存，直接返回
+	}
+
+	// 2. Redis 没有，查数据库
 	var count int64
-	err := r.db.WithContext(ctx).
+	err = r.db.WithContext(ctx).
 		Model(&model.FriendRelation{}).
-		Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)", userID, friendID, friendID, userID).
+		Where("(user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+			userID, friendID, friendID, userID).
 		Count(&count).Error
-	return count > 0, err
+
+	if err != nil {
+		return false, err
+	}
+
+	isFriend := count > 0
+
+	// 3. 回种缓存（设置 1 小时过期，防止脏数据）
+	if isFriend {
+		redis_util.RDB.Set(ctx, cacheKey, 1, 1*time.Hour)
+	} else {
+		redis_util.RDB.Set(ctx, cacheKey, 0, 1*time.Hour)
+	}
+
+	return isFriend, nil
 }
 
 // CreateRequest 创建好友申请

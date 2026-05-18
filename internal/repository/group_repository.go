@@ -36,7 +36,7 @@ func (r *GroupRepository) RemoveMember(ctx context.Context, groupID uint64, user
 func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID uint64) (*model.GroupBasic, error) {
 	var group model.GroupBasic
 	err := r.db.WithContext(ctx).
-		Where("group_id = ?", groupID).
+		Where("id = ?", groupID).
 		Model(&model.GroupBasic{}).
 		First(&group).Error
 	return &group, err
