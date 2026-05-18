@@ -6,18 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"ginChatProject/internal/model"
-	"ginChatProject/internal/online"
 	"ginChatProject/internal/repository"
+	"ginChatProject/internal/workerpool"
 	"ginChatProject/utils/redis_util"
 	"ginChatProject/utils/snowflake"
 	"time"
 )
 
 type MessageService struct {
-	repo          *repository.MessageRepository
-	friendRepo    *repository.FriendRepository
-	groupRepo     *repository.GroupRepository
-	onlineChecker online.OnlineChecker
+	repo       *repository.MessageRepository
+	friendRepo *repository.FriendRepository
+	groupRepo  *repository.GroupRepository
+	workerPool *workerpool.WorkerPool // 线程池
 }
 
 // SendMessageParams 发送消息参数
@@ -42,12 +42,10 @@ type SendGroupMessageParams struct {
 func NewMessageService(repo *repository.MessageRepository,
 	friendRepo *repository.FriendRepository,
 	groupRepo *repository.GroupRepository,
-	checker online.OnlineChecker,
 ) *MessageService {
 	return &MessageService{repo: repo,
-		friendRepo:    friendRepo,
-		groupRepo:     groupRepo,
-		onlineChecker: checker}
+		friendRepo: friendRepo,
+		groupRepo:  groupRepo}
 }
 
 // Send 发送消息总方法，根据消息类型进行处理

@@ -35,16 +35,19 @@ func main() {
 	heartbeatTask := task.NewHeartbeatSyncTask(userRepo)
 	go heartbeatTask.Start()
 
-	// 启动 Redis Stream 消费者
+	/// 启动 Redis Stream 消费者
 	msgRepo := repository.NewMessageRepository(db)
-	msgConsumer := consumer.NewGroupMsgConsumer(msgRepo)
-	go msgConsumer.Start()
+	groupRepo := repository.NewGroupRepository(db)
+	msgConsumer := consumer.NewGroupMsgConsumer(msgRepo, groupRepo)
+	msgConsumer.Start()
 
+	// 启动gin服务
 	r := router.Router(db)
 	err = r.Run(":8081") // listens on 0.0.0.0:8080 by default
 	if err != nil {
 		return
 	}
+
 }
 
 //func main() {

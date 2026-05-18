@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"ginChatProject/internal/model"
 	"ginChatProject/internal/repository"
+	"ginChatProject/internal/workerpool"
 	"ginChatProject/internal/ws"
 	"ginChatProject/utils/redis_util"
 	"github.com/redis/go-redis/v9"
@@ -13,11 +14,20 @@ import (
 )
 
 type GroupMsgConsumer struct {
-	msgRepo *repository.MessageRepository
+	msgRepo    *repository.MessageRepository
+	workerPool *workerpool.WorkerPool //  加入线程池
+	groupRepo  *repository.GroupRepository
 }
 
-func NewGroupMsgConsumer(msgRepo *repository.MessageRepository) *GroupMsgConsumer {
-	return &GroupMsgConsumer{msgRepo: msgRepo}
+func NewGroupMsgConsumer(msgRepo *repository.MessageRepository, groupRepo *repository.GroupRepository) *GroupMsgConsumer {
+	// 创建线程池：10个worker，队列容量1000
+	wp := workerpool.NewWorkerPool(10, 1000)
+
+	return &GroupMsgConsumer{
+		msgRepo:    msgRepo,
+		workerPool: wp,
+		groupRepo:  groupRepo,
+	}
 }
 
 // Start 启动消费者
@@ -29,6 +39,9 @@ func (c *GroupMsgConsumer) Start() {
 		panic(fmt.Sprintf("初始化 Redis Stream 失败: %v", err))
 	}
 
+	// 启动线程池
+	c.workerPool.Start()
+
 	// 启动多个消费者实例
 	for i := 0; i < 3; i++ {
 		go c.consume(i)
@@ -38,12 +51,17 @@ func (c *GroupMsgConsumer) Start() {
 	go c.retryFailedMessages()
 }
 
+// Stop 停止消费者
+func (c *GroupMsgConsumer) Stop() {
+	c.workerPool.Stop()
+}
+
 // consume 消费消息
 func (c *GroupMsgConsumer) consume(workerID int) {
 	ctx := context.Background()
 	consumerName := fmt.Sprintf("worker-%d", workerID)
 
-	fmt.Printf("🚀 消费者 %s 启动\n", consumerName)
+	fmt.Printf(" 消费者 %s 启动\n", consumerName)
 
 	for {
 		// 读取消息
@@ -74,7 +92,7 @@ func (c *GroupMsgConsumer) consume(workerID int) {
 
 // processMessage 处理单条消息
 func (c *GroupMsgConsumer) processMessage(ctx context.Context, msg redis.XMessage, consumerName string) {
-	// 1. 解析消息
+	// 解析消息
 	messageID := msg.Values["message_id"].(string)
 	payload := msg.Values["payload"].(string)
 
@@ -84,44 +102,46 @@ func (c *GroupMsgConsumer) processMessage(ctx context.Context, msg redis.XMessag
 		return
 	}
 
-	// 2. 获取群成员
+	// 获取群成员
 	members, err := c.getGroupMembers(ctx, message.ReceiverID)
 	if err != nil {
 		fmt.Printf("获取群成员失败: %v\n", err)
 		return
 	}
 
-	// 3. 推送给在线成员
-	successCount := 0
+	// 为每个群成员创建推送任务
 	for _, member := range members {
 		if member.UserID == message.SenderID {
 			continue
 		}
 
-		if ws.Manager.IsOnline(uint(member.UserID)) {
-			pushMsg := ws.WsMessage{
-				Action:     ws.ActionMessage,
-				MessageID:  message.MessageID,
-				SenderID:   message.SenderID,
-				ReceiverID: message.ReceiverID,
-				MsgType:    int(message.MsgType),
-				Content:    message.Content,
-				URL:        message.URL,
-			}
+		// 只给在线用户推送
+		if !ws.Manager.IsOnline(uint(member.UserID)) {
+			continue
+		}
 
-			data, _ := json.Marshal(pushMsg)
-			if ws.Manager.Send(uint(member.UserID), data) {
-				successCount++
-			}
+		// 创建推送任务并提交给线程池
+		task := &workerpool.Task{
+			ID: fmt.Sprintf("push_%s_to_%d", messageID, member.UserID),
+			Execute: func() error {
+				return c.pushToUser(message, member.UserID)
+			},
+			OnSuccess: func() {
+				// 更新消息状态（可选）
+				c.msgRepo.UpdateStatus(ctx, messageID, model.MsgDelivered)
+			},
+			OnError: func(err error) {
+				fmt.Printf("推送消息 %s 给用户 %d 失败: %v\n", messageID, member.UserID, err)
+			},
+		}
+
+		// 提交任务
+		if !c.workerPool.Submit(task) {
+			fmt.Printf(" 推送任务 %s 被丢弃（队列满）\n", task.ID)
 		}
 	}
 
-	// 4. 更新消息状态
-	if successCount > 0 {
-		c.msgRepo.UpdateStatus(ctx, messageID, model.MsgDelivered)
-	}
-
-	// 5. 确认消息已处理
+	// 确认消息已处理
 	if err := redis_util.AcknowledgeMessage(
 		ctx,
 		redis_util.GroupMsgStream,
@@ -130,9 +150,30 @@ func (c *GroupMsgConsumer) processMessage(ctx context.Context, msg redis.XMessag
 	); err != nil {
 		fmt.Printf("确认消息失败: %v\n", err)
 	}
+}
 
-	fmt.Printf("✅ 消费者 %s 处理消息 %s 完成，推送 %d 人\n",
-		consumerName, messageID, successCount)
+// pushToUser 推送消息给单个用户
+func (c *GroupMsgConsumer) pushToUser(message model.Message, userID uint64) error {
+	pushMsg := ws.WsMessage{
+		Action:     ws.ActionMessage,
+		MessageID:  message.MessageID,
+		SenderID:   message.SenderID,
+		ReceiverID: message.ReceiverID,
+		MsgType:    int(message.MsgType),
+		Content:    message.Content,
+		URL:        message.URL,
+	}
+
+	data, err := json.Marshal(pushMsg)
+	if err != nil {
+		return fmt.Errorf("序列化消息失败: %v", err)
+	}
+
+	if !ws.Manager.Send(uint(userID), data) {
+		return fmt.Errorf("用户 %d 不在线", userID)
+	}
+
+	return nil
 }
 
 // retryFailedMessages 重试失败的消息
@@ -163,7 +204,5 @@ func (c *GroupMsgConsumer) retryFailedMessages() {
 
 // getGroupMembers 获取群成员
 func (c *GroupMsgConsumer) getGroupMembers(ctx context.Context, groupID uint64) ([]*model.GroupMember, error) {
-	// 这里需要实现获取群成员的逻辑
-	// 暂时返回一个空切片，你需要补充 repository 方法
-	return []*model.GroupMember{}, nil
+	return c.groupRepo.GetGroupMembers(ctx, groupID)
 }
