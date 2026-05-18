@@ -44,7 +44,7 @@ func (h *MessageHandler) Send(c *gin.Context) {
 	// 调用 Service 发送消息
 	messageID, err := h.msgService.Send(c.Request.Context(), params)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "消息发送失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
