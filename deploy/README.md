@@ -5,9 +5,8 @@ application to be containerized yet:
 
 - RabbitMQ 4.3.7 with management and Prometheus plugins.
 - Redis 7.4 with AOF persistence and password authentication.
-- A legacy MinIO image behind an optional profile. MinIO Community Edition is
-  source-only and no longer maintained, so object storage will be selected
-  during the media milestone.
+- SeaweedFS 4.52 as an actively maintained S3-compatible object store for
+  images and files.
 - Prometheus for metrics collection.
 - Grafana for dashboards.
 
@@ -30,8 +29,7 @@ Start the stack:
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 ```
 
-The default stack starts RabbitMQ, Redis, Prometheus and Grafana. The legacy
-MinIO container is excluded unless its `legacy-minio` profile is enabled.
+The default stack starts RabbitMQ, Redis, SeaweedFS, Prometheus and Grafana.
 
 Check status and logs:
 
@@ -62,6 +60,7 @@ Grafana configuration may be discarded.
 | RabbitMQ AMQP | `localhost:5672` |
 | RabbitMQ Management | http://localhost:15672 |
 | Redis | `localhost:6379` |
+| SeaweedFS S3 | http://localhost:8333 |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 |
 
@@ -87,18 +86,12 @@ The `ginchat-app` scrape target points to `host.docker.internal:8081`. It will
 remain down until the Go service implements a Prometheus `/metrics` endpoint.
 This is expected during the initial setup.
 
-## Legacy MinIO profile
+## Object storage
 
-MinIO Community Edition is no longer distributed as a maintained container
-image. The Compose file keeps the old image only behind an optional profile so
-that it cannot block the default development environment.
+SeaweedFS exposes an S3-compatible endpoint at `http://localhost:8333`. The
+Compose file uses `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` as the S3
+credentials for compatibility with the current environment file. The bucket
+defaults to `ginchat-media` and can be changed with `S3_BUCKET`.
 
-Do not enable this profile unless the legacy image has been reviewed and is
-available through a trusted registry:
-
-```powershell
-docker compose --env-file deploy\.env -f deploy\docker-compose.yml --profile legacy-minio up -d minio
-```
-
-The media storage decision must be revisited before implementing image and file
-messages.
+MySQL should store only attachment metadata such as object key, MIME type,
+size and checksum. Image and file bytes belong in object storage.
