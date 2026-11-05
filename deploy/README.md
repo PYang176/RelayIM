@@ -5,7 +5,9 @@ application to be containerized yet:
 
 - RabbitMQ 4.3.7 with management and Prometheus plugins.
 - Redis 7.4 with AOF persistence and password authentication.
-- MinIO for images and files.
+- A legacy MinIO image behind an optional profile. MinIO Community Edition is
+  source-only and no longer maintained, so object storage will be selected
+  during the media milestone.
 - Prometheus for metrics collection.
 - Grafana for dashboards.
 
@@ -27,6 +29,9 @@ Start the stack:
 ```powershell
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 ```
+
+The default stack starts RabbitMQ, Redis, Prometheus and Grafana. The legacy
+MinIO container is excluded unless its `legacy-minio` profile is enabled.
 
 Check status and logs:
 
@@ -57,8 +62,6 @@ Grafana configuration may be discarded.
 | RabbitMQ AMQP | `localhost:5672` |
 | RabbitMQ Management | http://localhost:15672 |
 | Redis | `localhost:6379` |
-| MinIO API | http://localhost:9000 |
-| MinIO Console | http://localhost:9001 |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 |
 
@@ -83,3 +86,19 @@ RabbitMQ metrics are available to Prometheus at `rabbitmq:15692`.
 The `ginchat-app` scrape target points to `host.docker.internal:8081`. It will
 remain down until the Go service implements a Prometheus `/metrics` endpoint.
 This is expected during the initial setup.
+
+## Legacy MinIO profile
+
+MinIO Community Edition is no longer distributed as a maintained container
+image. The Compose file keeps the old image only behind an optional profile so
+that it cannot block the default development environment.
+
+Do not enable this profile unless the legacy image has been reviewed and is
+available through a trusted registry:
+
+```powershell
+docker compose --env-file deploy\.env -f deploy\docker-compose.yml --profile legacy-minio up -d minio
+```
+
+The media storage decision must be revisited before implementing image and file
+messages.
