@@ -13,13 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"ginChatProject/internal/config"
 	"ginChatProject/internal/consumer"
 	"ginChatProject/internal/platform/bootstrap"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/task"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -45,11 +43,7 @@ func Run() error {
 		return err
 	}
 
-	var mysqlCfg config.MySQLConfig
-	if err := viper.UnmarshalKey("mysql", &mysqlCfg); err != nil {
-		return fmt.Errorf("解析 MySQL 配置失败: %w", err)
-	}
-
+	mysqlCfg := bootstrap.LoadMySQLConfig()
 	db, err := bootstrap.InitMySQL(mysqlCfg)
 	if err != nil {
 		return fmt.Errorf("初始化 MySQL 失败: %w", err)

@@ -69,3 +69,31 @@ func TestBindConfigEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GINCHAT_MYSQL_HOST", "127.0.0.1")
+	t.Setenv("GINCHAT_MYSQL_PORT", "3307")
+	t.Setenv("GINCHAT_MYSQL_USER", "test-user")
+	t.Setenv("GINCHAT_MYSQL_PASSWORD", "test-password")
+	t.Setenv("GINCHAT_MYSQL_DBNAME", "ginchat_v2")
+	t.Setenv("GINCHAT_MYSQL_CHARSET", "utf8mb4")
+	t.Setenv("GINCHAT_MYSQL_PARSE_TIME", "true")
+	t.Setenv("GINCHAT_MYSQL_LOCATION", "UTC")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+
+	cfg := loadMySQLConfig(v)
+	if cfg.Host != "127.0.0.1" ||
+		cfg.Port != 3307 ||
+		cfg.User != "test-user" ||
+		cfg.Password != "test-password" ||
+		cfg.DBName != "ginchat_v2" ||
+		cfg.Config.Charset != "utf8mb4" ||
+		!cfg.Config.ParseTime ||
+		cfg.Config.Loc != "UTC" {
+		t.Fatalf("LoadMySQLConfig() = %+v，环境变量没有正确覆盖 YAML 默认值", cfg)
+	}
+}

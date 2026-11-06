@@ -69,6 +69,27 @@ func bindConfigEnv(v *viper.Viper) error {
 	return nil
 }
 
+// LoadMySQLConfig 从 Viper 读取 MySQL 配置。
+// 逐字段读取可以确保已绑定的 GINCHAT_* 环境变量可靠覆盖 YAML 中的空值。
+func LoadMySQLConfig() config.MySQLConfig {
+	return loadMySQLConfig(viper.GetViper())
+}
+
+func loadMySQLConfig(v *viper.Viper) config.MySQLConfig {
+	return config.MySQLConfig{
+		Host:     v.GetString("mysql.host"),
+		Port:     v.GetInt("mysql.port"),
+		User:     v.GetString("mysql.user"),
+		Password: v.GetString("mysql.password"),
+		DBName:   v.GetString("mysql.dbname"),
+		Config: config.MySQLExtraConfig{
+			Charset:   v.GetString("mysql.config.charset"),
+			ParseTime: v.GetBool("mysql.config.parseTime"),
+			Loc:       v.GetString("mysql.config.loc"),
+		},
+	}
+}
+
 // InitMySQL 初始化Mysql数据库连接对象
 func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 	dsn := GetMySQLDsn(cfg)
@@ -102,9 +123,9 @@ func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 
 // InitJWT 从配置文件初始化密钥和过期时间
 func InitJWT() error {
-	if err := viper.UnmarshalKey("jwt", &jwt.JwtCfg); err != nil {
-		return fmt.Errorf("解析 JWT 配置失败: %w", err)
-	}
+	v := viper.GetViper()
+	jwt.JwtCfg.Secret = v.GetString("jwt.secret")
+	jwt.JwtCfg.ExpireHours = v.GetInt("jwt.expire_hours")
 	if strings.TrimSpace(jwt.JwtCfg.Secret) == "" {
 		return fmt.Errorf("JWT 密钥不能为空")
 	}
@@ -116,9 +137,12 @@ func InitJWT() error {
 
 // InitRedis 从配置文件初始化redis连接
 func InitRedis() error {
-	var redisCfg config.RedisConfig
-	if err := viper.UnmarshalKey("redis", &redisCfg); err != nil {
-		return fmt.Errorf("解析 Redis 配置失败: %w", err)
+	v := viper.GetViper()
+	redisCfg := config.RedisConfig{
+		Host:     v.GetString("redis.host"),
+		Port:     v.GetInt("redis.port"),
+		Password: v.GetString("redis.password"),
+		DB:       v.GetInt("redis.db"),
 	}
 	if err := redisstore.InitRedis(redisCfg); err != nil {
 		return fmt.Errorf("初始化 Redis 失败: %w", err)
