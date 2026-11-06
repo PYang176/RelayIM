@@ -1,103 +1,157 @@
-# GinChat Docker Infrastructure
+# GinChat Docker 基础设施
 
-This Compose stack starts the project dependencies that do not require the Go
-application to be containerized yet:
+这套 Compose 配置用于启动项目依赖，暂时不要求把 Go 应用也放进容器：
 
-- RabbitMQ 4.3.7 with management and Prometheus plugins.
-- Redis 7.4 with AOF persistence and password authentication.
-- SeaweedFS 4.52 as an actively maintained S3-compatible object store for
-  images and files.
-- Prometheus for metrics collection.
-- Grafana for dashboards.
+- RabbitMQ 4.3.7，包含管理界面和 Prometheus 指标插件。
+- Redis 7.4，启用 AOF 持久化和密码认证。
+- SeaweedFS 4.52，用于图片和文件的 S3 兼容对象存储。
+- Prometheus，负责采集指标。
+- Grafana，负责展示指标面板。
 
-MySQL is intentionally not included. The development environment continues to
-use the existing MySQL 8.0.34 service on the Windows host.
+MySQL 暂不放入 Compose。开发环境继续使用 Windows 本机的 MySQL 8.0.34。
 
-## First start
+## 首次启动
 
-Run these commands from the repository root:
+在项目根目录执行：
 
 ```powershell
 Copy-Item deploy\.env.example deploy\.env
 ```
 
-Edit `deploy\.env` and replace every password.
+修改 `deploy\.env`，把示例密码替换为本地开发密码。
 
-Start the stack:
+启动全部基础设施：
 
 ```powershell
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 ```
 
-The default stack starts RabbitMQ, Redis, SeaweedFS, Prometheus and Grafana.
+默认会启动 RabbitMQ、Redis、SeaweedFS、Prometheus 和 Grafana。
 
-Check status and logs:
+查看状态和日志：
 
 ```powershell
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml ps
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml logs -f rabbitmq
 ```
 
-Stop the stack without deleting data:
+停止服务但保留数据：
 
 ```powershell
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml down
 ```
 
-To remove containers and persisted data:
+删除容器和全部持久化数据：
 
 ```powershell
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml down -v
 ```
 
-Do not use `down -v` unless RabbitMQ messages, MinIO files, Prometheus data and
-Grafana configuration may be discarded.
+只有确认 RabbitMQ 消息、SeaweedFS 文件、Prometheus 指标和 Grafana 配置都可以丢弃时，才能使用 `down -v`。
 
-## Local endpoints
+## 本地访问地址
 
-| Service | URL or address |
+| 服务 | 地址 |
 | --- | --- |
 | RabbitMQ AMQP | `localhost:5672` |
-| RabbitMQ Management | http://localhost:15672 |
+| RabbitMQ 管理界面 | http://localhost:15672 |
 | Redis | `localhost:6379` |
 | SeaweedFS S3 | http://localhost:8333 |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 |
 
-Use the credentials configured in `deploy\.env`.
+账号和密码以 `deploy\.env` 为准。
 
-The RabbitMQ connection URL for a Go process running on Windows is:
+## RabbitMQ VHost
 
-```text
-amqp://<RABBITMQ_DEFAULT_USER>:<RABBITMQ_DEFAULT_PASS>@localhost:5672/<RABBITMQ_VHOST>
-```
+AMQP URI 中的 `/` 是路径分隔符，不是 VHost 名称的一部分。
 
-VHost names do not include the path separator used in the AMQP URI. For the
-example VHost `ginchat`, the URL is:
+推荐使用不带前导斜杠的 VHost 名称：
 
 ```text
-amqp://ginchat:change-me@localhost:5672/ginchat
+ginchat
 ```
 
-If an existing container was created with `RABBITMQ_VHOST=/ginchat`, the
-leading slash is part of the VHost name. Either connect with
-`/%2Fginchat`, or create the simpler `ginchat` VHost and set
-`RABBITMQ_VHOST=ginchat` in `.env`.
+此时 Windows 上的 Go 程序使用以下连接地址：
 
-## Metrics status
+```text
+amqp://<RABBITMQ_DEFAULT_USER>:<RABBITMQ_DEFAULT_PASS>@localhost:5672/ginchat
+```
 
-RabbitMQ metrics are available to Prometheus at `rabbitmq:15692`.
+配置示例：
 
-The `ginchat-app` scrape target points to `host.docker.internal:8081`. It will
-remain down until the Go service implements a Prometheus `/metrics` endpoint.
-This is expected during the initial setup.
+```text
+amqp://admin:你的密码@localhost:5672/ginchat
+```
 
-## Object storage
+### 已有数据卷的 VHost 初始化
 
-SeaweedFS exposes an S3-compatible endpoint at `http://localhost:8333`. The
-Compose file uses `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` as the S3
-credentials for compatibility with the current environment file. The bucket
-defaults to `ginchat-media` and can be changed with `S3_BUCKET`.
+修改 `.env` 中的 `RABBITMQ_VHOST` 不会自动修改已经存在的 RabbitMQ 数据卷。
 
-MySQL should store only attachment metadata such as object key, MIME type,
-size and checksum. Image and file bytes belong in object storage.
+如果当前 VHost 是 `/ginchat`，需要一次性创建新的 `ginchat` VHost：
+
+```powershell
+docker exec ginchat-rabbitmq rabbitmqctl add_vhost ginchat
+docker exec ginchat-rabbitmq rabbitmqctl set_permissions -p ginchat admin ".*" ".*" ".*"
+```
+
+随后修改 `deploy\.env`：
+
+```text
+RABBITMQ_VHOST=ginchat
+```
+
+确认 VHost：
+
+```powershell
+docker exec ginchat-rabbitmq rabbitmqctl list_vhosts
+```
+
+也可以保留已有的 `/ginchat` VHost，但连接地址必须对前导斜杠编码：
+
+```text
+amqp://admin:你的密码@localhost:5672/%2Fginchat
+```
+
+## 指标状态
+
+RabbitMQ 的 Prometheus 指标地址是：
+
+```text
+rabbitmq:15692
+```
+
+`ginchat-app` 的抓取地址是：
+
+```text
+host.docker.internal:8081
+```
+
+Go 服务实现 `/metrics` 接口之前，这个目标在 Prometheus 中会显示为 DOWN，属于正常状态。
+
+## 对象存储
+
+SeaweedFS 的 S3 兼容接口地址是：
+
+```text
+http://localhost:8333
+```
+
+当前 Compose 使用以下变量作为 S3 凭据：
+
+```text
+MINIO_ROOT_USER
+MINIO_ROOT_PASSWORD
+```
+
+这样命名是为了兼容当前环境文件。后续实现媒体功能时可以统一改成更中性的 `S3_ACCESS_KEY_ID` 和 `S3_SECRET_ACCESS_KEY`。
+
+默认 Bucket：
+
+```text
+ginchat-media
+```
+
+可以通过 `S3_BUCKET` 修改。
+
+MySQL 只保存附件的对象键、MIME 类型、大小和校验值等元数据，图片和文件本体保存在 SeaweedFS 中。
