@@ -1,7 +1,7 @@
 package user
 
 import (
-	"ginChatProject/internal/handler"
+	"ginChatProject/internal/api"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/service"
@@ -14,7 +14,7 @@ func Register(r *gin.Engine, db *gorm.DB) {
 
 	repo := repository.NewUserRepository(db)
 	svc := service.NewUserService(repo)
-	h := handler.NewUserHandler(svc)
+	h := api.NewUserHandler(svc)
 	//登录方法
 	r.POST("/users/login", h.Login)
 	//注册方法

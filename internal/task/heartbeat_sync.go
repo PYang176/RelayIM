@@ -3,8 +3,8 @@ package task
 import (
 	"context"
 	"fmt"
+	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/repository"
-	"ginChatProject/utils/redis_util"
 	"time"
 )
 
@@ -32,7 +32,7 @@ func (t *HeartbeatSyncTask) sync() error {
 	ctx := context.Background()
 
 	// 1. 从 Redis 获取所有心跳 key
-	keys, err := redis_util.RDB.Keys(ctx, "heartbeat:*").Result()
+	keys, err := redisstore.RDB.Keys(ctx, "heartbeat:*").Result()
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func (t *HeartbeatSyncTask) sync() error {
 		fmt.Sscanf(key, "heartbeat:%d", &userID)
 
 		// 获取心跳时间戳
-		ts, err := redis_util.RDB.Get(ctx, key).Int64()
+		ts, err := redisstore.RDB.Get(ctx, key).Int64()
 		if err != nil {
 			continue
 		}

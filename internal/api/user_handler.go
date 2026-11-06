@@ -1,11 +1,11 @@
-package handler
+package api
 
 import (
 	"fmt"
 	"ginChatProject/internal/dto"
+	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/service"
-	"ginChatProject/utils/jwt"
-	"ginChatProject/utils/redis_util"
 	"github.com/gin-gonic/gin"
 	"net"
 	"net/http"
@@ -203,11 +203,11 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	claims, _ := jwt.ParseToken(tokenStr)
 	blacklistKey := fmt.Sprintf("blacklist:%s", claims.JTI)
 	ttl := time.Until(claims.ExpiresAt.Time)
-	redis_util.RDB.Set(c, blacklistKey, "1", ttl)
+	redisstore.RDB.Set(c, blacklistKey, "1", ttl)
 
 	// 删除 Redis 中的 token
 	redisKey := fmt.Sprintf("token:%s", tokenStr)
-	redis_util.RDB.Del(c, redisKey)
+	redisstore.RDB.Del(c, redisKey)
 
 	c.JSON(http.StatusOK, gin.H{"message": "退出成功"})
 }

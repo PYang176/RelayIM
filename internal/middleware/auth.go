@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"fmt"
-	"ginChatProject/utils/jwt"
-	"ginChatProject/utils/redis_util"
+	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/platform/redisstore"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -37,7 +37,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 使用JTI作为Redis黑名单key
 		blacklistKey := fmt.Sprintf("blacklist:%s", claims.JTI)
 		// 拿到结果集
-		exists, _ := redis_util.RDB.Exists(context, blacklistKey).Result()
+		exists, _ := redisstore.RDB.Exists(context, blacklistKey).Result()
 		if exists > 0 {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token已失效"})
 			return
@@ -45,7 +45,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 进行Redis校验
 		key := fmt.Sprintf("token:%s", tokenStr)
-		val, err := redis_util.RDB.Get(context, key).Result()
+		val, err := redisstore.RDB.Get(context, key).Result()
 		if err != nil || val == "" {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "token 已失效，请重新登录",

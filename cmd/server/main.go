@@ -4,28 +4,28 @@ import (
 	"fmt"
 	"ginChatProject/internal/config"
 	"ginChatProject/internal/consumer"
+	"ginChatProject/internal/platform/bootstrap"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/task"
-	"ginChatProject/utils"
 	"github.com/spf13/viper"
 )
 
 func main() {
 	// 初始化配置信息
-	utils.InitConfig()
+	bootstrap.InitConfig()
 	// 初始化token
-	utils.InitJWT()
+	bootstrap.InitJWT()
 	// 初始化redis
-	utils.InitRedis()
+	bootstrap.InitRedis()
 	// 初始化 Snowflake（workerID 从配置读取）
-	utils.InitSnowFlake()
+	bootstrap.InitSnowFlake()
 
 	cfg := config.MySQLConfig{}
 	_ = viper.UnmarshalKey("mysql", &cfg)
 
 	// 初始化Mysql
-	db, err := utils.InitMySQL(cfg)
+	db, err := bootstrap.InitMySQL(cfg)
 	if err != nil {
 		panic(fmt.Sprintf("数据库连接失败: %v", err))
 	}

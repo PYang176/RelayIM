@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/service"
-	"ginChatProject/utils/jwt"
-	"ginChatProject/utils/redis_util"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"log"
@@ -49,7 +49,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 
 	// 从Redis里面查token进行比对
 	key := fmt.Sprintf("token:%s", tokenStr)
-	val, err := redis_util.RDB.Get(c, key).Result()
+	val, err := redisstore.RDB.Get(c, key).Result()
 	if err != nil || val == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "token 已经过期"})
 		return
@@ -83,7 +83,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		// 更新 Redis 中的心跳时间
 		go func(uid uint) {
 			key := fmt.Sprintf("heartbeat:%d", uid)
-			redis_util.RDB.Set(
+			redisstore.RDB.Set(
 				context.Background(),
 				key,
 				time.Now().Unix(),

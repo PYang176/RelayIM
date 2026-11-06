@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"ginChatProject/internal/model"
+	"ginChatProject/internal/platform/redisstore"
+	"ginChatProject/internal/platform/snowflake"
+	"ginChatProject/internal/platform/workerpool"
 	"ginChatProject/internal/repository"
-	"ginChatProject/internal/workerpool"
-	"ginChatProject/utils/redis_util"
-	"ginChatProject/utils/snowflake"
 	"time"
 )
 
@@ -200,7 +200,7 @@ func (s *MessageService) SendGroupMessage(ctx context.Context, params SendGroupM
 	// 3.  发送到 Redis Stream（异步）
 	go func() {
 		payload, _ := json.Marshal(msg)
-		_, err := redis_util.ProduceMessage(context.Background(), redis_util.GroupMsgStream, map[string]interface{}{
+		_, err := redisstore.ProduceMessage(context.Background(), redisstore.GroupMsgStream, map[string]interface{}{
 			"message_id": msg.MessageID,
 			"payload":    string(payload),
 		})

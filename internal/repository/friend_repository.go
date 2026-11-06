@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"ginChatProject/internal/model"
-	"ginChatProject/utils/redis_util"
+	"ginChatProject/internal/platform/redisstore"
 	"gorm.io/gorm"
 	"time"
 )
@@ -22,7 +22,7 @@ func NewFriendRepository(db *gorm.DB) *FriendRepository {
 func (r *FriendRepository) CheckFriendShip(ctx context.Context, userID uint64, friendID uint64) (bool, error) {
 	// 1. 先查 Redis
 	cacheKey := fmt.Sprintf("friend:relation:%d:%d", userID, friendID)
-	val, err := redis_util.RDB.Get(ctx, cacheKey).Int()
+	val, err := redisstore.RDB.Get(ctx, cacheKey).Int()
 	if err == nil {
 		return val == 1, nil // 命中缓存，直接返回
 	}
@@ -43,9 +43,9 @@ func (r *FriendRepository) CheckFriendShip(ctx context.Context, userID uint64, f
 
 	// 3. 回种缓存（设置 1 小时过期，防止脏数据）
 	if isFriend {
-		redis_util.RDB.Set(ctx, cacheKey, 1, 1*time.Hour)
+		redisstore.RDB.Set(ctx, cacheKey, 1, 1*time.Hour)
 	} else {
-		redis_util.RDB.Set(ctx, cacheKey, 0, 1*time.Hour)
+		redisstore.RDB.Set(ctx, cacheKey, 0, 1*time.Hour)
 	}
 
 	return isFriend, nil

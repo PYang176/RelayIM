@@ -1,7 +1,7 @@
 package group
 
 import (
-	"ginChatProject/internal/handler"
+	"ginChatProject/internal/api"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/service"
@@ -12,7 +12,7 @@ import (
 func Register(r *gin.Engine, db *gorm.DB) {
 	groupRepo := repository.NewGroupRepository(db)
 	groupService := service.NewGroupService(groupRepo)
-	groupHandler := handler.NewGroupHandler(groupService)
+	groupHandler := api.NewGroupHandler(groupService)
 
 	groups := r.Group("/groups")
 	groups.Use(middleware.AuthMiddleware())

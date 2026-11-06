@@ -1,7 +1,7 @@
 package message
 
 import (
-	"ginChatProject/internal/handler"
+	"ginChatProject/internal/api"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/service"
@@ -16,7 +16,7 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	groupRepo := repository.NewGroupRepository(db)
 	msgRepo := repository.NewMessageRepository(db)
 	msgService := service.NewMessageService(msgRepo, friendRepo, groupRepo)
-	msgHandler := handler.NewMessageHandler(msgService)
+	msgHandler := api.NewMessageHandler(msgService)
 
 	msgGroup := r.Group("/messages")
 	msgGroup.Use(middleware.AuthMiddleware())

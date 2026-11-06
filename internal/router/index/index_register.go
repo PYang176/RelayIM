@@ -1,12 +1,12 @@
 package index
 
 import (
-	"ginChatProject/internal/handler"
+	"ginChatProject/internal/api"
 	"github.com/gin-gonic/gin"
 )
 
 func Register(r *gin.Engine) {
-	indexHandler := handler.NewIndexHandler()
+	indexHandler := api.NewIndexHandler()
 	r.GET("/", indexHandler.Index)
 }
 

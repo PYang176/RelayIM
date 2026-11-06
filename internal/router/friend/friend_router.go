@@ -1,7 +1,7 @@
 package friend
 
 import (
-	"ginChatProject/internal/handler"
+	"ginChatProject/internal/api"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/service"
@@ -13,7 +13,7 @@ import (
 func Register(r *gin.Engine, db *gorm.DB) {
 	friendRepo := repository.NewFriendRepository(db)
 	friendService := service.NewFriendService(friendRepo)
-	friendHandler := handler.NewFriendHandler(friendService)
+	friendHandler := api.NewFriendHandler(friendService)
 
 	friendGroup := r.Group("/friends")
 	friendGroup.Use(middleware.AuthMiddleware())

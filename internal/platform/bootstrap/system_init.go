@@ -1,11 +1,11 @@
-package utils
+package bootstrap
 
 import (
 	"fmt"
 	"ginChatProject/internal/config"
-	"ginChatProject/utils/jwt"
-	"ginChatProject/utils/redis_util"
-	"ginChatProject/utils/snowflake"
+	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/platform/redisstore"
+	"ginChatProject/internal/platform/snowflake"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -81,7 +81,7 @@ func InitRedis() {
 	if err != nil {
 		panic(fmt.Sprintf("解析 redis 配置失败: %v", err))
 	}
-	redis_util.InitRedis(redisCfg)
+	redisstore.InitRedis(redisCfg)
 }
 
 // InitSnowFlake 从配置文件初始化雪花算法

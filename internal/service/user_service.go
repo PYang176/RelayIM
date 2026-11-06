@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"ginChatProject/common/validator"
 	"ginChatProject/internal/dto"
 	"ginChatProject/internal/model"
+	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/platform/redisstore"
+	"ginChatProject/internal/platform/security"
+	"ginChatProject/internal/platform/validation"
 	"ginChatProject/internal/repository"
-	"ginChatProject/utils/jwt"
-	"ginChatProject/utils/redis_util"
-	"ginChatProject/utils/security"
 	"gorm.io/gorm"
 	"time"
 )
@@ -81,7 +81,7 @@ func (s *UserService) DeleteUser(ctx context.Context, req *dto.UserDeleteDTO) er
 // UpdateUser 修改用户
 func (s *UserService) UpdateUser(ctx context.Context, req dto.UserUpdateDTO) error {
 	// 1. 校验参数
-	if err := validator.ValidateStruct(req); err != nil {
+	if err := validation.ValidateStruct(req); err != nil {
 		return err
 	}
 
@@ -153,8 +153,8 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO, deviceInf
 
 	// 4. 存入 Redis（key = token，value = userID）
 	key := fmt.Sprintf("token:%s", token)
-	err = redis_util.RDB.Set(
-		//redis_util.Ctx,
+	err = redisstore.RDB.Set(
+		//redisstore.Ctx,
 		ctx,
 		key,
 		user.ID,
@@ -182,7 +182,7 @@ func (s *UserService) Logout(ctx context.Context, userID uint, logoutTime time.T
 func (s *UserService) IsUserOnline(ctx context.Context, userID uint64) (bool, error) {
 	//  1. 先查 Redis
 	key := fmt.Sprintf("heartbeat:%d", userID)
-	ts, err := redis_util.RDB.Get(ctx, key).Int64()
+	ts, err := redisstore.RDB.Get(ctx, key).Int64()
 	if err == nil {
 		// Redis 中有数据，判断是否超时
 		heartbeatTime := time.Unix(ts, 0)

@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"ginChatProject/internal/model"
+	"ginChatProject/internal/platform/redisstore"
+	"ginChatProject/internal/platform/workerpool"
 	"ginChatProject/internal/repository"
-	"ginChatProject/internal/workerpool"
 	"ginChatProject/internal/ws"
-	"ginChatProject/utils/redis_util"
 	"github.com/redis/go-redis/v9"
 	"time"
 )
@@ -35,7 +35,7 @@ func (c *GroupMsgConsumer) Start() {
 	ctx := context.Background()
 
 	// 初始化 Redis Stream
-	if err := redis_util.InitStream(ctx); err != nil {
+	if err := redisstore.InitStream(ctx); err != nil {
 		panic(fmt.Sprintf("初始化 Redis Stream 失败: %v", err))
 	}
 
@@ -65,10 +65,10 @@ func (c *GroupMsgConsumer) consume(workerID int) {
 
 	for {
 		// 读取消息
-		messages, err := redis_util.ConsumeMessages(
+		messages, err := redisstore.ConsumeMessages(
 			ctx,
-			redis_util.GroupMsgStream,
-			redis_util.GroupMsgConsumerGroup,
+			redisstore.GroupMsgStream,
+			redisstore.GroupMsgConsumerGroup,
 			consumerName,
 			10, // 每次最多处理10条
 		)
@@ -142,10 +142,10 @@ func (c *GroupMsgConsumer) processMessage(ctx context.Context, msg redis.XMessag
 	}
 
 	// 确认消息已处理
-	if err := redis_util.AcknowledgeMessage(
+	if err := redisstore.AcknowledgeMessage(
 		ctx,
-		redis_util.GroupMsgStream,
-		redis_util.GroupMsgConsumerGroup,
+		redisstore.GroupMsgStream,
+		redisstore.GroupMsgConsumerGroup,
 		msg.ID,
 	); err != nil {
 		fmt.Printf("确认消息失败: %v\n", err)
@@ -183,11 +183,11 @@ func (c *GroupMsgConsumer) retryFailedMessages() {
 	for {
 		time.Sleep(30 * time.Second) // 每30秒重试一次
 
-		pendingMsgs, err := redis_util.GetPendingMessages(
+		pendingMsgs, err := redisstore.GetPendingMessages(
 			ctx,
-			redis_util.GroupMsgStream,
-			redis_util.GroupMsgConsumerGroup,
-			redis_util.PendingTimeout,
+			redisstore.GroupMsgStream,
+			redisstore.GroupMsgConsumerGroup,
+			redisstore.PendingTimeout,
 		)
 
 		if err != nil || len(pendingMsgs) == 0 {

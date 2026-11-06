@@ -1,4 +1,4 @@
-package handler
+package api
 
 import (
 	"ginChatProject/internal/dto"

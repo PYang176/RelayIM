@@ -1,4 +1,4 @@
-package redis_util
+package redisstore
 
 import (
 	"context"
