@@ -22,7 +22,19 @@ CREATE TABLE outbox_events (
     KEY idx_outbox_claim (status, available_at, id),
     KEY idx_outbox_lease (status, locked_at),
     KEY idx_outbox_published_at (published_at),
-    CONSTRAINT chk_outbox_status CHECK (status IN (0, 1, 2, 3))
+    CONSTRAINT chk_outbox_status CHECK (status IN (0, 1, 2, 3)),
+    CONSTRAINT chk_outbox_published_at CHECK (
+        (status = 2 AND published_at IS NOT NULL)
+        OR (status <> 2 AND published_at IS NULL)
+    ),
+    CONSTRAINT chk_outbox_lock_pair CHECK (
+        (locked_by IS NULL AND locked_at IS NULL)
+        OR (locked_by IS NOT NULL AND locked_at IS NOT NULL)
+    ),
+    CONSTRAINT chk_outbox_processing_lock CHECK (
+        status <> 1
+        OR (locked_by IS NOT NULL AND locked_at IS NOT NULL)
+    )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='业务事务产生的待发布RabbitMQ事件';
 

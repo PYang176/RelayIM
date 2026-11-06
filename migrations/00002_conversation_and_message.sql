@@ -144,12 +144,17 @@ CREATE TABLE messages (
         COMMENT '1文本 2图片 3文件 4音频',
     content TEXT NULL,
     attachment_id BIGINT UNSIGNED NULL,
+    reply_to_message_id BIGINT UNSIGNED NULL,
     metadata JSON NULL,
+    recalled_at DATETIME(3) NULL,
+    recalled_by BIGINT UNSIGNED NULL,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
     UNIQUE KEY uk_messages_conversation_seq (conversation_id, seq),
     UNIQUE KEY uk_messages_sender_client (sender_id, client_msg_id),
     KEY idx_messages_attachment (attachment_id),
+    KEY idx_messages_reply_to (reply_to_message_id),
+    KEY idx_messages_recalled_by (recalled_by),
     CONSTRAINT fk_messages_conversation
         FOREIGN KEY (conversation_id) REFERENCES conversations (id)
         ON UPDATE RESTRICT ON DELETE RESTRICT,
@@ -159,13 +164,28 @@ CREATE TABLE messages (
     CONSTRAINT fk_messages_attachment
         FOREIGN KEY (attachment_id) REFERENCES attachments (id)
         ON UPDATE RESTRICT ON DELETE RESTRICT,
+    CONSTRAINT fk_messages_reply_to
+        FOREIGN KEY (reply_to_message_id) REFERENCES messages (id)
+        ON UPDATE RESTRICT ON DELETE RESTRICT,
+    CONSTRAINT fk_messages_recalled_by
+        FOREIGN KEY (recalled_by) REFERENCES users (id)
+        ON UPDATE RESTRICT ON DELETE RESTRICT,
     CONSTRAINT chk_messages_seq_positive CHECK (seq > 0),
     CONSTRAINT chk_messages_type CHECK (message_type IN (1, 2, 3, 4)),
     CONSTRAINT chk_messages_content CHECK (
-        message_type <> 1 OR content IS NOT NULL
+        message_type <> 1
+        OR (content IS NOT NULL AND CHAR_LENGTH(TRIM(content)) > 0)
     ),
     CONSTRAINT chk_messages_attachment_shape CHECK (
-        message_type = 1 OR attachment_id IS NOT NULL
+        (message_type = 1 AND attachment_id IS NULL)
+        OR (message_type IN (2, 3, 4) AND attachment_id IS NOT NULL)
+    ),
+    CONSTRAINT chk_messages_reply_not_self CHECK (
+        reply_to_message_id IS NULL OR reply_to_message_id <> id
+    ),
+    CONSTRAINT chk_messages_recall_shape CHECK (
+        (recalled_at IS NULL AND recalled_by IS NULL)
+        OR (recalled_at IS NOT NULL AND recalled_by IS NOT NULL)
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='会话消息正文与幂等键';
