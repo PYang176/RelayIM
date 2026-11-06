@@ -72,11 +72,17 @@ The RabbitMQ connection URL for a Go process running on Windows is:
 amqp://<RABBITMQ_DEFAULT_USER>:<RABBITMQ_DEFAULT_PASS>@localhost:5672/<RABBITMQ_VHOST>
 ```
 
-The vhost path must be URL-safe. For the example vhost `/ginchat`, the URL is:
+VHost names do not include the path separator used in the AMQP URI. For the
+example VHost `ginchat`, the URL is:
 
 ```text
 amqp://ginchat:change-me@localhost:5672/ginchat
 ```
+
+If an existing container was created with `RABBITMQ_VHOST=/ginchat`, the
+leading slash is part of the VHost name. Either connect with
+`/%2Fginchat`, or create the simpler `ginchat` VHost and set
+`RABBITMQ_VHOST=ginchat` in `.env`.
 
 ## Metrics status
 
