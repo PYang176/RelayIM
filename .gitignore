@@ -2,3 +2,4 @@
 /internal/config/app.env
 /deploy/.env
 /.tools/
+/.tmp/
