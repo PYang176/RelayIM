@@ -1,3 +1,4 @@
 /internal/config/app.yml
+/internal/config/app.env
 /deploy/.env
 /.tools/
