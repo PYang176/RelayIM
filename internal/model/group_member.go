@@ -20,12 +20,17 @@ type GroupMember struct {
 
 	//GroupID uint64 `gorm:"uniqueIndex:uk_group_user"`
 	//UserID  uint64 `gorm:"uniqueIndex:uk_group_user"`
+	// GroupID 是旧群模型的群 ID。
 	GroupID uint64 `gorm:"index"`
-	UserID  uint64 `gorm:"index"`
+	// UserID 是群成员用户 ID。
+	UserID uint64 `gorm:"index"`
 
+	// Role 表示成员、管理员或群主。
 	Role GroupRole `gorm:"type:tinyint;default:1"`
 
-	Nickname string // 群内昵称
+	// Nickname 是该用户在群内展示的昵称。
+	Nickname string
+	// JoinTime 是用户加入群聊的时间。
 	JoinTime time.Time
 }
 

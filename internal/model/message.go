@@ -39,24 +39,34 @@ const (
 type Message struct {
 	gorm.Model
 
+	// MessageID 是旧消息表的业务消息 ID，当前原型用 Snowflake 字符串生成。
 	MessageID string `gorm:"uniqueIndex;size:64"`
 	// ===== 发送 / 接收方 =====
-	SenderID   uint64 `gorm:"index"` // 发送者
-	ReceiverID uint64 `gorm:"index"` // 接收者（群聊时为 group_id）
+	// SenderID 是发送者用户 ID。
+	SenderID uint64 `gorm:"index"`
+	// ReceiverID 是私聊接收者或群聊群 ID，新会话模型不再使用该字段。
+	ReceiverID uint64 `gorm:"index"`
 
 	// ===== 消息分类 =====
+	// SendType 表示私聊、群聊或广播。
 	SendType SendType `gorm:"type:tinyint;comment:发送类型 1私聊 2群聊 3广播"`
-	MsgType  MsgType  `gorm:"type:tinyint;comment:消息类型 1文字 2图片 3音频 4文件"`
+	// MsgType 表示文本、图片、音频或文件消息。
+	MsgType MsgType `gorm:"type:tinyint;comment:消息类型 1文字 2图片 3音频 4文件"`
 
 	// ===== 消息内容 =====
-	Content string  `gorm:"type:text"`         // 文本消息
-	URL     string  `gorm:"type:varchar(512)"` // 图片 / 音频 / 文件地址
-	FileID  *uint64 // (文件表索引id)可选
+	// Content 是文本消息正文。
+	Content string `gorm:"type:text"`
+	// URL 是旧媒体消息的图片、音频或文件地址。
+	URL string `gorm:"type:varchar(512)"`
+	// FileID 是旧文件表索引 ID，新附件模型使用 attachment_id。
+	FileID *uint64
 
 	// ===== 消息状态 =====
-	Status MsgStatus `gorm:"type:tinyint;default:1"` // 1未发送 2已发送 3离线未推送 4在线已推送 5已读
+	// Status 是旧全局消息状态；新模型把送达和已读拆分，不再复用该字段。
+	Status MsgStatus `gorm:"type:tinyint;default:1"`
 
 	// ===== 时间 =====
+	// ReadTime 是旧模型记录的消息已读时间。
 	ReadTime *time.Time
 }
 

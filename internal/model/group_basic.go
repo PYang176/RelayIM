@@ -24,13 +24,19 @@ const (
 type GroupBasic struct {
 	gorm.Model
 
-	GroupID string `gorm:"uniqueIndex;size:64"` // 业务群ID
-	Name    string `gorm:"size:100"`
-	Avatar  string //头像
-	OwnerID uint64 `gorm:"index"` // 群主
+	// GroupID 是旧群模型的业务群 ID。
+	GroupID string `gorm:"uniqueIndex;size:64"`
+	// Name 是群名称。
+	Name string `gorm:"size:100"`
+	// Avatar 是群头像地址。
+	Avatar string
+	// OwnerID 是群主用户 ID。
+	OwnerID uint64 `gorm:"index"`
 
-	GroupType GroupType   `gorm:"type:tinyint"`
-	Status    GroupStatus `gorm:"type:tinyint;default:1"`
+	// GroupType 表示普通群或系统群。
+	GroupType GroupType `gorm:"type:tinyint"`
+	// Status 表示群正常或已解散。
+	Status GroupStatus `gorm:"type:tinyint;default:1"`
 }
 
 // TableName 表名

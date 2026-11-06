@@ -20,11 +20,15 @@ type FriendRelation struct {
 	//UserID   uint64 `gorm:"uniqueIndex:uk_user_friend"` // 用户
 	//FriendID uint64 `gorm:"uniqueIndex:uk_user_friend"` // 好友
 
-	UserID   uint64 `gorm:"index"` // 用户
-	FriendID uint64 `gorm:"index"` // 好友
+	// UserID 是好友关系方向上的用户 ID。
+	UserID uint64 `gorm:"index"`
+	// FriendID 是该用户对应的好友 ID。
+	FriendID uint64 `gorm:"index"`
 
-	Remark string // 备注名（可选）
+	// Remark 是该用户为好友设置的备注名。
+	Remark string
 
+	// Status 表示好友关系正常或已拉黑。
 	Status FriendStatus `gorm:"type:tinyint;default:1"`
 }
 

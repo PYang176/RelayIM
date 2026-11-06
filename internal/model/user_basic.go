@@ -7,29 +7,29 @@ import (
 
 type UserBasic struct {
 	gorm.Model
-	//名称（唯一索引）
+	// Name 是登录用户名，数据库唯一索引防止重复注册。
 	Name string `gorm:"type:varchar(50);uniqueIndex:uk_user_name"`
-	//密码
+	// Password 保存密码哈希，禁止保存或输出明文密码。
 	Password string
-	//唯一身份标识
+	// Identity 是用户的业务身份标识，用于扩展区分外部身份来源。
 	Identity string
-	//手机号码
+	// Phone 是用户手机号，仅用于资料和后续登录扩展。
 	Phone string
-	//电子邮箱
+	// Email 是用户邮箱，仅用于资料和通知扩展。
 	Email string
-	//客户端ip
+	// ClientIp 是最近一次登录客户端 IP，不能直接暴露给普通用户。
 	ClientIp string
-	//客户端端口
+	// ClientPort 是最近一次登录客户端端口，仅用于连接排查。
 	ClientPort string
-	//登录时间
+	// LoginTime 是最近一次登录时间。
 	LoginTime *time.Time
-	//心跳时间
+	// HeartbeatTime 是最近同步到数据库的心跳时间，实时状态以 Redis 为准。
 	HeartbeatTime *time.Time
-	//登出时间
+	// LogoutTime 是最近一次登出时间。
 	LogoutTime *time.Time
-	//是否登出
+	// IsLogout 表示用户当前是否处于登出状态。
 	IsLogout bool
-	//设备信息
+	// DeviceInfo 是最近登录客户端上报的设备描述。
 	DeviceInfo string
 }
 

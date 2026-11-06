@@ -2,7 +2,7 @@ package model
 
 import "gorm.io/gorm"
 
-// FriendRequestStatus 消息类型
+// FriendRequestStatus 好友申请状态
 type FriendRequestStatus int
 
 const (
@@ -13,10 +13,14 @@ const (
 
 type FriendRequest struct {
 	gorm.Model
-	FromUserID uint64              `gorm:"index"`     // 申请人
-	ToUserID   uint64              `gorm:"index"`     // 被申请人
-	Status     FriendRequestStatus `gorm:"default:1"` // 1待处理 2已同意 3已拒绝
-	Remark     string              //备注
+	// FromUserID 是发起好友申请的用户 ID。
+	FromUserID uint64 `gorm:"index"`
+	// ToUserID 是接收好友申请的用户 ID。
+	ToUserID uint64 `gorm:"index"`
+	// Status 表示待处理、已同意或已拒绝。
+	Status FriendRequestStatus `gorm:"default:1"`
+	// Remark 是申请附带的说明。
+	Remark string
 }
 
 func (table *FriendRequest) TableName() string {
