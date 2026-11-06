@@ -40,6 +40,7 @@ func (s *SystemTokenIssuer) IssueToken(
 
 	// AuthMiddleware 先校验 JWT，再检查 Redis 中是否仍存在该 Token。
 	// 删除 Redis 键即可立即撤销登录，不必等待 JWT 自然过期。
+
 	key := "token:" + token
 	if err := redisstore.RDB.Set(
 		ctx,

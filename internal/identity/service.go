@@ -87,6 +87,7 @@ func (s *Service) Register(
 	command.Nickname = strings.TrimSpace(command.Nickname)
 
 	// 输入校验在哈希和数据库事务前完成，避免无效请求消耗 bcrypt 和连接资源。
+
 	if !validUsername(command.Username) {
 		return UserResult{}, ErrInvalidInput
 	}
@@ -95,9 +96,11 @@ func (s *Service) Register(
 		len(command.Password) > maxPasswordBytes {
 		return UserResult{}, ErrInvalidInput
 	}
+
 	if command.Nickname == "" {
 		command.Nickname = command.Username
 	}
+
 	if utf8.RuneCountInString(command.Nickname) > maxNicknameRunes {
 		return UserResult{}, ErrInvalidInput
 	}
@@ -124,6 +127,7 @@ func (s *Service) Register(
 	}
 
 	// Repository 在同一事务中保存 users 和 user_profiles。
+
 	if err := s.repo.CreateUser(ctx, userRecord, profile); err != nil {
 		return UserResult{}, err
 	}
@@ -151,6 +155,7 @@ func (s *Service) Login(
 	}
 
 	// 用户名不存在和密码错误都返回同一业务错误，避免账号枚举。
+
 	if !security.CheckPassword(command.Password, userRecord.PasswordHash) {
 		return LoginResult{}, ErrInvalidCredentials
 	}
@@ -159,6 +164,7 @@ func (s *Service) Login(
 	}
 
 	// 登录响应需要展示昵称，因此读取与用户一对一的公开资料。
+
 	_, profile, err := s.repo.FindByID(ctx, userRecord.ID)
 	if err != nil {
 		return LoginResult{}, err

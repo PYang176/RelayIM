@@ -27,11 +27,13 @@ func (r *Repository) CreateUser(
 ) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// users 先插入，因为 user_profiles.user_id 依赖该主键。
+
 		if err := tx.Create(userRecord).Error; err != nil {
 			return fmt.Errorf("创建用户身份: %w", err)
 		}
 
 		// 资料创建失败时回滚用户，避免出现没有 profile 的半成品用户。
+
 		if err := tx.Create(profile).Error; err != nil {
 			return fmt.Errorf("创建用户资料: %w", err)
 		}
@@ -40,6 +42,7 @@ func (r *Repository) CreateUser(
 	if err != nil {
 		// 并发注册相同用户名时，唯一索引会返回 MySQL 1062。
 		// 将其转换为稳定业务错误，Handler 不需要理解数据库错误码。
+
 		if isDuplicateKey(err) {
 			return ErrUsernameExists
 		}
