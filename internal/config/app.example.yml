@@ -1,0 +1,27 @@
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  # 本地密码通过 GINCHAT_MYSQL_PASSWORD 注入。
+  password: ""
+  dbname: ginchat_v2
+  config:
+    charset: utf8mb4
+    parseTime: true
+    loc: UTC
+
+jwt:
+  # 本地密钥通过 GINCHAT_JWT_SECRET 注入。
+  secret: ""
+  expire_hours: 24
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  # 本地密码通过 GINCHAT_REDIS_PASSWORD 注入。
+  password: ""
+  db: 0
+
+snowflake:
+  # 多实例部署时，每个实例必须使用不同且唯一的 worker ID。
+  workID: 1

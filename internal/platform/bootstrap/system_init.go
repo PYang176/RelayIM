@@ -12,14 +12,56 @@ import (
 	"gorm.io/gorm/logger"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
 func InitConfig() error {
-	viper.SetConfigName("app")
-	viper.AddConfigPath("./internal/config")
-	if err := viper.ReadInConfig(); err != nil {
+	v := viper.GetViper()
+	if err := bindConfigEnv(v); err != nil {
+		return err
+	}
+
+	if configFile := strings.TrimSpace(os.Getenv("GINCHAT_CONFIG_FILE")); configFile != "" {
+		v.SetConfigFile(configFile)
+	} else {
+		v.SetConfigName("app")
+		v.AddConfigPath("./internal/config")
+	}
+
+	if err := v.ReadInConfig(); err != nil {
 		return fmt.Errorf("读取应用配置失败: %w", err)
+	}
+	return nil
+}
+
+func bindConfigEnv(v *viper.Viper) error {
+	v.SetEnvPrefix("GINCHAT")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	bindings := map[string]string{
+		"mysql.host":             "GINCHAT_MYSQL_HOST",
+		"mysql.port":             "GINCHAT_MYSQL_PORT",
+		"mysql.user":             "GINCHAT_MYSQL_USER",
+		"mysql.password":         "GINCHAT_MYSQL_PASSWORD",
+		"mysql.dbname":           "GINCHAT_MYSQL_DBNAME",
+		"mysql.config.charset":   "GINCHAT_MYSQL_CHARSET",
+		"mysql.config.parseTime": "GINCHAT_MYSQL_PARSE_TIME",
+		"mysql.config.loc":       "GINCHAT_MYSQL_LOCATION",
+		"jwt.secret":             "GINCHAT_JWT_SECRET",
+		"jwt.expire_hours":       "GINCHAT_JWT_EXPIRE_HOURS",
+		"redis.host":             "GINCHAT_REDIS_HOST",
+		"redis.port":             "GINCHAT_REDIS_PORT",
+		"redis.password":         "GINCHAT_REDIS_PASSWORD",
+		"redis.db":               "GINCHAT_REDIS_DB",
+		"snowflake.workID":       "GINCHAT_SNOWFLAKE_WORK_ID",
+	}
+
+	for key, envName := range bindings {
+		if err := v.BindEnv(key, envName); err != nil {
+			return fmt.Errorf("绑定环境变量 %s 失败: %w", envName, err)
+		}
 	}
 	return nil
 }
@@ -59,6 +101,12 @@ func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 func InitJWT() error {
 	if err := viper.UnmarshalKey("jwt", &jwt.JwtCfg); err != nil {
 		return fmt.Errorf("解析 JWT 配置失败: %w", err)
+	}
+	if strings.TrimSpace(jwt.JwtCfg.Secret) == "" {
+		return fmt.Errorf("JWT 密钥不能为空")
+	}
+	if jwt.JwtCfg.ExpireHours <= 0 {
+		return fmt.Errorf("JWT 过期时间必须大于 0")
 	}
 	return nil
 }

@@ -10,6 +10,10 @@
 
 MySQL 暂不放入 Compose。开发环境继续使用 Windows 本机的 MySQL 8.0.34。
 
+`deploy/.env` 只保存 Compose 基础设施变量，不会自动注入 Windows 上直接运行的 Go 应用。
+应用配置及其 `GINCHAT_*` 环境变量说明见
+[配置管理指南](../docs/配置管理指南.md)。
+
 ## 首次启动
 
 在项目根目录执行：
