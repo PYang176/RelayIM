@@ -119,13 +119,8 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func currentUserID(c *gin.Context) (uint64, bool) {
-	value, exists := c.Get(middleware.ContextUserIDKey)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未获取到登录用户"})
-		return 0, false
-	}
-	userID, ok := value.(uint64)
-	if !ok || userID == 0 {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
 		return 0, false
 	}

@@ -66,6 +66,19 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// CurrentUserID 返回认证中间件写入的 Snowflake 用户 ID。
+func CurrentUserID(context *gin.Context) (uint64, bool) {
+	value, exists := context.Get(ContextUserIDKey)
+	if !exists {
+		return 0, false
+	}
+	userID, ok := value.(uint64)
+	if !ok || userID == 0 {
+		return 0, false
+	}
+	return userID, true
+}
+
 func authorizationToken(header string) string {
 	header = strings.TrimSpace(header)
 	parts := strings.Fields(header)

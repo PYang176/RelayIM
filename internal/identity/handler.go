@@ -96,19 +96,13 @@ func (h *Handler) Login(c *gin.Context) {
 
 // Me 处理 GET /api/v1/me。
 func (h *Handler) Me(c *gin.Context) {
-	userID, exists := c.Get(middleware.ContextUserIDKey)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未获取到登录用户"})
-		return
-	}
-
-	userID64, ok := userID.(uint64)
+	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
 		return
 	}
 
-	result, err := h.service.Me(c.Request.Context(), userID64)
+	result, err := h.service.Me(c.Request.Context(), userID)
 	if err != nil {
 		writeIdentityError(c, err)
 		return

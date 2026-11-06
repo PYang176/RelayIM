@@ -7,6 +7,7 @@ import (
 	identityrouter "ginChatProject/internal/router/identity"
 	"ginChatProject/internal/router/index"
 	"ginChatProject/internal/router/message"
+	messagingrouter "ginChatProject/internal/router/messaging"
 	"ginChatProject/internal/router/user"
 	"ginChatProject/internal/router/ws"
 	"github.com/gin-gonic/gin"
@@ -34,6 +35,9 @@ func Router(db *gorm.DB) *gin.Engine {
 
 	// 新版会话模块
 	conversationrouter.Register(r, db)
+
+	// 新版消息模块
+	messagingrouter.Register(r, db)
 
 	// 消息相关模块
 	message.Register(r, db)
