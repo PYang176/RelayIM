@@ -24,3 +24,6 @@ go get -u github.com/gorilla/websocket
 
 //安装 雪花算法来生成id
 go get github.com/bwmarrin/snowflake
+
+//安装rabbitMQ的库
+go get github.com/rabbitmq/amqp091-go
