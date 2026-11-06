@@ -6,13 +6,14 @@ import (
 	"ginChatProject/internal/platform/redisstore"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strings"
 )
 
 // AuthMiddleware JWT鉴权中间件
 func AuthMiddleware() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		// 从请求头中获取token
-		tokenStr := context.GetHeader("Authorization")
+		tokenStr := authorizationToken(context.GetHeader("Authorization"))
 		// 如果token为空，直接阻止接下来的请求
 		if tokenStr == "" {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -23,10 +24,6 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// token不为空，则解析token进行校验
 		claims, err := jwt.ParseToken(tokenStr)
-		fmt.Println(tokenStr)
-		if claims != nil {
-			fmt.Println("-----------------", claims.UserID, tokenStr)
-		}
 		if err != nil {
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "token 无效或者已过期",
@@ -61,8 +58,18 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 注入user_id
-		context.Set("user_id", claims.UserID)
+		// 旧 Handler 仍使用 uint；新链路使用不会在 32 位平台降窄的 uint64。
+		context.Set("user_id", uint(claims.UserID))
+		context.Set("user_id_u64", claims.UserID)
 		context.Next()
 	}
+}
+
+func authorizationToken(header string) string {
+	header = strings.TrimSpace(header)
+	parts := strings.Fields(header)
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+		return parts[1]
+	}
+	return header
 }

@@ -3,6 +3,7 @@ package router
 import (
 	"ginChatProject/internal/router/friend"
 	"ginChatProject/internal/router/group"
+	identityrouter "ginChatProject/internal/router/identity"
 	"ginChatProject/internal/router/index"
 	"ginChatProject/internal/router/message"
 	"ginChatProject/internal/router/user"
@@ -26,6 +27,9 @@ func Router(db *gorm.DB) *gin.Engine {
 
 	// 用户相关模块
 	user.Register(r, db)
+
+	// 新版用户认证模块
+	identityrouter.Register(r, db)
 
 	// 消息相关模块
 	message.Register(r, db)

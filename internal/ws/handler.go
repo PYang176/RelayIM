@@ -56,7 +56,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	}
 
 	// 从token中拿到userID
-	userID := claims.UserID
+	userID := uint(claims.UserID)
 	fmt.Println(" WS connected:", userID)
 
 	// 将http升级为websocket连接

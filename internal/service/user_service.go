@@ -130,7 +130,7 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO, deviceInf
 	}
 
 	// 3. 生成 Token
-	token, err := jwt.GenerateToken(user.ID, jwt.JwtCfg.ExpireHours)
+	token, err := jwt.GenerateToken(uint64(user.ID), jwt.JwtCfg.ExpireHours)
 	if err != nil {
 		return "", err
 	}
