@@ -1,4 +1,4 @@
-// Package app assembles the application dependencies and manages its lifecycle.
+// Package app 负责组装应用依赖并管理服务生命周期。
 package app
 
 import (
@@ -27,8 +27,8 @@ const (
 	shutdownTimeout   = 10 * time.Second
 )
 
-// Run initializes dependencies, starts background workers and serves HTTP until
-// the process receives an interrupt or termination signal.
+// Run 初始化依赖、启动后台任务并持续提供 HTTP 服务，
+// 直到进程收到中断或终止信号。
 func Run() error {
 	if err := bootstrap.InitConfig(); err != nil {
 		return err
