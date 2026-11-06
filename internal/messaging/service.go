@@ -42,9 +42,13 @@ func (s *Service) SendText(
 	ctx context.Context,
 	command SendTextCommand,
 ) (SendTextResult, error) {
+	// Service 是业务输入边界：先标准化字符串，避免由首尾空格造成的空消息、
+	// 重复客户端 ID 或不可见输入进入数据库层。
 	command.ClientMessageID = strings.TrimSpace(command.ClientMessageID)
 	command.Content = strings.TrimSpace(command.Content)
 
+	// ID、消息长度和引用参数在进入事务前完成校验。无效输入不会占用
+	// 数据库连接，也不会触发热点会话行锁。
 	if command.ConversationID == 0 || command.SenderID == 0 {
 		return SendTextResult{}, ErrInvalidMessage
 	}
@@ -58,6 +62,8 @@ func (s *Service) SendText(
 		return SendTextResult{}, ErrInvalidMessage
 	}
 
+	// duplicate=true 表示命中幂等重试。Service 对首次发送和重试返回同一种
+	// 业务结果，同时把这个标记留给上层记录日志和指标。
 	msg, duplicate, err := s.repo.sendText(ctx, sendTextInput{
 		ConversationID:   command.ConversationID,
 		SenderID:         command.SenderID,
@@ -69,6 +75,7 @@ func (s *Service) SendText(
 		return SendTextResult{}, err
 	}
 
+	// 只返回业务结果，不把包含 GORM 字段的内部消息模型暴露给 Handler。
 	return SendTextResult{
 		MessageID:      msg.ID,
 		ConversationID: msg.ConversationID,

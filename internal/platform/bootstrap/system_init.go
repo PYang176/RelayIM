@@ -36,6 +36,8 @@ func InitConfig() error {
 }
 
 func bindConfigEnv(v *viper.Viper) error {
+	// 前缀、键名替换和 AutomaticEnv 为后续普通字段提供统一覆盖规则；
+	// 下面显式绑定关键字段，保证嵌套 YAML 键的环境变量名稳定可控。
 	v.SetEnvPrefix("GINCHAT")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
@@ -58,6 +60,7 @@ func bindConfigEnv(v *viper.Viper) error {
 		"snowflake.workID":       "GINCHAT_SNOWFLAKE_WORK_ID",
 	}
 
+	// 显式绑定让环境变量名成为稳定契约，不依赖结构体字段或 YAML 大小写。
 	for key, envName := range bindings {
 		if err := v.BindEnv(key, envName); err != nil {
 			return fmt.Errorf("绑定环境变量 %s 失败: %w", envName, err)
