@@ -13,7 +13,7 @@ var (
 )
 
 // InitRedis 初始化 Redis 连接
-func InitRedis(cfg config.RedisConfig) {
+func InitRedis(cfg config.RedisConfig) error {
 	RDB = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,
@@ -21,10 +21,10 @@ func InitRedis(cfg config.RedisConfig) {
 	})
 
 	if err := RDB.Ping(Ctx).Err(); err != nil {
-		panic(fmt.Sprintf("redis connect failed: %v", err))
+		return fmt.Errorf("连接 Redis 失败: %w", err)
 	}
 
-	fmt.Println("redis connected")
+	return nil
 }
 
 // Publish 发消息到redis

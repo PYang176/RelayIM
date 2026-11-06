@@ -15,28 +15,18 @@ import (
 	"time"
 )
 
-func InitConfig() {
+func InitConfig() error {
 	viper.SetConfigName("app")
 	viper.AddConfigPath("./internal/config")
-	err := viper.ReadInConfig()
-	if err != nil {
-		fmt.Println(err)
+	if err := viper.ReadInConfig(); err != nil {
+		return fmt.Errorf("读取应用配置失败: %w", err)
 	}
-	fmt.Println("config app:", viper.Get("app"))
-	fmt.Println("config mysql:", viper.Get("mysql"))
+	return nil
 }
 
 // InitMySQL 初始化Mysql数据库连接对象
 func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
-	//读取yml配置，封装进结构体中
-	if err := viper.UnmarshalKey("mysql", &cfg); err != nil {
-		panic(fmt.Sprintf("解析 mysql 配置失败: %v", err))
-	}
-	fmt.Println(cfg)
-
-	//将结构体的数据拼接成dsn
 	dsn := GetMySQLDsn(cfg)
-	fmt.Println("我是dsn---------------------", dsn)
 
 	// 自定义日志模版，打印SQL语句
 	newLogger := logger.New(
@@ -53,7 +43,6 @@ func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("数据库连接成功")
 
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -67,28 +56,30 @@ func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 }
 
 // InitJWT 从配置文件初始化密钥和过期时间
-func InitJWT() {
-	err := viper.UnmarshalKey("jwt", &jwt.JwtCfg)
-	if err != nil {
-		panic(fmt.Sprintf("解析 jwt 配置失败: %v", err))
+func InitJWT() error {
+	if err := viper.UnmarshalKey("jwt", &jwt.JwtCfg); err != nil {
+		return fmt.Errorf("解析 JWT 配置失败: %w", err)
 	}
+	return nil
 }
 
 // InitRedis 从配置文件初始化redis连接
-func InitRedis() {
+func InitRedis() error {
 	var redisCfg config.RedisConfig
-	err := viper.UnmarshalKey("redis", &redisCfg)
-	if err != nil {
-		panic(fmt.Sprintf("解析 redis 配置失败: %v", err))
+	if err := viper.UnmarshalKey("redis", &redisCfg); err != nil {
+		return fmt.Errorf("解析 Redis 配置失败: %w", err)
 	}
-	redisstore.InitRedis(redisCfg)
+	if err := redisstore.InitRedis(redisCfg); err != nil {
+		return fmt.Errorf("初始化 Redis 失败: %w", err)
+	}
+	return nil
 }
 
 // InitSnowFlake 从配置文件初始化雪花算法
-func InitSnowFlake() {
+func InitSnowFlake() error {
 	workID := viper.GetInt64("snowflake.workID")
-	fmt.Println("workID:", workID)
 	if err := snowflake.Init(workID); err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("初始化 Snowflake 失败: %w", err)
 	}
+	return nil
 }

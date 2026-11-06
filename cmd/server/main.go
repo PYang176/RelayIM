@@ -1,61 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/consumer"
-	"ginChatProject/internal/platform/bootstrap"
-	"ginChatProject/internal/repository"
-	"ginChatProject/internal/router"
-	"ginChatProject/internal/task"
-	"github.com/spf13/viper"
+	"log"
+
+	"ginChatProject/internal/app"
 )
 
 func main() {
-	// 初始化配置信息
-	bootstrap.InitConfig()
-	// 初始化token
-	bootstrap.InitJWT()
-	// 初始化redis
-	bootstrap.InitRedis()
-	// 初始化 Snowflake（workerID 从配置读取）
-	bootstrap.InitSnowFlake()
-
-	cfg := config.MySQLConfig{}
-	_ = viper.UnmarshalKey("mysql", &cfg)
-
-	// 初始化Mysql
-	db, err := bootstrap.InitMySQL(cfg)
-	if err != nil {
-		panic(fmt.Sprintf("数据库连接失败: %v", err))
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
 	}
-
-	// 启动心跳同步任务
-	userRepo := repository.NewUserRepository(db)
-	heartbeatTask := task.NewHeartbeatSyncTask(userRepo)
-	go heartbeatTask.Start()
-
-	/// 启动 Redis Stream 消费者
-	msgRepo := repository.NewMessageRepository(db)
-	groupRepo := repository.NewGroupRepository(db)
-	msgConsumer := consumer.NewGroupMsgConsumer(msgRepo, groupRepo)
-	msgConsumer.Start()
-
-	// 启动gin服务
-	r := router.Router(db)
-	err = r.Run(":8081") // listens on 0.0.0.0:8080 by default
-	if err != nil {
-		return
-	}
-
 }
-
-//func main() {
-//	router := gin.Default()
-//	router.GET("/ping", func(c *gin.Context) {
-//		c.JSON(200, gin.H{
-//			"message": "pong",
-//		})
-//	})
-//	router.Run() // listens on 0.0.0.0:8080 by default
-//}
