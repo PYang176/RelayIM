@@ -3,7 +3,7 @@ package api
 import (
 	"fmt"
 	"ginChatProject/internal/dto"
-	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/service"
 	"github.com/gin-gonic/gin"
@@ -188,26 +188,47 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 // Logout 退出登录
 func (h *UserHandler) Logout(c *gin.Context) {
-	// 获取token和userID
-	tokenStr := c.GetHeader("Authorization")
-	userID := c.MustGet("user_id").(uint)
+	// Token 已经由 AuthMiddleware 校验，这里直接使用上下文中的原始值和 JTI，
+	// 避免再次解析带 "Bearer " 前缀的 Header。
+	tokenStr, tokenExists := c.Get(middleware.ContextTokenKey)
+	jti, jtiExists := c.Get(middleware.ContextJTIKey)
+	expiresAt, expiresExists := c.Get(middleware.ContextExpiresAtKey)
+	userID, userExists := c.Get(middleware.ContextLegacyUserIDKey)
+	if !tokenExists || !jtiExists || !expiresExists || !userExists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录状态无效"})
+		return
+	}
+	legacyUserID, userOK := userID.(uint)
+	jtiValue, jtiOK := jti.(string)
+	expiresAtValue, expiresOK := expiresAt.(time.Time)
+	tokenValue, tokenOK := tokenStr.(string)
+	if !userOK || !jtiOK || !expiresOK || !tokenOK {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录状态无效"})
+		return
+	}
 
 	// 更新数据库：登出时间和状态
 	now := time.Now()
-	if err := h.svc.Logout(c.Request.Context(), userID, now); err != nil {
+	if err := h.svc.Logout(c.Request.Context(), legacyUserID, now); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "退出登录失败"})
 		return
 	}
 
-	// 加入黑名单
-	claims, _ := jwt.ParseToken(tokenStr)
-	blacklistKey := fmt.Sprintf("blacklist:%s", claims.JTI)
-	ttl := time.Until(claims.ExpiresAt.Time)
-	redisstore.RDB.Set(c, blacklistKey, "1", ttl)
+	// 在黑名单存活到原 Token 过期，同时删除白名单键使该 Token 立即失效。
+	blacklistKey := fmt.Sprintf("blacklist:%s", jtiValue)
+	ttl := time.Until(expiresAtValue)
+	if ttl > 0 {
+		if err := redisstore.RDB.Set(c, blacklistKey, "1", ttl).Err(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "退出登录失败"})
+			return
+		}
+	}
 
-	// 删除 Redis 中的 token
-	redisKey := fmt.Sprintf("token:%s", tokenStr)
-	redisstore.RDB.Del(c, redisKey)
+	redisKey := fmt.Sprintf("token:%s", tokenValue)
+	if err := redisstore.RDB.Del(c, redisKey).Err(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "退出登录失败"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "退出成功"})
 }

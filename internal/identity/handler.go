@@ -2,6 +2,7 @@ package identity
 
 import (
 	"errors"
+	"ginChatProject/internal/middleware"
 	"net/http"
 	"strconv"
 
@@ -95,7 +96,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 // Me 处理 GET /api/v1/me。
 func (h *Handler) Me(c *gin.Context) {
-	userID, exists := c.Get("user_id_u64")
+	userID, exists := c.Get(middleware.ContextUserIDKey)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未获取到登录用户"})
 		return
