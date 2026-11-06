@@ -1,0 +1,79 @@
+package messaging
+
+import (
+	"context"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+const maxTextContentRunes = 8000
+
+// Service 提供消息业务用例。
+type Service struct {
+	repo *Repository
+}
+
+// NewService 创建消息服务。
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
+}
+
+// SendTextCommand 是发送文本消息所需的参数。
+type SendTextCommand struct {
+	ConversationID   uint64
+	SenderID         uint64
+	ClientMessageID  string
+	Content          string
+	ReplyToMessageID *uint64
+}
+
+// SendTextResult 是消息成功持久化后的结果。
+type SendTextResult struct {
+	MessageID      uint64
+	ConversationID uint64
+	Seq            uint64
+	CreatedAt      time.Time
+	Duplicate      bool
+}
+
+// SendText 校验文本消息并调用数据库事务。
+func (s *Service) SendText(
+	ctx context.Context,
+	command SendTextCommand,
+) (SendTextResult, error) {
+	command.ClientMessageID = strings.TrimSpace(command.ClientMessageID)
+	command.Content = strings.TrimSpace(command.Content)
+
+	if command.ConversationID == 0 || command.SenderID == 0 {
+		return SendTextResult{}, ErrInvalidMessage
+	}
+	if command.ClientMessageID == "" || len(command.ClientMessageID) > 64 {
+		return SendTextResult{}, ErrInvalidMessage
+	}
+	if command.Content == "" || utf8.RuneCountInString(command.Content) > maxTextContentRunes {
+		return SendTextResult{}, ErrInvalidMessage
+	}
+	if command.ReplyToMessageID != nil && *command.ReplyToMessageID == 0 {
+		return SendTextResult{}, ErrInvalidMessage
+	}
+
+	msg, duplicate, err := s.repo.sendText(ctx, sendTextInput{
+		ConversationID:   command.ConversationID,
+		SenderID:         command.SenderID,
+		ClientMessageID:  command.ClientMessageID,
+		Content:          command.Content,
+		ReplyToMessageID: command.ReplyToMessageID,
+	})
+	if err != nil {
+		return SendTextResult{}, err
+	}
+
+	return SendTextResult{
+		MessageID:      msg.ID,
+		ConversationID: msg.ConversationID,
+		Seq:            msg.Seq,
+		CreatedAt:      msg.CreatedAt,
+		Duplicate:      duplicate,
+	}, nil
+}
