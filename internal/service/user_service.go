@@ -160,7 +160,6 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO, deviceInf
 		user.ID,
 		time.Duration(jwt.JwtCfg.ExpireHours)*time.Hour,
 	).Err()
-
 	return token, nil
 }
 
@@ -177,7 +176,6 @@ func (s *UserService) Logout(ctx context.Context, userID uint, logoutTime time.T
 	user.HeartbeatTime = nil // 清空心跳时间
 
 	return s.repo.Update(ctx, userID, user)
-
 }
 
 // IsUserOnline 判断用户是否在线

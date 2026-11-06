@@ -194,7 +194,7 @@ func (c *GroupMsgConsumer) retryFailedMessages() {
 			continue
 		}
 
-		fmt.Printf("🔄 发现 %d 条待重试消息\n", len(pendingMsgs))
+		fmt.Printf(" 发现 %d 条待重试消息\n", len(pendingMsgs))
 
 		for _, msg := range pendingMsgs {
 			c.processMessage(ctx, msg, "retry-worker")
