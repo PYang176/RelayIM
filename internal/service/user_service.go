@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"ginChatProject/internal/dto"
 	"ginChatProject/internal/model"
-	"ginChatProject/internal/platform/jwt"
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/platform/security"
 	"ginChatProject/internal/platform/validation"
@@ -27,11 +26,23 @@ type UserDeviceInfo struct {
 }
 
 type UserService struct {
-	repo *repository.UserRepository
+	repo        *repository.UserRepository
+	tokenIssuer AccessTokenIssuer
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{repo: repo}
+// AccessTokenIssuer 统一签发可撤销的登录凭证，避免业务服务重复操作 JWT 和 Redis。
+type AccessTokenIssuer interface {
+	IssueToken(ctx context.Context, userID uint64) (string, error)
+}
+
+func NewUserService(
+	repo *repository.UserRepository,
+	tokenIssuer AccessTokenIssuer,
+) *UserService {
+	return &UserService{
+		repo:        repo,
+		tokenIssuer: tokenIssuer,
+	}
 }
 
 // GetUserList 获取用户列表
@@ -129,8 +140,8 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO, deviceInf
 		return "", errors.New("用户名或密码错误")
 	}
 
-	// 3. 生成 Token
-	token, err := jwt.GenerateToken(uint64(user.ID), jwt.JwtCfg.ExpireHours)
+	// 3. 通过统一认证组件生成 Token 并写入白名单，避免登录和校验逻辑分叉。
+	token, err := s.tokenIssuer.IssueToken(ctx, uint64(user.ID))
 	if err != nil {
 		return "", err
 	}
@@ -150,16 +161,6 @@ func (s *UserService) Login(ctx context.Context, req dto.UserLoginDTO, deviceInf
 	if err := s.repo.Update(ctx, user.ID, user); err != nil {
 		return "", errors.New("更新登录信息失败")
 	}
-
-	// 4. 存入 Redis（key = token，value = userID）
-	key := fmt.Sprintf("token:%s", token)
-	err = redisstore.RDB.Set(
-		//redisstore.Ctx,
-		ctx,
-		key,
-		user.ID,
-		time.Duration(jwt.JwtCfg.ExpireHours)*time.Hour,
-	).Err()
 	return token, nil
 }
 

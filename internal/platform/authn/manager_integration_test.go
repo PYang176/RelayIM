@@ -1,7 +1,8 @@
-package identity
+package authn
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 	"ginChatProject/internal/platform/snowflake"
 )
 
-func TestSystemTokenIssuerIntegration(t *testing.T) {
+func TestManagerIntegration(t *testing.T) {
 	redisAddr := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if redisAddr == "" {
 		t.Skip("未设置 GINCHAT_TEST_REDIS_ADDR，跳过 Redis 集成测试")
@@ -28,7 +29,6 @@ func TestSystemTokenIssuerIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析测试 Redis 端口失败: %v", err)
 	}
-
 	if err := redisstore.InitRedis(config.RedisConfig{
 		Host:     redisHost,
 		Port:     redisPort,
@@ -51,23 +51,22 @@ func TestSystemTokenIssuerIntegration(t *testing.T) {
 		t.Fatalf("初始化 Snowflake 失败: %v", err)
 	}
 
+	manager := NewManager()
 	userID := uint64(snowflake.Generate())
-	issuer := NewSystemTokenIssuer()
-	token, err := issuer.IssueToken(context.Background(), userID)
+	token, err := manager.IssueToken(context.Background(), userID)
 	if err != nil {
 		t.Fatalf("签发 Token 失败: %v", err)
 	}
-
 	t.Cleanup(func() {
 		redisstore.RDB.Del(context.Background(), "token:"+token)
 	})
 
-	claims, err := jwt.ParseToken(token)
+	session, err := manager.Authenticate(context.Background(), token)
 	if err != nil {
-		t.Fatalf("解析 Token 失败: %v", err)
+		t.Fatalf("认证 Token 失败: %v", err)
 	}
-	if claims.UserID != userID {
-		t.Fatalf("Token 用户 ID = %d，期望 %d", claims.UserID, userID)
+	if session.UserID != userID {
+		t.Fatalf("会话用户 ID = %d，期望 %d", session.UserID, userID)
 	}
 
 	ttl, err := redisstore.RDB.TTL(context.Background(), "token:"+token).Result()
@@ -76,5 +75,12 @@ func TestSystemTokenIssuerIntegration(t *testing.T) {
 	}
 	if ttl <= 0 || ttl > time.Hour {
 		t.Fatalf("Token TTL = %v，期望 0 到 1 小时之间", ttl)
+	}
+
+	if err := manager.Revoke(context.Background(), token, session.JTI, session.ExpiresAt); err != nil {
+		t.Fatalf("撤销 Token 失败: %v", err)
+	}
+	if _, err := manager.Authenticate(context.Background(), token); !errors.Is(err, ErrTokenRevoked) {
+		t.Fatalf("撤销后认证错误 = %v，期望 ErrTokenRevoked", err)
 	}
 }

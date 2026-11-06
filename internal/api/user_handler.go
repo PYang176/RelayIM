@@ -1,10 +1,10 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"ginChatProject/internal/dto"
 	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/service"
 	"github.com/gin-gonic/gin"
 	"net"
@@ -14,12 +14,24 @@ import (
 )
 
 type UserHandler struct {
-	svc *service.UserService
+	svc     *service.UserService
+	revoker TokenRevoker
+}
+
+// TokenRevoker 撤销当前登录凭证，Handler 不直接依赖 Redis。
+type TokenRevoker interface {
+	Revoke(ctx context.Context, token string, jti string, expiresAt time.Time) error
 }
 
 // NewUserHandler 构造函数依赖注入
-func NewUserHandler(svc *service.UserService) *UserHandler {
-	return &UserHandler{svc: svc}
+func NewUserHandler(
+	svc *service.UserService,
+	revoker TokenRevoker,
+) *UserHandler {
+	return &UserHandler{
+		svc:     svc,
+		revoker: revoker,
+	}
 }
 
 // List HTTP 接口：GET /users
@@ -214,18 +226,13 @@ func (h *UserHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	// 在黑名单存活到原 Token 过期，同时删除白名单键使该 Token 立即失效。
-	blacklistKey := fmt.Sprintf("blacklist:%s", jtiValue)
-	ttl := time.Until(expiresAtValue)
-	if ttl > 0 {
-		if err := redisstore.RDB.Set(c, blacklistKey, "1", ttl).Err(); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "退出登录失败"})
-			return
-		}
-	}
-
-	redisKey := fmt.Sprintf("token:%s", tokenValue)
-	if err := redisstore.RDB.Del(c, redisKey).Err(); err != nil {
+	// 统一认证组件负责黑名单和白名单撤销，Handler 不直接操作 Redis。
+	if err := h.revoker.Revoke(
+		c.Request.Context(),
+		tokenValue,
+		jtiValue,
+		expiresAtValue,
+	); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "退出登录失败"})
 		return
 	}

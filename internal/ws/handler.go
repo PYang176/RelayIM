@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"ginChatProject/internal/platform/jwt"
+	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/service"
 	"github.com/gin-gonic/gin"
@@ -40,23 +40,14 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		return
 	}
 
-	// 如果token不为空，则对其进行解析校验
-	claims, err := jwt.ParseToken(tokenStr)
+	runtimeSession, err := authn.DefaultManager.Authenticate(c, tokenStr)
 	if err != nil {
 		c.JSON(http.StatusForbidden, "token 无效或已过期")
 		return
 	}
 
-	// 从Redis里面查token进行比对
-	key := fmt.Sprintf("token:%s", tokenStr)
-	val, err := redisstore.RDB.Get(c, key).Result()
-	if err != nil || val == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token 已经过期"})
-		return
-	}
-
 	// 从token中拿到userID
-	userID := uint(claims.UserID)
+	userID := uint(runtimeSession.UserID)
 	fmt.Println(" WS connected:", userID)
 
 	// 将http升级为websocket连接

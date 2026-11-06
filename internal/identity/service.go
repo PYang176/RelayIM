@@ -22,6 +22,11 @@ const (
 
 var usernamePattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
 
+// TokenIssuer 抽象 Access Token 的签发。测试可以替换为不访问 Redis 的实现。
+type TokenIssuer interface {
+	IssueToken(ctx context.Context, userID uint64) (string, error)
+}
+
 // Service 提供用户注册、登录和当前用户查询。
 type Service struct {
 	repo  *Repository

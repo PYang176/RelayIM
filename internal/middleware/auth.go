@@ -2,11 +2,8 @@ package middleware
 
 import (
 	"errors"
-	"fmt"
-	"ginChatProject/internal/platform/jwt"
-	"ginChatProject/internal/platform/redisstore"
+	"ginChatProject/internal/platform/authn"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"net/http"
 	"strings"
 )
@@ -26,6 +23,9 @@ const (
 
 	// ContextExpiresAtKey 保存 Token 过期时间，用于计算黑名单 TTL。
 	ContextExpiresAtKey = "auth_expires_at"
+
+	// ContextSessionKey 保存认证组件返回的完整会话。
+	ContextSessionKey = "auth_session"
 )
 
 // AuthMiddleware JWT鉴权中间件
@@ -41,61 +41,27 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// token不为空，则解析token进行校验
-		claims, err := jwt.ParseToken(tokenStr)
+		session, err := authn.DefaultManager.Authenticate(context, tokenStr)
 		if err != nil {
+			if errors.Is(err, authn.ErrAuthUnavailable) {
+				context.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
+					"error": "认证服务暂不可用",
+				})
+				return
+			}
 			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "token 无效或者已过期",
 			})
 			return
 		}
 
-		// 使用JTI作为Redis黑名单key
-		blacklistKey := fmt.Sprintf("blacklist:%s", claims.JTI)
-
-		// Redis 故障时返回 503，不能把认证基础设施不可用伪装成 Token 无效。
-		exists, err := redisstore.RDB.Exists(context, blacklistKey).Result()
-		if err != nil {
-			context.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-				"error": "认证服务暂不可用",
-			})
-			return
-		}
-		if exists > 0 {
-			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token已失效"})
-			return
-		}
-
-		// 进行Redis校验
-		key := fmt.Sprintf("token:%s", tokenStr)
-		val, err := redisstore.RDB.Get(context, key).Result()
-		if errors.Is(err, redis.Nil) || val == "" {
-			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "token 已失效，请重新登录",
-			})
-			return
-		}
-		if err != nil {
-			context.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-				"error": "认证服务暂不可用",
-			})
-			return
-		}
-
-		//检验token携带的user_id是否与Redis缓存的一致
-		if val != fmt.Sprintf("%d", claims.UserID) {
-			context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "token 不合法",
-			})
-			return
-		}
-
 		// 旧 Handler 仍使用 uint；新链路使用不会在 32 位平台降窄的 uint64。
-		context.Set(ContextLegacyUserIDKey, uint(claims.UserID))
-		context.Set(ContextUserIDKey, claims.UserID)
+		context.Set(ContextLegacyUserIDKey, uint(session.UserID))
+		context.Set(ContextUserIDKey, session.UserID)
 		context.Set(ContextTokenKey, tokenStr)
-		context.Set(ContextJTIKey, claims.JTI)
-		context.Set(ContextExpiresAtKey, claims.ExpiresAt.Time)
+		context.Set(ContextJTIKey, session.JTI)
+		context.Set(ContextExpiresAtKey, session.ExpiresAt)
+		context.Set(ContextSessionKey, session)
 		context.Next()
 	}
 }
