@@ -32,3 +32,30 @@ type RedisConfig struct {
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
 }
+
+// RabbitMQConfig 控制 Outbox 发布器和消息消费者的连接与重试行为。
+type RabbitMQConfig struct {
+	// URL 是完整 AMQP 连接地址；为空时 RabbitMQ 后台任务保持禁用。
+	URL string `mapstructure:"url"`
+
+	// PublishTimeoutSeconds 是单条事件等待 Publisher Confirm 的最长时间。
+	PublishTimeoutSeconds int `mapstructure:"publish_timeout_seconds"`
+
+	// PollIntervalMilliseconds 是 Outbox 无任务时的扫描间隔。
+	PollIntervalMilliseconds int `mapstructure:"poll_interval_ms"`
+
+	// BatchSize 是单次最多领取的 Outbox 事件数量。
+	BatchSize int `mapstructure:"batch_size"`
+
+	// MaxPublishAttempts 是 Outbox 事件进入死信状态前允许的最大发布次数。
+	MaxPublishAttempts int `mapstructure:"max_publish_attempts"`
+
+	// RetryBaseSeconds 是指数退避的初始秒数。
+	RetryBaseSeconds int `mapstructure:"retry_base_seconds"`
+
+	// ClaimLeaseSeconds 是发布实例持有事件的租约时间。
+	ClaimLeaseSeconds int `mapstructure:"claim_lease_seconds"`
+
+	// Prefetch 限制单个消费者尚未 ACK 的消息数量。
+	Prefetch int `mapstructure:"prefetch"`
+}

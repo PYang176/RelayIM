@@ -43,21 +43,29 @@ func bindConfigEnv(v *viper.Viper) error {
 	v.AutomaticEnv()
 
 	bindings := map[string]string{
-		"mysql.host":             "GINCHAT_MYSQL_HOST",
-		"mysql.port":             "GINCHAT_MYSQL_PORT",
-		"mysql.user":             "GINCHAT_MYSQL_USER",
-		"mysql.password":         "GINCHAT_MYSQL_PASSWORD",
-		"mysql.dbname":           "GINCHAT_MYSQL_DBNAME",
-		"mysql.config.charset":   "GINCHAT_MYSQL_CHARSET",
-		"mysql.config.parseTime": "GINCHAT_MYSQL_PARSE_TIME",
-		"mysql.config.loc":       "GINCHAT_MYSQL_LOCATION",
-		"jwt.secret":             "GINCHAT_JWT_SECRET",
-		"jwt.expire_hours":       "GINCHAT_JWT_EXPIRE_HOURS",
-		"redis.host":             "GINCHAT_REDIS_HOST",
-		"redis.port":             "GINCHAT_REDIS_PORT",
-		"redis.password":         "GINCHAT_REDIS_PASSWORD",
-		"redis.db":               "GINCHAT_REDIS_DB",
-		"snowflake.workID":       "GINCHAT_SNOWFLAKE_WORK_ID",
+		"mysql.host":                       "GINCHAT_MYSQL_HOST",
+		"mysql.port":                       "GINCHAT_MYSQL_PORT",
+		"mysql.user":                       "GINCHAT_MYSQL_USER",
+		"mysql.password":                   "GINCHAT_MYSQL_PASSWORD",
+		"mysql.dbname":                     "GINCHAT_MYSQL_DBNAME",
+		"mysql.config.charset":             "GINCHAT_MYSQL_CHARSET",
+		"mysql.config.parseTime":           "GINCHAT_MYSQL_PARSE_TIME",
+		"mysql.config.loc":                 "GINCHAT_MYSQL_LOCATION",
+		"jwt.secret":                       "GINCHAT_JWT_SECRET",
+		"jwt.expire_hours":                 "GINCHAT_JWT_EXPIRE_HOURS",
+		"redis.host":                       "GINCHAT_REDIS_HOST",
+		"redis.port":                       "GINCHAT_REDIS_PORT",
+		"redis.password":                   "GINCHAT_REDIS_PASSWORD",
+		"redis.db":                         "GINCHAT_REDIS_DB",
+		"rabbitmq.url":                     "GINCHAT_RABBITMQ_URL",
+		"rabbitmq.publish_timeout_seconds": "GINCHAT_RABBITMQ_PUBLISH_TIMEOUT_SECONDS",
+		"rabbitmq.poll_interval_ms":        "GINCHAT_RABBITMQ_POLL_INTERVAL_MS",
+		"rabbitmq.batch_size":              "GINCHAT_RABBITMQ_BATCH_SIZE",
+		"rabbitmq.max_publish_attempts":    "GINCHAT_RABBITMQ_MAX_PUBLISH_ATTEMPTS",
+		"rabbitmq.retry_base_seconds":      "GINCHAT_RABBITMQ_RETRY_BASE_SECONDS",
+		"rabbitmq.claim_lease_seconds":     "GINCHAT_RABBITMQ_CLAIM_LEASE_SECONDS",
+		"rabbitmq.prefetch":                "GINCHAT_RABBITMQ_PREFETCH",
+		"snowflake.workID":                 "GINCHAT_SNOWFLAKE_WORK_ID",
 	}
 
 	// 显式绑定让环境变量名成为稳定契约，不依赖结构体字段或 YAML 大小写。
@@ -67,6 +75,46 @@ func bindConfigEnv(v *viper.Viper) error {
 		}
 	}
 	return nil
+}
+
+// LoadRabbitMQConfig 从 Viper 读取 RabbitMQ 后台任务配置。
+func LoadRabbitMQConfig() config.RabbitMQConfig {
+	return loadRabbitMQConfig(viper.GetViper())
+}
+
+func loadRabbitMQConfig(v *viper.Viper) config.RabbitMQConfig {
+	cfg := config.RabbitMQConfig{
+		URL:                      strings.TrimSpace(v.GetString("rabbitmq.url")),
+		PublishTimeoutSeconds:    v.GetInt("rabbitmq.publish_timeout_seconds"),
+		PollIntervalMilliseconds: v.GetInt("rabbitmq.poll_interval_ms"),
+		BatchSize:                v.GetInt("rabbitmq.batch_size"),
+		MaxPublishAttempts:       v.GetInt("rabbitmq.max_publish_attempts"),
+		RetryBaseSeconds:         v.GetInt("rabbitmq.retry_base_seconds"),
+		ClaimLeaseSeconds:        v.GetInt("rabbitmq.claim_lease_seconds"),
+		Prefetch:                 v.GetInt("rabbitmq.prefetch"),
+	}
+	if cfg.PublishTimeoutSeconds <= 0 {
+		cfg.PublishTimeoutSeconds = 5
+	}
+	if cfg.PollIntervalMilliseconds <= 0 {
+		cfg.PollIntervalMilliseconds = 500
+	}
+	if cfg.BatchSize <= 0 {
+		cfg.BatchSize = 100
+	}
+	if cfg.MaxPublishAttempts <= 0 {
+		cfg.MaxPublishAttempts = 10
+	}
+	if cfg.RetryBaseSeconds <= 0 {
+		cfg.RetryBaseSeconds = 2
+	}
+	if cfg.ClaimLeaseSeconds <= 0 {
+		cfg.ClaimLeaseSeconds = 30
+	}
+	if cfg.Prefetch <= 0 {
+		cfg.Prefetch = 20
+	}
+	return cfg
 }
 
 // LoadMySQLConfig 从 Viper 读取 MySQL 配置。

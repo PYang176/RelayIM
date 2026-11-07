@@ -10,10 +10,11 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"ginChatProject/internal/consumer"
+	"ginChatProject/internal/messaging"
 	"ginChatProject/internal/platform/bootstrap"
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
@@ -28,6 +29,13 @@ const (
 // Run 初始化依赖、启动后台任务并持续提供 HTTP 服务，
 // 直到进程收到中断或终止信号。
 func Run() error {
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
 	// 启动阶段 1：加载配置并初始化有状态基础设施。任一依赖失败都立即返回，
 	// 避免服务带着半套依赖继续运行。
 	if err := bootstrap.InitConfig(); err != nil {
@@ -61,11 +69,40 @@ func Run() error {
 	heartbeatTask := task.NewHeartbeatSyncTask(userRepo)
 	go heartbeatTask.Start()
 
-	msgRepo := repository.NewMessageRepository(db)
-	groupRepo := repository.NewGroupRepository(db)
-	msgConsumer := consumer.NewGroupMsgConsumer(msgRepo, groupRepo)
-	msgConsumer.Start()
-	defer msgConsumer.Stop()
+	var backgroundWorkers sync.WaitGroup
+	defer func() {
+		// Run 退出时先取消后台任务，再等待连接和轮询协程释放资源。
+		stop()
+		backgroundWorkers.Wait()
+	}()
+
+	rabbitCfg := bootstrap.LoadRabbitMQConfig()
+	if rabbitCfg.URL != "" {
+		messagingRepository := messaging.NewRepository(db)
+		outboxWorker := messaging.NewOutboxWorker(
+			messagingRepository,
+			rabbitCfg,
+			instanceID(),
+		)
+		backgroundWorkers.Add(1)
+		go func() {
+			defer backgroundWorkers.Done()
+			outboxWorker.Run(ctx)
+		}()
+
+		messageConsumer := messaging.NewMessageCreatedConsumer(
+			messaging.NewMessageCreatedProcessor(db),
+			rabbitCfg,
+			instanceID()+"-message-created",
+		)
+		backgroundWorkers.Add(1)
+		go func() {
+			defer backgroundWorkers.Done()
+			messageConsumer.Run(ctx)
+		}()
+	} else {
+		log.Println("未配置 GINCHAT_RABBITMQ_URL，RabbitMQ 后台任务保持禁用")
+	}
 
 	// 启动阶段 3：把已组装的依赖交给 Router。这里不读取环境变量或数据库，
 	// 只负责 HTTP 监听和连接池生命周期。
@@ -78,7 +115,7 @@ func Run() error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	return runServer(server)
+	return runServer(ctx, server)
 }
 
 func serverAddr() string {
@@ -88,11 +125,7 @@ func serverAddr() string {
 	return defaultServerAddr
 }
 
-func runServer(server *http.Server) error {
-	// 信号 Context 只负责监听生命周期；每个后台任务仍应拥有自己的取消机制。
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
+func runServer(ctx context.Context, server *http.Server) error {
 	// 缓冲 1 个错误，确保 ListenAndServe 退出时不会因无人接收而泄漏 Goroutine。
 	serverErr := make(chan error, 1)
 	go func() {
@@ -117,4 +150,12 @@ func runServer(server *http.Server) error {
 		log.Println("HTTP 服务已停止")
 		return nil
 	}
+}
+
+func instanceID() string {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = "ginchat"
+	}
+	return fmt.Sprintf("%s-%d", hostname, os.Getpid())
 }

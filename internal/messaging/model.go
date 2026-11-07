@@ -6,6 +6,9 @@ const (
 	conversationStatusActive = 1
 	messageTypeText          = 1
 	outboxStatusPending      = 0
+	outboxStatusProcessing   = 1
+	outboxStatusPublished    = 2
+	outboxStatusDead         = 3
 )
 
 type conversation struct {
@@ -120,6 +123,21 @@ type outboxEvent struct {
 
 func (outboxEvent) TableName() string {
 	return "outbox_events"
+}
+
+type processedEvent struct {
+	// EventID 是 Consumer 已成功处理的 RabbitMQ 事件幂等 ID。
+	EventID uint64 `gorm:"column:event_id;primaryKey"`
+
+	// ConsumerName 是消费者名称，同一事件可以被不同消费者各处理一次。
+	ConsumerName string `gorm:"column:consumer_name;primaryKey"`
+
+	// ProcessedAt 是 Consumer 成功处理事件的 UTC 时间。
+	ProcessedAt time.Time `gorm:"column:processed_at"`
+}
+
+func (processedEvent) TableName() string {
+	return "processed_events"
 }
 
 type messageCreatedPayload struct {

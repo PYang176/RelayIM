@@ -15,4 +15,13 @@ var (
 	ErrInvalidReply = errors.New("引用的消息无效")
 	// ErrClientMessageConflict 表示同一客户端消息 ID 被用于其他会话。
 	ErrClientMessageConflict = errors.New("客户端消息 ID 已被其他会话使用")
+
+	// ErrOutboxLeaseLost 表示发布实例已失去事件处理租约。
+	ErrOutboxLeaseLost = errors.New("Outbox 事件租约已失效")
+
+	// ErrInvalidEvent 表示 RabbitMQ 事件信封或业务载荷不合法。
+	ErrInvalidEvent = errors.New("消息事件不合法")
+
+	// ErrMessageEventNotFound 表示事件引用的消息事实不存在。
+	ErrMessageEventNotFound = errors.New("消息事件对应的消息不存在")
 )

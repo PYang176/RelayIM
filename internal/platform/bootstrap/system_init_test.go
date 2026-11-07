@@ -42,6 +42,13 @@ func TestBindConfigEnv(t *testing.T) {
 			key:     "snowflake.workID",
 			want:    int64(7),
 		},
+		{
+			name:    "RabbitMQ 地址覆盖",
+			envName: "GINCHAT_RABBITMQ_URL",
+			envVal:  "amqp://user:password@127.0.0.1:5672/ginchat",
+			key:     "rabbitmq.url",
+			want:    "amqp://user:password@127.0.0.1:5672/ginchat",
+		},
 	}
 
 	for _, tt := range tests {
@@ -67,6 +74,34 @@ func TestBindConfigEnv(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GINCHAT_RABBITMQ_URL", "amqp://user:password@127.0.0.1:5672/ginchat")
+	t.Setenv("GINCHAT_RABBITMQ_PUBLISH_TIMEOUT_SECONDS", "6")
+	t.Setenv("GINCHAT_RABBITMQ_POLL_INTERVAL_MS", "250")
+	t.Setenv("GINCHAT_RABBITMQ_BATCH_SIZE", "50")
+	t.Setenv("GINCHAT_RABBITMQ_MAX_PUBLISH_ATTEMPTS", "8")
+	t.Setenv("GINCHAT_RABBITMQ_RETRY_BASE_SECONDS", "3")
+	t.Setenv("GINCHAT_RABBITMQ_CLAIM_LEASE_SECONDS", "45")
+	t.Setenv("GINCHAT_RABBITMQ_PREFETCH", "30")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+
+	cfg := loadRabbitMQConfig(v)
+	if cfg.URL != "amqp://user:password@127.0.0.1:5672/ginchat" ||
+		cfg.PublishTimeoutSeconds != 6 ||
+		cfg.PollIntervalMilliseconds != 250 ||
+		cfg.BatchSize != 50 ||
+		cfg.MaxPublishAttempts != 8 ||
+		cfg.RetryBaseSeconds != 3 ||
+		cfg.ClaimLeaseSeconds != 45 ||
+		cfg.Prefetch != 30 {
+		t.Fatalf("LoadRabbitMQConfig() = %+v，环境变量没有正确覆盖默认值", cfg)
 	}
 }
 
