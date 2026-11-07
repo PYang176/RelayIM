@@ -13,7 +13,7 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	// 新认证链路只依赖新 ginchat_v2 用户表，不与旧 user_basic 混用。
 	repo := identityapp.NewRepository(db)
 	identityService := identityapp.NewService(repo, authn.DefaultManager)
-	handler := identityapp.NewHandler(identityService)
+	handler := identityapp.NewHandler(identityService, authn.DefaultManager)
 
 	auth := r.Group("/api/v1/auth")
 	auth.POST("/register", handler.Register)
@@ -22,4 +22,5 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
 	protected.GET("/me", handler.Me)
+	protected.POST("/auth/ws-ticket", handler.WSTicket)
 }

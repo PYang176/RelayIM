@@ -11,9 +11,10 @@ import (
 func Register(r *gin.Engine, db *gorm.DB) {
 	repository := messagingapp.NewRepository(db)
 	service := messagingapp.NewService(repository)
-	handler := messagingapp.NewHandler(service)
+	handler := messagingapp.NewHandler(service, service)
 
 	group := r.Group("/api/v1/conversations")
 	group.Use(middleware.AuthMiddleware())
+	group.GET("/:conversation_id/messages", handler.ListMessages)
 	group.POST("/:conversation_id/messages", handler.SendText)
 }

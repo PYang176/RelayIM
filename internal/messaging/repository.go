@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -30,6 +31,14 @@ type sendTextInput struct {
 	ClientMessageID  string
 	Content          string
 	ReplyToMessageID *uint64
+}
+
+type listMessagesInput struct {
+	ConversationID uint64
+	UserID         uint64
+	AfterSeq       uint64
+	BeforeSeq      uint64
+	Limit          int
 }
 
 // sendText 在单个事务中保存文本消息和 Outbox 事件。
@@ -208,6 +217,65 @@ func (r *Repository) findByClientMessageID(
 		return nil, err
 	}
 	return &msg, nil
+}
+
+// listMessages 校验会话成员权限，并按请求游标返回一页历史消息。
+func (r *Repository) listMessages(
+	ctx context.Context,
+	input listMessagesInput,
+) ([]message, bool, error) {
+	var conversationRecord conversation
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND status = ?", input.ConversationID, conversationStatusActive).
+		First(&conversationRecord).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, ErrConversationNotFound
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("查询历史消息会话: %w", err)
+	}
+
+	var member conversationMember
+	err = r.db.WithContext(ctx).
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			input.ConversationID,
+			input.UserID,
+		).
+		First(&member).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, ErrNotMember
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("校验历史消息成员: %w", err)
+	}
+
+	ascending := input.AfterSeq > 0
+	query := r.db.WithContext(ctx).
+		Where("conversation_id = ?", input.ConversationID)
+	switch {
+	case input.AfterSeq > 0:
+		query = query.Where("seq > ?", input.AfterSeq).Order("seq ASC")
+	case input.BeforeSeq > 0:
+		query = query.Where("seq < ?", input.BeforeSeq).Order("seq DESC")
+	default:
+		query = query.Order("seq DESC")
+	}
+
+	records := make([]message, 0, input.Limit+1)
+	if err := query.Limit(input.Limit + 1).Find(&records).Error; err != nil {
+		return nil, false, fmt.Errorf("查询历史消息: %w", err)
+	}
+
+	hasMore := len(records) > input.Limit
+	if hasMore {
+		records = records[:input.Limit]
+	}
+	if !ascending {
+		// 向前翻页和默认最近消息先倒序查询，再统一转成 seq 升序响应。
+		slices.Reverse(records)
+	}
+	return records, hasMore, nil
 }
 
 func isDuplicateKey(err error) bool {

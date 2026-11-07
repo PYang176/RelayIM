@@ -83,4 +83,23 @@ func TestManagerIntegration(t *testing.T) {
 	if _, err := manager.Authenticate(context.Background(), token); !errors.Is(err, ErrTokenRevoked) {
 		t.Fatalf("撤销后认证错误 = %v，期望 ErrTokenRevoked", err)
 	}
+
+	ticket, ttl, err := manager.IssueWSTicket(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("签发 WebSocket Ticket 失败: %v", err)
+	}
+	if ttl <= 0 || ttl > 30*time.Second {
+		t.Fatalf("WebSocket Ticket TTL = %v，期望 30 秒以内", ttl)
+	}
+	ticketUserID, err := manager.ConsumeWSTicket(context.Background(), ticket)
+	if err != nil {
+		t.Fatalf("消费 WebSocket Ticket 失败: %v", err)
+	}
+	if ticketUserID != userID {
+		t.Fatalf("Ticket 用户 ID = %d，期望 %d", ticketUserID, userID)
+	}
+	// 同一票据第二次使用时 Redis GETDEL 已删除记录，必须拒绝。
+	if _, err := manager.ConsumeWSTicket(context.Background(), ticket); !errors.Is(err, ErrWSTicketInvalid) {
+		t.Fatalf("重复消费 Ticket 错误 = %v，期望 ErrWSTicketInvalid", err)
+	}
 }

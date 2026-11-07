@@ -2,15 +2,31 @@
 
 ## 1. 建连
 
-当前过渡实现使用查询参数：
+客户端先调用受保护接口：
 
-```text
-ws://127.0.0.1:8081/ws?token=<JWT>
+```http
+POST /api/v1/auth/ws-ticket
+Authorization: Bearer <JWT>
 ```
 
-服务端先校验 JWT、Redis 黑名单和白名单，再升级连接。`/ws` 路径不写 Gin 访问日志，避免完整 Token 落盘。
+响应：
 
-查询参数 Token 仍可能进入浏览器历史或代理日志。正式前端阶段应改为短时、单次有效的 `ws-ticket`；Ticket 只用于建立连接，不替代 Access Token。
+```json
+{
+  "ticket": "短时随机票据",
+  "expires_in_seconds": 30
+}
+```
+
+再使用一次性 Ticket 建连：
+
+```text
+ws://127.0.0.1:8081/ws?ticket=<一次性票据>
+```
+
+Ticket 有效期 30 秒，并在 Redis 中使用 `GETDEL` 消费，因此重放同一 Ticket 会失败。`/ws` 路径不写 Gin 访问日志。
+
+Ticket 只用于建立连接，不替代 Access Token。Access Token 继续用于 HTTP 接口，新的 Ticket 必须通过 HTTP 认证后重新申请。
 
 ## 2. 连接模型
 
@@ -60,4 +76,10 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 连接注册表仅存在单个 Go 进程内。多实例部署时，消费者需要先通过 Redis 查询用户连接所在实例，再经 `im.delivery.node.<instance_id>` 队列转发投递命令。当前阶段只支持单实例实时扇出。
 
-历史消息和断线补拉尚未迁移到新版 `messages` 表，因此 WebSocket 建连时不再调用旧 `message` 表。下一阶段需要通过新版 HTTP 历史接口按 `after_seq` 补拉。
+连接断开后，客户端调用：
+
+```http
+GET /api/v1/conversations/:conversation_id/messages?after_seq=<最后已见seq>
+```
+
+按 `seq` 升序补拉断线期间消息，避免依赖 WebSocket 重放。实时连接和 HTTP 补拉可能重复，客户端必须按 `message_id` 去重。

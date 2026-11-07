@@ -18,8 +18,10 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 	required := []string{
 		"POST /api/v1/auth/register",
 		"POST /api/v1/auth/login",
+		"POST /api/v1/auth/ws-ticket",
 		"GET /api/v1/conversations",
 		"POST /api/v1/conversations/private",
+		"GET /api/v1/conversations/:conversation_id/messages",
 		"POST /api/v1/conversations/:conversation_id/messages",
 		"GET /ws",
 	}

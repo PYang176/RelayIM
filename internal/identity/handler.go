@@ -1,22 +1,34 @@
 package identity
 
 import (
+	"context"
 	"errors"
 	"ginChatProject/internal/middleware"
+	"ginChatProject/internal/platform/authn"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Handler 处理用户认证 HTTP 请求。
 type Handler struct {
-	service *Service
+	service   *Service
+	wsTickets WSTicketIssuer
+}
+
+// WSTicketIssuer 签发短时、单次使用的 WebSocket 建连票据。
+type WSTicketIssuer interface {
+	IssueWSTicket(ctx context.Context, userID uint64) (string, time.Duration, error)
 }
 
 // NewHandler 创建用户认证 Handler。
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, wsTickets WSTicketIssuer) *Handler {
+	return &Handler{
+		service:   service,
+		wsTickets: wsTickets,
+	}
 }
 
 type registerRequest struct {
@@ -112,6 +124,29 @@ func (h *Handler) Me(c *gin.Context) {
 		"id":       strconv.FormatUint(result.ID, 10),
 		"username": result.Username,
 		"nickname": result.Nickname,
+	})
+}
+
+// WSTicket 处理 POST /api/v1/auth/ws-ticket。
+func (h *Handler) WSTicket(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+
+	ticket, ttl, err := h.wsTickets.IssueWSTicket(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, authn.ErrAuthUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "认证服务暂不可用"})
+			return
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ticket":             ticket,
+		"expires_in_seconds": int64(ttl / time.Second),
 	})
 }
 

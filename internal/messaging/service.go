@@ -7,7 +7,11 @@ import (
 	"unicode/utf8"
 )
 
-const maxTextContentRunes = 8000
+const (
+	maxTextContentRunes = 8000
+	defaultHistoryLimit = 20
+	maxHistoryLimit     = 100
+)
 
 // Service 提供消息业务用例。
 type Service struct {
@@ -35,6 +39,60 @@ type SendTextResult struct {
 	Seq            uint64
 	CreatedAt      time.Time
 	Duplicate      bool
+}
+
+// ListMessagesCommand 是历史消息分页参数。
+type ListMessagesCommand struct {
+	// ConversationID 是待查询会话 Snowflake ID。
+	ConversationID uint64
+
+	// UserID 是当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// AfterSeq 大于零时按升序返回该序号之后的消息，用于断线补拉。
+	AfterSeq uint64
+
+	// BeforeSeq 大于零时返回该序号之前的一页消息。
+	BeforeSeq uint64
+
+	// Limit 是分页数量，默认 20，最大 100。
+	Limit int
+}
+
+// MessageResult 是接口层可安全使用的消息历史。
+type MessageResult struct {
+	// ID 是消息 Snowflake ID。
+	ID uint64
+
+	// ConversationID 是消息所属会话 Snowflake ID。
+	ConversationID uint64
+
+	// SenderID 是发送者 Snowflake 用户 ID。
+	SenderID uint64
+
+	// Seq 是消息在会话内的递增序号。
+	Seq uint64
+
+	// MessageType 表示消息类型。
+	MessageType int
+
+	// Content 是文本正文。
+	Content string
+
+	// ReplyToMessageID 是可选引用消息 Snowflake ID。
+	ReplyToMessageID *uint64
+
+	// CreatedAt 是消息创建的 UTC 时间。
+	CreatedAt time.Time
+}
+
+// MessagePage 是一页消息历史。
+type MessagePage struct {
+	// Messages 始终按 seq 升序返回。
+	Messages []MessageResult
+
+	// HasMore 表示当前查询方向仍存在更多消息。
+	HasMore bool
 }
 
 // SendText 校验文本消息并调用数据库事务。
@@ -82,5 +140,53 @@ func (s *Service) SendText(
 		Seq:            msg.Seq,
 		CreatedAt:      msg.CreatedAt,
 		Duplicate:      duplicate,
+	}, nil
+}
+
+// ListMessages 返回当前会话成员可见的一页历史消息。
+func (s *Service) ListMessages(
+	ctx context.Context,
+	command ListMessagesCommand,
+) (MessagePage, error) {
+	if command.ConversationID == 0 || command.UserID == 0 {
+		return MessagePage{}, ErrInvalidMessage
+	}
+	if command.AfterSeq > 0 && command.BeforeSeq > 0 {
+		return MessagePage{}, ErrInvalidMessage
+	}
+	if command.Limit == 0 {
+		command.Limit = defaultHistoryLimit
+	}
+	if command.Limit < 0 || command.Limit > maxHistoryLimit {
+		return MessagePage{}, ErrInvalidMessage
+	}
+
+	records, hasMore, err := s.repo.listMessages(ctx, listMessagesInput{
+		ConversationID: command.ConversationID,
+		UserID:         command.UserID,
+		AfterSeq:       command.AfterSeq,
+		BeforeSeq:      command.BeforeSeq,
+		Limit:          command.Limit,
+	})
+	if err != nil {
+		return MessagePage{}, err
+	}
+
+	results := make([]MessageResult, 0, len(records))
+	for _, record := range records {
+		results = append(results, MessageResult{
+			ID:               record.ID,
+			ConversationID:   record.ConversationID,
+			SenderID:         record.SenderID,
+			Seq:              record.Seq,
+			MessageType:      record.MessageType,
+			Content:          record.Content,
+			ReplyToMessageID: record.ReplyToMessageID,
+			CreatedAt:        record.CreatedAt,
+		})
+	}
+	return MessagePage{
+		Messages: results,
+		HasMore:  hasMore,
 	}, nil
 }

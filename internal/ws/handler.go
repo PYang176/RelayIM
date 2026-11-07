@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/redisstore"
 	"log"
@@ -34,18 +35,22 @@ func NewWebsocketHandler() *WebsocketHandler {
 
 // Connect 完成鉴权后把连接交给单写协程客户端。
 func (h *WebsocketHandler) Connect(c *gin.Context) {
-	tokenStr := c.Query("token")
-	if tokenStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供 token"})
+	ticket := c.Query("ticket")
+	if ticket == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供 WebSocket Ticket"})
 		return
 	}
 
-	runtimeSession, err := authn.DefaultManager.Authenticate(
+	userID, err := authn.DefaultManager.ConsumeWSTicket(
 		c.Request.Context(),
-		tokenStr,
+		ticket,
 	)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "token 无效或已过期"})
+		if errors.Is(err, authn.ErrAuthUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "认证服务暂不可用"})
+			return
+		}
+		c.JSON(http.StatusForbidden, gin.H{"error": "WebSocket Ticket 无效或已使用"})
 		return
 	}
 
@@ -56,10 +61,10 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	}
 
 	client := NewClient(
-		runtimeSession.UserID,
+		userID,
 		conn,
 		func(heartbeatCtx context.Context) {
-			h.updateHeartbeat(heartbeatCtx, runtimeSession.UserID)
+			h.updateHeartbeat(heartbeatCtx, userID)
 		},
 	)
 	if !Manager.Add(client) {

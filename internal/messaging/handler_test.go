@@ -21,6 +21,22 @@ type stubTextMessageSender struct {
 	command SendTextCommand
 }
 
+type stubMessageReader struct {
+	page    MessagePage
+	err     error
+	calls   int
+	command ListMessagesCommand
+}
+
+func (s *stubMessageReader) ListMessages(
+	_ context.Context,
+	command ListMessagesCommand,
+) (MessagePage, error) {
+	s.calls++
+	s.command = command
+	return s.page, s.err
+}
+
 func (s *stubTextMessageSender) SendText(
 	_ context.Context,
 	command SendTextCommand,
@@ -286,6 +302,114 @@ func TestHandlerSendTextErrorMapping(t *testing.T) {
 	}
 }
 
+func TestHandlerListMessages(t *testing.T) {
+	createdAt := time.Date(2026, time.November, 7, 10, 0, 0, 0, time.UTC)
+	replyTo := uint64(300)
+	reader := &stubMessageReader{
+		page: MessagePage{
+			Messages: []MessageResult{
+				{
+					ID:               100,
+					ConversationID:   200,
+					SenderID:         42,
+					Seq:              11,
+					MessageType:      1,
+					Content:          "after seq",
+					ReplyToMessageID: &replyTo,
+					CreatedAt:        createdAt,
+				},
+			},
+			HasMore: true,
+		},
+	}
+	router := newMessagingReaderRouter(reader, 42)
+
+	response := performListMessagesRequest(
+		router,
+		"200",
+		"after_seq=10&limit=2",
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d，期望 200，响应 = %s",
+			response.Code,
+			response.Body.String(),
+		)
+	}
+	if reader.calls != 1 ||
+		reader.command.ConversationID != 200 ||
+		reader.command.UserID != 42 ||
+		reader.command.AfterSeq != 10 ||
+		reader.command.Limit != 2 {
+		t.Fatalf("历史消息命令 = %+v", reader.command)
+	}
+
+	var body struct {
+		Messages []messageHistoryResponse `json:"messages"`
+		HasMore  bool                     `json:"has_more"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析历史消息响应失败: %v", err)
+	}
+	if len(body.Messages) != 1 ||
+		body.Messages[0].MessageID != "100" ||
+		body.Messages[0].SenderID != "42" ||
+		body.Messages[0].ReplyToMessageID == nil ||
+		*body.Messages[0].ReplyToMessageID != "300" ||
+		!body.HasMore {
+		t.Fatalf("历史消息响应 = %+v", body)
+	}
+}
+
+func TestHandlerListMessagesRejectsInvalidRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		userID     uint64
+		query      string
+		readerErr  error
+		wantStatus int
+	}{
+		{
+			name:       "缺少认证用户",
+			query:      "limit=20",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "游标格式错误",
+			userID:     42,
+			query:      "after_seq=invalid",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "分页数量格式错误",
+			userID:     42,
+			query:      "limit=invalid",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "非会话成员",
+			userID:     42,
+			query:      "limit=20",
+			readerErr:  ErrNotMember,
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := &stubMessageReader{err: tt.readerErr}
+			router := newMessagingReaderRouter(reader, tt.userID)
+			response := performListMessagesRequest(router, "200", tt.query)
+			if response.Code != tt.wantStatus {
+				t.Fatalf("状态码 = %d，期望 %d，响应 = %s",
+					response.Code,
+					tt.wantStatus,
+					response.Body.String(),
+				)
+			}
+		})
+	}
+}
+
 func newMessagingHandlerRouter(
 	sender TextMessageSender,
 	userID uint64,
@@ -299,10 +423,31 @@ func newMessagingHandlerRouter(
 		c.Next()
 	})
 
-	handler := NewHandler(sender)
+	handler := NewHandler(sender, nil)
 	router.POST(
 		"/api/v1/conversations/:conversation_id/messages",
 		handler.SendText,
+	)
+	return router
+}
+
+func newMessagingReaderRouter(
+	reader MessageReader,
+	userID uint64,
+) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		if userID != 0 {
+			c.Set(middleware.ContextUserIDKey, userID)
+		}
+		c.Next()
+	})
+
+	handler := NewHandler(nil, reader)
+	router.GET(
+		"/api/v1/conversations/:conversation_id/messages",
+		handler.ListMessages,
 	)
 	return router
 }
@@ -318,6 +463,21 @@ func performSendTextRequest(
 		strings.NewReader(body),
 	)
 	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	return response
+}
+
+func performListMessagesRequest(
+	router http.Handler,
+	conversationID string,
+	query string,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/conversations/"+conversationID+"/messages?"+query,
+		nil,
+	)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	return response

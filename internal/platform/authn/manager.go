@@ -3,6 +3,9 @@ package authn
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -23,7 +26,12 @@ var (
 
 	// ErrAuthUnavailable 表示 Redis 等认证依赖暂时不可用。
 	ErrAuthUnavailable = errors.New("认证服务暂不可用")
+
+	// ErrWSTicketInvalid 表示一次性 WebSocket Ticket 无效、过期或已被使用。
+	ErrWSTicketInvalid = errors.New("WebSocket Ticket 无效或已使用")
 )
+
+const wsTicketTTL = 30 * time.Second
 
 // Session 是一次已通过校验的登录会话。
 type Session struct {
@@ -110,6 +118,57 @@ func (m *Manager) Authenticate(ctx context.Context, token string) (Session, erro
 		JTI:       claims.JTI,
 		ExpiresAt: claims.ExpiresAt.Time,
 	}, nil
+}
+
+// IssueWSTicket 生成短时、单次使用的 WebSocket 建连票据。
+func (m *Manager) IssueWSTicket(
+	ctx context.Context,
+	userID uint64,
+) (string, time.Duration, error) {
+	if userID == 0 {
+		return "", 0, ErrInvalidToken
+	}
+
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", 0, fmt.Errorf("%w: 生成 WebSocket Ticket: %w", ErrAuthUnavailable, err)
+	}
+	ticket := base64.RawURLEncoding.EncodeToString(randomBytes)
+	key := wsTicketKey(ticket)
+	if err := redisstore.RDB.Set(ctx, key, userID, wsTicketTTL).Err(); err != nil {
+		return "", 0, fmt.Errorf("%w: 保存 WebSocket Ticket: %w", ErrAuthUnavailable, err)
+	}
+	return ticket, wsTicketTTL, nil
+}
+
+// ConsumeWSTicket 原子读取并删除 Ticket，保证同一票据只能建立一次连接。
+func (m *Manager) ConsumeWSTicket(
+	ctx context.Context,
+	ticket string,
+) (uint64, error) {
+	ticket = strings.TrimSpace(ticket)
+	if ticket == "" {
+		return 0, ErrWSTicketInvalid
+	}
+
+	value, err := redisstore.RDB.GetDel(ctx, wsTicketKey(ticket)).Result()
+	if errors.Is(err, redis.Nil) || value == "" {
+		return 0, ErrWSTicketInvalid
+	}
+	if err != nil {
+		return 0, fmt.Errorf("%w: 读取 WebSocket Ticket: %w", ErrAuthUnavailable, err)
+	}
+
+	userID, err := strconv.ParseUint(value, 10, 64)
+	if err != nil || userID == 0 {
+		return 0, ErrWSTicketInvalid
+	}
+	return userID, nil
+}
+
+func wsTicketKey(ticket string) string {
+	digest := sha256.Sum256([]byte(ticket))
+	return fmt.Sprintf("ws_ticket:%x", digest)
 }
 
 // Revoke 将 Token 加入黑名单并删除白名单记录。

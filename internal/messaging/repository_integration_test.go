@@ -174,6 +174,58 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		}
 	}
 
+	latestPage, err := service.ListMessages(context.Background(), ListMessagesCommand{
+		ConversationID: conversationID,
+		UserID:         memberID,
+		Limit:          3,
+	})
+	if err != nil {
+		t.Fatalf("查询最近历史消息失败: %v", err)
+	}
+	if got := messageSequences(latestPage.Messages); !equalSequences(got, []uint64{4, 5, 6}) {
+		t.Fatalf("最近消息序号 = %v，期望 [4 5 6]", got)
+	}
+	if !latestPage.HasMore {
+		t.Fatal("最近消息第一页应存在更早消息")
+	}
+
+	afterPage, err := service.ListMessages(context.Background(), ListMessagesCommand{
+		ConversationID: conversationID,
+		UserID:         memberID,
+		AfterSeq:       2,
+		Limit:          2,
+	})
+	if err != nil {
+		t.Fatalf("after_seq 补拉失败: %v", err)
+	}
+	if got := messageSequences(afterPage.Messages); !equalSequences(got, []uint64{3, 4}) {
+		t.Fatalf("after_seq 消息序号 = %v，期望 [3 4]", got)
+	}
+	if !afterPage.HasMore {
+		t.Fatal("after_seq 第一页应存在更多消息")
+	}
+
+	beforePage, err := service.ListMessages(context.Background(), ListMessagesCommand{
+		ConversationID: conversationID,
+		UserID:         memberID,
+		BeforeSeq:      5,
+		Limit:          2,
+	})
+	if err != nil {
+		t.Fatalf("before_seq 翻页失败: %v", err)
+	}
+	if got := messageSequences(beforePage.Messages); !equalSequences(got, []uint64{3, 4}) {
+		t.Fatalf("before_seq 消息序号 = %v，期望 [3 4]", got)
+	}
+
+	if _, err := service.ListMessages(context.Background(), ListMessagesCommand{
+		ConversationID: conversationID,
+		UserID:         outsiderID,
+		Limit:          3,
+	}); !errors.Is(err, ErrNotMember) {
+		t.Fatalf("非成员查询历史错误 = %v，期望 ErrNotMember", err)
+	}
+
 	// 最后核对 Outbox 数量：1 条首消息加 5 条并发消息，每条都必须有事件。
 	var outboxCount int64
 	if err := db.Model(&outboxEvent{}).
@@ -184,4 +236,24 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	if want := int64(concurrentMessages + 1); outboxCount != want {
 		t.Fatalf("Outbox 数量 = %d，期望 %d", outboxCount, want)
 	}
+}
+
+func messageSequences(messages []MessageResult) []uint64 {
+	sequences := make([]uint64, 0, len(messages))
+	for _, message := range messages {
+		sequences = append(sequences, message.Seq)
+	}
+	return sequences
+}
+
+func equalSequences(got []uint64, want []uint64) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			return false
+		}
+	}
+	return true
 }

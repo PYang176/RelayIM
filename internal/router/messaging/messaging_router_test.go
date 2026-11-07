@@ -19,6 +19,7 @@ func TestRegisterRoutesAlongsideConversationRoutes(t *testing.T) {
 
 	wantRoutes := map[string]bool{
 		"POST /api/v1/conversations/groups":                    false,
+		"GET /api/v1/conversations/:conversation_id/messages":  false,
 		"POST /api/v1/conversations/:conversation_id/messages": false,
 	}
 	for _, route := range router.Routes() {
