@@ -51,8 +51,8 @@ func (h *MessageHandler) Send(c *gin.Context) {
 	// 构造websocket消息
 	msg := ws.WsMessage{
 		MessageID:  messageID,
-		SenderID:   uint64(sendID),
-		ReceiverID: req.ReceiverID,
+		SenderID:   strconv.FormatUint(uint64(sendID), 10),
+		ReceiverID: strconv.FormatUint(req.ReceiverID, 10),
 		MsgType:    int(req.MsgType),
 		Content:    req.Content,
 		URL:        req.URL,
@@ -151,8 +151,8 @@ func (h *MessageHandler) broadcastToGroup(msg *model.Message, userIDs []uint64) 
 	pushMsg := ws.WsMessage{
 		Action:     ws.ActionMessage,
 		MessageID:  msg.MessageID,
-		SenderID:   msg.SenderID,
-		ReceiverID: msg.ReceiverID,
+		SenderID:   strconv.FormatUint(msg.SenderID, 10),
+		ReceiverID: strconv.FormatUint(msg.ReceiverID, 10),
 		MsgType:    int(msg.MsgType),
 		Content:    msg.Content,
 		URL:        msg.URL,

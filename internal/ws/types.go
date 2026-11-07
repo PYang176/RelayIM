@@ -15,11 +15,11 @@ type WsMessage struct {
 	// ConversationID 是新版会话 Snowflake ID 字符串。
 	ConversationID string `json:"conversation_id,omitempty"`
 
-	// SenderID 是发送者 Snowflake 用户 ID。
-	SenderID uint64 `json:"sender_id"`
+	// SenderID 是发送者 Snowflake 用户 ID 字符串，避免 JavaScript 精度丢失。
+	SenderID string `json:"sender_id"`
 
-	// ReceiverID 是旧版接收者或群 ID，新版消息可留空。
-	ReceiverID uint64 `json:"receiver_id,omitempty"`
+	// ReceiverID 是旧版接收者或群 ID 字符串，新版消息可留空。
+	ReceiverID string `json:"receiver_id,omitempty"`
 
 	// Seq 是消息在会话内的递增序号，用于客户端排序和去重。
 	Seq uint64 `json:"seq,omitempty"`

@@ -21,7 +21,14 @@ import (
 //}
 
 func Router(db *gorm.DB) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	// WebSocket 当前仍需查询参数携带 Token；跳过该路径访问日志，避免凭证落盘。
+	r.Use(
+		gin.LoggerWithConfig(gin.LoggerConfig{
+			SkipPaths: []string{"/ws"},
+		}),
+		gin.Recovery(),
+	)
 
 	// 调试接口文档
 	//docs.SwaggerInfo.BasePath = ""

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ginChatProject/internal/platform/rabbitmq"
+	"ginChatProject/internal/ws"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -75,9 +76,11 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 	if err := db.Exec(
 		`INSERT INTO conversation_members
 			(conversation_id, user_id, role)
-		 VALUES (?, ?, 3)`,
+		 VALUES (?, ?, 3), (?, ?, 1)`,
 		conversationID,
 		userA,
+		conversationID,
+		userB,
 	).Error; err != nil {
 		t.Fatalf("创建消费测试成员失败: %v", err)
 	}
@@ -111,7 +114,8 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 		Payload:     payload,
 	}
 
-	processor := NewMessageCreatedProcessor(db)
+	realtime := &stubRealtimeSender{}
+	processor := NewMessageCreatedProcessor(db, realtime)
 	if err := processor.Process(context.Background(), envelope); err != nil {
 		t.Fatalf("首次处理消息事件失败: %v", err)
 	}
@@ -129,4 +133,35 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 	if processedCount != 1 {
 		t.Fatalf("消费幂等记录数量 = %d，期望 1", processedCount)
 	}
+	if len(realtime.messages) != 1 {
+		t.Fatalf("实时投递次数 = %d，期望 1", len(realtime.messages))
+	}
+	if len(realtime.userIDs) != 1 || realtime.userIDs[0] != userB {
+		t.Fatalf("实时接收者 = %v，期望用户 %d", realtime.userIDs, userB)
+	}
+	var pushed ws.WsMessage
+	if err := json.Unmarshal(realtime.messages[0], &pushed); err != nil {
+		t.Fatalf("解析实时消息失败: %v", err)
+	}
+	if pushed.MessageID != fmt.Sprintf("%d", messageID) ||
+		pushed.ConversationID != fmt.Sprintf("%d", conversationID) ||
+		pushed.SenderID != fmt.Sprintf("%d", userA) ||
+		pushed.Seq != 1 ||
+		pushed.Content != "消费测试消息" {
+		t.Fatalf("实时消息 = %+v", pushed)
+	}
+}
+
+type stubRealtimeSender struct {
+	userIDs  []uint64
+	messages [][]byte
+}
+
+func (s *stubRealtimeSender) SendToUsers(
+	userIDs []uint64,
+	message []byte,
+) int {
+	s.userIDs = append([]uint64(nil), userIDs...)
+	s.messages = append(s.messages, append([]byte(nil), message...))
+	return len(userIDs)
 }

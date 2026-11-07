@@ -10,6 +10,7 @@ import (
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/ws"
 	"github.com/redis/go-redis/v9"
+	"strconv"
 	"time"
 )
 
@@ -157,8 +158,8 @@ func (c *GroupMsgConsumer) pushToUser(message model.Message, userID uint64) erro
 	pushMsg := ws.WsMessage{
 		Action:     ws.ActionMessage,
 		MessageID:  message.MessageID,
-		SenderID:   message.SenderID,
-		ReceiverID: message.ReceiverID,
+		SenderID:   strconv.FormatUint(message.SenderID, 10),
+		ReceiverID: strconv.FormatUint(message.ReceiverID, 10),
 		MsgType:    int(message.MsgType),
 		Content:    message.Content,
 		URL:        message.URL,

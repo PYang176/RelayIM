@@ -19,6 +19,7 @@ import (
 	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/task"
+	"ginChatProject/internal/ws"
 )
 
 const (
@@ -91,7 +92,7 @@ func Run() error {
 		}()
 
 		messageConsumer := messaging.NewMessageCreatedConsumer(
-			messaging.NewMessageCreatedProcessor(db),
+			messaging.NewMessageCreatedProcessor(db, ws.Manager),
 			rabbitCfg,
 			instanceID()+"-message-created",
 		)

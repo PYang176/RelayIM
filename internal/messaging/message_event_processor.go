@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ginChatProject/internal/platform/rabbitmq"
+	"ginChatProject/internal/ws"
 	"gorm.io/gorm"
 )
 
@@ -34,13 +35,23 @@ func (e permanentEventError) Permanent() bool {
 type MessageCreatedProcessor struct {
 	db           *gorm.DB
 	consumerName string
+	realtime     RealtimeSender
+}
+
+// RealtimeSender 把消息非阻塞提交给当前进程内的在线连接。
+type RealtimeSender interface {
+	SendToUsers(userIDs []uint64, message []byte) int
 }
 
 // NewMessageCreatedProcessor 创建消息创建事件处理器。
-func NewMessageCreatedProcessor(db *gorm.DB) *MessageCreatedProcessor {
+func NewMessageCreatedProcessor(
+	db *gorm.DB,
+	realtime RealtimeSender,
+) *MessageCreatedProcessor {
 	return &MessageCreatedProcessor{
 		db:           db,
 		consumerName: messageCreatedConsumerName,
+		realtime:     realtime,
 	}
 }
 
@@ -123,6 +134,33 @@ func (p *MessageCreatedProcessor) Process(
 		}
 		if err != nil {
 			return fmt.Errorf("校验消息事件事实: %w", err)
+		}
+
+		var recipientIDs []uint64
+		if err := tx.Table("conversation_members").
+			Where(
+				"conversation_id = ? AND user_id <> ? AND left_at IS NULL",
+				conversationID,
+				senderID,
+			).
+			Pluck("user_id", &recipientIDs).Error; err != nil {
+			return fmt.Errorf("查询消息在线接收者: %w", err)
+		}
+
+		if p.realtime != nil && len(recipientIDs) > 0 {
+			realtimePayload, err := json.Marshal(ws.WsMessage{
+				MessageID:      strconv.FormatUint(messageID, 10),
+				ConversationID: strconv.FormatUint(conversationID, 10),
+				SenderID:       strconv.FormatUint(senderID, 10),
+				Seq:            payload.Seq,
+				MsgType:        messageRecord.MessageType,
+				Content:        messageRecord.Content,
+				Action:         ws.ActionMessage,
+			})
+			if err != nil {
+				return fmt.Errorf("序列化在线消息: %w", err)
+			}
+			p.realtime.SendToUsers(recipientIDs, realtimePayload)
 		}
 		return nil
 	})

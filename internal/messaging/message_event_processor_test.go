@@ -9,7 +9,7 @@ import (
 )
 
 func TestMessageCreatedProcessorRejectsInvalidEvent(t *testing.T) {
-	processor := NewMessageCreatedProcessor(nil)
+	processor := NewMessageCreatedProcessor(nil, nil)
 	tests := []struct {
 		name     string
 		envelope rabbitmq.EventEnvelope

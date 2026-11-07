@@ -82,9 +82,6 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
-	// 离线消息加载拥有独立生命周期；连接关闭后 Enqueue 返回 false 并结束推送。
-	go h.pushOfflineMessages(ctx, client, runtimeSession.UserID)
-
 	client.Run(ctx, func(messageCtx context.Context, raw []byte) error {
 		return h.handleClientMessage(messageCtx, runtimeSession.UserID, raw)
 	})
@@ -122,40 +119,6 @@ func (h *WebsocketHandler) handleClientMessage(
 		}
 	}
 	return nil
-}
-
-func (h *WebsocketHandler) pushOfflineMessages(
-	ctx context.Context,
-	client *Client,
-	userID uint64,
-) {
-	loadCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	messages, err := h.msgService.PullOfflineMessages(loadCtx, uint(userID))
-	if err != nil {
-		log.Printf("加载 WebSocket 离线消息失败: user_id=%d error=%v", userID, err)
-		return
-	}
-
-	for _, message := range messages {
-		data, err := json.Marshal(WsMessage{
-			MessageID:  message.MessageID,
-			SenderID:   message.SenderID,
-			ReceiverID: message.ReceiverID,
-			MsgType:    int(message.MsgType),
-			Content:    message.Content,
-			URL:        message.URL,
-			Action:     ActionMessage,
-		})
-		if err != nil {
-			log.Printf("序列化离线消息失败: %v", err)
-			continue
-		}
-		if !client.Enqueue(data) {
-			return
-		}
-	}
 }
 
 func (h *WebsocketHandler) updateHeartbeat(
