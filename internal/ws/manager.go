@@ -1,115 +1,182 @@
 package ws
 
 import (
-	"fmt"
-	"github.com/gorilla/websocket"
-	"log"
 	"sync"
-	"time"
 )
 
-// ConnManager 在线连接管理器
+const maxConnectionsPerUser = 10
+
+type managedConnection interface {
+	UserID() uint64
+	Enqueue(message []byte) bool
+	Close() error
+}
+
+// ConnManager 管理同一进程内的 WebSocket 连接。
+// 每个用户可以保留多个连接，移除时必须按具体连接执行，不能按用户整体删除。
 type ConnManager struct {
-	// key: userID, value: *websocket.Conn
-	connections sync.Map
-	mutex       sync.RWMutex
+	mutex sync.RWMutex
+	users map[uint64]map[managedConnection]struct{}
 }
 
-// Manager 全局连接管理器
-var Manager = &ConnManager{}
+// Manager 是当前单实例运行时的默认连接管理器。
+var Manager = NewConnManager()
 
-// Add 添加用户连接
-func (m *ConnManager) Add(userID uint, conn *websocket.Conn) {
-	// 加锁保证原子操作
+// NewConnManager 创建空连接管理器。
+func NewConnManager() *ConnManager {
+	return &ConnManager{
+		users: make(map[uint64]map[managedConnection]struct{}),
+	}
+}
+
+// Add 注册一个连接，返回 false 表示该用户连接数已达到上限。
+func (m *ConnManager) Add(connection managedConnection) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	// 如果已存在旧连接，关闭旧连接
-	if oldConn, ok := m.connections.Load(userID); ok {
-		err := oldConn.(*websocket.Conn).Close()
-		if err != nil {
-			fmt.Println("旧连接关闭失败", err)
-			return
-		}
+	userID := connection.UserID()
+	connections := m.users[userID]
+	if connections == nil {
+		connections = make(map[managedConnection]struct{})
+		m.users[userID] = connections
 	}
-
-	// 添加新连接
-	m.connections.Store(userID, conn)
-	log.Printf("用户 %d 已上线\n", userID)
+	if _, exists := connections[connection]; exists {
+		return true
+	}
+	if len(connections) >= maxConnectionsPerUser {
+		return false
+	}
+	connections[connection] = struct{}{}
+	return true
 }
 
-// Remove 移除用户连接
-func (m *ConnManager) Remove(userID uint) {
-	// 加锁保证原子操作
+// Remove 只移除指定连接，不会误删同一用户的新连接或其他设备连接。
+func (m *ConnManager) Remove(connection managedConnection) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	// 如果连接存在则关闭
-	if conn, ok := m.connections.Load(userID); ok {
-		err := conn.(*websocket.Conn).Close()
-		// 删除旧连接的键
-		m.connections.Delete(userID)
-		if err != nil {
-			fmt.Println("连接关闭失败", err)
-			return
-		}
-		log.Printf("用户 %d 已下线\n", userID)
+	userID := connection.UserID()
+	connections := m.users[userID]
+	if connections == nil {
+		return
 	}
-
+	delete(connections, connection)
+	if len(connections) == 0 {
+		delete(m.users, userID)
+	}
 }
 
-// Send 给指定用户发送消息
+// Send 向指定用户的全部在线连接投递消息；返回是否至少入队成功一次。
 func (m *ConnManager) Send(userID uint, message []byte) bool {
-	if conn, ok := m.connections.Load(userID); ok {
-		// 设置写超时，防止阻塞
-		err := conn.(*websocket.Conn).SetWriteDeadline(time.Now().Add(5 * time.Second))
-		if err != nil {
-			log.Printf("发送消息 %d 超时失败，错误为%v\n", userID, err)
-			return false
-		}
+	return m.sendUser(uint64(userID), message) > 0
+}
 
-		err = conn.(*websocket.Conn).WriteMessage(websocket.TextMessage, message)
-		if err != nil {
-			log.Printf("发送消息 %d 失败，错误为%v\n", userID, err)
-			//发送消息失败，移除无效连接
-			m.Remove(userID)
-			return false
-		}
-		return true
+// SendToUsers 向多个用户的全部在线连接投递消息，返回成功入队的连接数。
+func (m *ConnManager) SendToUsers(userIDs []uint64, message []byte) int {
+	if len(userIDs) == 0 || len(message) == 0 {
+		return 0
 	}
-	return false
 
-}
-
-// Broadcast 广播方法
-func (m *ConnManager) Broadcast(message []byte) {
-	// 遍历所有键值对，依次进行发消息广播
-	m.connections.Range(func(key, value any) bool {
-		conn := value.(*websocket.Conn)
-		err := conn.WriteMessage(websocket.TextMessage, message)
-		if err != nil {
-			log.Printf(" 广播失败 userID=%v, err=%v", key, err)
-			// 广播失败则清除死连接
-			m.Remove(key.(uint))
-
+	uniqueUsers := make(map[uint64]struct{}, len(userIDs))
+	delivered := 0
+	for _, userID := range userIDs {
+		if _, exists := uniqueUsers[userID]; exists {
+			continue
 		}
-		return true
-	})
+		uniqueUsers[userID] = struct{}{}
+		delivered += m.sendUser(userID, message)
+	}
+	return delivered
 }
 
-// IsOnline 判断是否在线
+func (m *ConnManager) sendUser(userID uint64, message []byte) int {
+	connections := m.snapshotUser(userID)
+	delivered := 0
+	for _, connection := range connections {
+		if connection.Enqueue(message) {
+			delivered++
+			continue
+		}
+		// 慢连接或已关闭连接只移除自身，不影响用户的其他设备。
+		m.Remove(connection)
+	}
+	return delivered
+}
+
+func (m *ConnManager) snapshotUser(userID uint64) []managedConnection {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	connections := m.users[userID]
+	result := make([]managedConnection, 0, len(connections))
+	for connection := range connections {
+		result = append(result, connection)
+	}
+	return result
+}
+
+// Broadcast 向当前进程内所有连接投递消息。
+func (m *ConnManager) Broadcast(message []byte) int {
+	m.mutex.RLock()
+	connections := make([]managedConnection, 0)
+	for _, userConnections := range m.users {
+		for connection := range userConnections {
+			connections = append(connections, connection)
+		}
+	}
+	m.mutex.RUnlock()
+
+	delivered := 0
+	for _, connection := range connections {
+		if connection.Enqueue(message) {
+			delivered++
+			continue
+		}
+		m.Remove(connection)
+	}
+	return delivered
+}
+
+// IsOnline 判断用户是否至少有一个有效连接。
 func (m *ConnManager) IsOnline(userID uint) bool {
-	_, ok := m.connections.Load(userID)
-	return ok
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return len(m.users[uint64(userID)]) > 0
 }
 
-// Count 获取在线人数
+// Count 返回当前在线用户数，不把同一用户的多台设备重复计算。
 func (m *ConnManager) Count() int {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return len(m.users)
+}
+
+// ConnectionCount 返回当前进程内的连接数量。
+func (m *ConnManager) ConnectionCount() int {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
 	count := 0
-	// 遍历键值对统计在线人数
-	m.connections.Range(func(_, _ any) bool {
-		count++
-		return true
-	})
+	for _, connections := range m.users {
+		count += len(connections)
+	}
 	return count
+}
+
+// CloseAll 关闭全部连接，供测试或进程级清理使用。
+func (m *ConnManager) CloseAll() {
+	m.mutex.RLock()
+	connections := make([]managedConnection, 0)
+	for _, userConnections := range m.users {
+		for connection := range userConnections {
+			connections = append(connections, connection)
+		}
+	}
+	m.mutex.RUnlock()
+
+	for _, connection := range connections {
+		if err := connection.Close(); err != nil {
+			continue
+		}
+	}
 }

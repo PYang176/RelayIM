@@ -9,11 +9,30 @@ const (
 
 // WsMessage WebSocket 消息结构
 type WsMessage struct {
-	MessageID  string `json:"message_id"`
-	SenderID   uint64 `json:"sender_id"`
-	ReceiverID uint64 `json:"receiver_id"` //发送类型 1私聊 2群聊 3广播
-	MsgType    int    `json:"msg_type"`    //消息类型 1文字 2图片 3音频 4文件
-	Content    string `json:"content"`
-	URL        string `json:"url"`
-	Action     string `json:"action"`
+	// MessageID 是消息 Snowflake ID 字符串。
+	MessageID string `json:"message_id"`
+
+	// ConversationID 是新版会话 Snowflake ID 字符串。
+	ConversationID string `json:"conversation_id,omitempty"`
+
+	// SenderID 是发送者 Snowflake 用户 ID。
+	SenderID uint64 `json:"sender_id"`
+
+	// ReceiverID 是旧版接收者或群 ID，新版消息可留空。
+	ReceiverID uint64 `json:"receiver_id,omitempty"`
+
+	// Seq 是消息在会话内的递增序号，用于客户端排序和去重。
+	Seq uint64 `json:"seq,omitempty"`
+
+	// MsgType 表示消息类型，1 文本、2 图片、3 音频、4 文件。
+	MsgType int `json:"msg_type"`
+
+	// Content 是文本消息正文。
+	Content string `json:"content"`
+
+	// URL 是旧版媒体地址字段。
+	URL string `json:"url,omitempty"`
+
+	// Action 是 WebSocket 信令类型。
+	Action string `json:"action"`
 }

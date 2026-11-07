@@ -3,176 +3,196 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/service"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"log"
-	"net/http"
-	"time"
 )
+
+const heartbeatTTL = 70 * time.Second
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true //允许跨域，仅限开发环境
-	},
+	CheckOrigin:     checkOrigin,
 }
 
+// WebsocketHandler 处理 WebSocket 鉴权、连接交付和客户端回执。
 type WebsocketHandler struct {
 	msgService *service.MessageService
 }
 
-// NewWebsocketHandler 注入messageService
+// NewWebsocketHandler 注入消息服务。
 func NewWebsocketHandler(svc *service.MessageService) *WebsocketHandler {
 	return &WebsocketHandler{msgService: svc}
 }
 
-// Connect websocket 连接入口
+// Connect 完成鉴权后把连接交给单写协程客户端。
 func (h *WebsocketHandler) Connect(c *gin.Context) {
-	// 从URL中获取token
 	tokenStr := c.Query("token")
 	if tokenStr == "" {
-		c.JSON(http.StatusUnauthorized, "未提供 token")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供 token"})
 		return
 	}
 
-	runtimeSession, err := authn.DefaultManager.Authenticate(c, tokenStr)
+	runtimeSession, err := authn.DefaultManager.Authenticate(
+		c.Request.Context(),
+		tokenStr,
+	)
 	if err != nil {
-		c.JSON(http.StatusForbidden, "token 无效或已过期")
+		c.JSON(http.StatusForbidden, gin.H{"error": "token 无效或已过期"})
 		return
 	}
 
-	// 从token中拿到userID
-	userID := uint(runtimeSession.UserID)
-	fmt.Println(" WS connected:", userID)
-
-	// 将http升级为websocket连接
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		fmt.Println("upgrade error:", err)
+		log.Printf("升级 WebSocket 连接失败: %v", err)
 		return
 	}
-	defer conn.Close()
 
-	// 保存到 ConnManager
-	Manager.Add(userID, conn)
-	defer Manager.Remove(userID)
+	client := NewClient(
+		runtimeSession.UserID,
+		conn,
+		func(heartbeatCtx context.Context) {
+			h.updateHeartbeat(heartbeatCtx, runtimeSession.UserID)
+		},
+	)
+	if !Manager.Add(client) {
+		_ = conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(
+				websocket.CloseTryAgainLater,
+				"连接数超过限制",
+			),
+			time.Now().Add(writeWait),
+		)
+		_ = conn.Close()
+		return
+	}
+	defer Manager.Remove(client)
 
-	// 心跳检测
-	// 设置读超时（60秒没收到消息就断开）
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
 
-	// 设置 Pong 回调（客户端回复 Pong 时重置计时器）
-	conn.SetPongHandler(func(string) error {
-		fmt.Println(" 收到客户端 Pong，userID =", userID)
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	// 离线消息加载拥有独立生命周期；连接关闭后 Enqueue 返回 false 并结束推送。
+	go h.pushOfflineMessages(ctx, client, runtimeSession.UserID)
 
-		// 更新 Redis 中的心跳时间
-		go func(uid uint) {
-			key := fmt.Sprintf("heartbeat:%d", uid)
-			redisstore.RDB.Set(
-				context.Background(),
-				key,
-				time.Now().Unix(),
-				70*time.Second, // 略大于心跳超时时间
-			)
-		}(userID)
-
-		return nil
+	client.Run(ctx, func(messageCtx context.Context, raw []byte) error {
+		return h.handleClientMessage(messageCtx, runtimeSession.UserID, raw)
 	})
+}
 
-	// 定时发送 Ping（每 30 秒）
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	// 启动一个 goroutine 专门发送 Ping
-	go func() {
-		for range ticker.C {
-			fmt.Println(" 发送 Ping 给 userID =", userID)
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				fmt.Println(" 发送 Ping 失败:", err)
-				return
-			}
-		}
-	}()
-	// 心跳检测分割线-----------
-
-	// 用户上线后自动推送离线消息
-	go func(uid uint) {
-		// 记录出错时候的堆栈信息
-		defer func() {
-			fmt.Println("1卡在这里了！！！---------")
-			if r := recover(); r != nil {
-				log.Printf("推送离线消息 panic: %v\n", r)
-			}
-			fmt.Println("2卡在这里了！！！---------")
-
-		}()
-
-		messages, err := h.msgService.PullOfflineMessages(context.Background(), uid)
-		if err != nil {
-			fmt.Println("ws 拉取离线消息出错了:", err)
-			return
-		}
-		// 遍历消息集进行消息发送
-		for _, message := range messages {
-			// 检查连接是否仍然有效
-			if !Manager.IsOnline(uid) {
-				return
-			}
-
-			data, _ := json.Marshal(WsMessage{
-				MessageID:  message.MessageID,
-				SenderID:   message.SenderID,
-				ReceiverID: message.ReceiverID,
-				MsgType:    int(message.MsgType),
-				Content:    message.Content,
-				URL:        message.URL,
-				Action:     ActionMessage,
-			})
-			Manager.Send(uid, data)
-		}
-	}(userID)
-
-	// 保持连接
-	for {
-		_, raw, err := conn.ReadMessage()
-		if err != nil {
-			fmt.Println("ws closed:", err)
-			break
-		}
-
-		var msg WsMessage
-		// 将接收到的消息绑定到msg上
-		if err := json.Unmarshal(raw, &msg); err != nil {
-			continue
-		}
-
-		fmt.Println("服务端收到的客户端ack消息:", msg)
-
-		switch msg.Action {
-		// 接收客户端确认已送达
-		case ActionAck:
-			go func() {
-				err := h.msgService.AckMessage(context.Background(), msg.MessageID, userID)
-				if err != nil {
-					fmt.Println("ack出错了：", err)
-				}
-			}()
-
-		// 接收客户端确认已读
-		case ActionRead:
-			go func() {
-				err := h.msgService.ReadMessage(context.Background(), msg.MessageID, userID)
-				if err != nil {
-					fmt.Println("read出错了：", err)
-				}
-			}()
-		}
+func (h *WebsocketHandler) handleClientMessage(
+	ctx context.Context,
+	userID uint64,
+	raw []byte,
+) error {
+	var message WsMessage
+	if err := json.Unmarshal(raw, &message); err != nil {
+		return nil
 	}
 
+	operationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	switch message.Action {
+	case ActionAck:
+		if err := h.msgService.AckMessage(
+			operationCtx,
+			message.MessageID,
+			uint(userID),
+		); err != nil {
+			return err
+		}
+	case ActionRead:
+		if err := h.msgService.ReadMessage(
+			operationCtx,
+			message.MessageID,
+			uint(userID),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *WebsocketHandler) pushOfflineMessages(
+	ctx context.Context,
+	client *Client,
+	userID uint64,
+) {
+	loadCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	messages, err := h.msgService.PullOfflineMessages(loadCtx, uint(userID))
+	if err != nil {
+		log.Printf("加载 WebSocket 离线消息失败: user_id=%d error=%v", userID, err)
+		return
+	}
+
+	for _, message := range messages {
+		data, err := json.Marshal(WsMessage{
+			MessageID:  message.MessageID,
+			SenderID:   message.SenderID,
+			ReceiverID: message.ReceiverID,
+			MsgType:    int(message.MsgType),
+			Content:    message.Content,
+			URL:        message.URL,
+			Action:     ActionMessage,
+		})
+		if err != nil {
+			log.Printf("序列化离线消息失败: %v", err)
+			continue
+		}
+		if !client.Enqueue(data) {
+			return
+		}
+	}
+}
+
+func (h *WebsocketHandler) updateHeartbeat(
+	ctx context.Context,
+	userID uint64,
+) {
+	heartbeatCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	key := heartbeatKey(userID)
+	if err := redisstore.RDB.Set(
+		heartbeatCtx,
+		key,
+		time.Now().Unix(),
+		heartbeatTTL,
+	).Err(); err != nil {
+		log.Printf("更新 WebSocket 心跳失败: error=%v", err)
+	}
+}
+
+func heartbeatKey(userID uint64) string {
+	return "heartbeat:" + strconv.FormatUint(userID, 10)
+}
+
+func checkOrigin(request *http.Request) bool {
+	origin := request.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if parsed.Host == request.Host {
+		return true
+	}
+	host := parsed.Hostname()
+	ip := net.ParseIP(host)
+	return host == "localhost" || (ip != nil && ip.IsLoopback())
 }
