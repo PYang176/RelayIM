@@ -9,6 +9,7 @@ import (
 	"ginChatProject/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Repository 负责会话与成员的数据库访问。
@@ -32,6 +33,11 @@ func (r *Repository) CreateDirect(
 
 	existing, err := r.findDirect(ctx, lowID, highID)
 	if err == nil {
+		title, titleErr := r.userDisplayName(ctx, peerUserID)
+		if titleErr != nil {
+			return nil, false, titleErr
+		}
+		existing.Title = title
 		return existing, false, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -73,6 +79,11 @@ func (r *Repository) CreateDirect(
 		return tx.Create(&members).Error
 	})
 	if err == nil {
+		title, titleErr := r.userDisplayName(ctx, peerUserID)
+		if titleErr != nil {
+			return nil, false, titleErr
+		}
+		result.Title = title
 		return result, true, nil
 	}
 
@@ -82,6 +93,11 @@ func (r *Repository) CreateDirect(
 		if findErr != nil {
 			return nil, false, fmt.Errorf("读取并发私聊会话: %w", findErr)
 		}
+		title, titleErr := r.userDisplayName(ctx, peerUserID)
+		if titleErr != nil {
+			return nil, false, titleErr
+		}
+		existing.Title = title
 		return existing, false, nil
 	}
 	if isForeignKeyError(err) {
@@ -113,23 +129,8 @@ func (r *Repository) CreateGroup(
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 受邀成员必须仍是群主的有效好友。前端选择列表只是交互提示，
 		// 后端校验才是防止任意用户被批量拉入群聊的权限边界。
-		var friendCount int64
-		if err := tx.Table("friendships").
-			Where(
-				"status = ? AND ("+
-					"(user_low_id = ? AND user_high_id IN ?) OR "+
-					"(user_high_id = ? AND user_low_id IN ?))",
-				1,
-				ownerID,
-				memberUserIDs,
-				ownerID,
-				memberUserIDs,
-			).
-			Count(&friendCount).Error; err != nil {
-			return fmt.Errorf("校验群成员好友关系: %w", err)
-		}
-		if friendCount != int64(len(memberUserIDs)) {
-			return ErrNotFriend
+		if err := countFriends(ctx, tx, ownerID, memberUserIDs); err != nil {
+			return err
 		}
 
 		if err := tx.Create(result).Error; err != nil {
@@ -160,6 +161,7 @@ func (r *Repository) CreateGroup(
 		}
 		return nil, fmt.Errorf("创建群会话: %w", err)
 	}
+	result.Title = name
 	return result, nil
 }
 
@@ -174,11 +176,24 @@ func (r *Repository) ListForUser(
 		Select(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
 				"c.last_seq, m.last_read_seq, c.updated_at, "+
+				"CASE WHEN c.conversation_type = 1 "+
+				"THEN COALESCE(dp.nickname, direct_user.username, '私聊') "+
+				"ELSE COALESCE(c.name, '群聊') END AS title, "+
 				"(SELECT COUNT(*) FROM conversation_members AS active_member "+
 				"WHERE active_member.conversation_id = c.id "+
 				"AND active_member.left_at IS NULL) AS member_count",
 		).
 		Joins("JOIN conversations AS c ON c.id = m.conversation_id").
+		Joins(
+			"LEFT JOIN users AS direct_user ON direct_user.id = CASE "+
+				"WHEN c.conversation_type = 1 AND c.direct_low_user_id = m.user_id "+
+				"THEN c.direct_high_user_id "+
+				"WHEN c.conversation_type = 1 THEN c.direct_low_user_id "+
+				"ELSE NULL END",
+		).
+		Joins(
+			"LEFT JOIN user_profiles AS dp ON dp.user_id = direct_user.id",
+		).
 		Where("m.user_id = ? AND m.left_at IS NULL AND c.status = ?",
 			userID,
 			conversationStatusOpen,
@@ -190,6 +205,215 @@ func (r *Repository) ListForUser(
 		return nil, fmt.Errorf("查询用户会话: %w", err)
 	}
 	return results, nil
+}
+
+// InviteMembers 在锁住群会话后邀请更多好友入群。
+func (r *Repository) InviteMembers(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	memberUserIDs []uint64,
+) (uint64, error) {
+	now := time.Now().UTC()
+	var memberCount uint64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conversationRecord conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND status = ?",
+				conversationID,
+				conversationStatusOpen,
+			).
+			First(&conversationRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("锁定待邀请群会话: %w", err)
+		}
+		if conversationRecord.ConversationType != conversationTypeGroup {
+			return ErrNotGroup
+		}
+
+		var actor conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			actorID,
+		).First(&actor).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("校验邀请人成员身份: %w", err)
+		}
+		if actor.Role < 2 {
+			return ErrPermissionDenied
+		}
+		if err := countFriends(
+			ctx,
+			tx,
+			actorID,
+			memberUserIDs,
+		); err != nil {
+			return err
+		}
+
+		var currentCount int64
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND left_at IS NULL",
+				conversationID,
+			).
+			Count(&currentCount).Error; err != nil {
+			return fmt.Errorf("统计群当前成员数: %w", err)
+		}
+
+		var existing []conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id IN ?",
+			conversationID,
+			memberUserIDs,
+		).Find(&existing).Error; err != nil {
+			return fmt.Errorf("查询待邀请成员记录: %w", err)
+		}
+		existingByUserID := make(map[uint64]conversationMember, len(existing))
+		for _, record := range existing {
+			existingByUserID[record.UserID] = record
+		}
+
+		newCount := 0
+		for _, userID := range memberUserIDs {
+			record, exists := existingByUserID[userID]
+			if exists && record.LeftAt == nil {
+				continue
+			}
+			newCount++
+		}
+		if currentCount+int64(newCount) > maxGroupMemberCount {
+			return ErrGroupFull
+		}
+
+		for _, userID := range memberUserIDs {
+			record, exists := existingByUserID[userID]
+			if exists {
+				if record.LeftAt == nil {
+					continue
+				}
+				if err := tx.Model(&conversationMember{}).
+					Where(
+						"conversation_id = ? AND user_id = ?",
+						conversationID,
+						userID,
+					).
+					Updates(map[string]any{
+						"role":          1,
+						"last_read_seq": conversationRecord.LastSeq,
+						"joined_at":     now,
+						"left_at":       nil,
+						"updated_at":    now,
+					}).Error; err != nil {
+					return fmt.Errorf("恢复已退出成员: %w", err)
+				}
+				continue
+			}
+			if err := tx.Create(&conversationMember{
+				ConversationID: conversationID,
+				UserID:         userID,
+				Role:           1,
+				JoinedAt:       now,
+				UpdatedAt:      now,
+			}).Error; err != nil {
+				return fmt.Errorf("新增群成员: %w", err)
+			}
+		}
+		memberCount = uint64(currentCount + int64(newCount))
+		return nil
+	})
+	if err != nil {
+		if isForeignKeyError(err) {
+			return 0, ErrUserNotFound
+		}
+		return 0, err
+	}
+	return memberCount, nil
+}
+
+// RemoveMember 软移除群成员；普通成员只能把自己的成员记录标记为退出。
+func (r *Repository) RemoveMember(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	targetUserID uint64,
+) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conversationRecord conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND status = ?",
+				conversationID,
+				conversationStatusOpen,
+			).
+			First(&conversationRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("锁定待移除成员群会话: %w", err)
+		}
+		if conversationRecord.ConversationType != conversationTypeGroup {
+			return ErrNotGroup
+		}
+
+		var actor conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			actorID,
+		).First(&actor).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("校验群管理操作人: %w", err)
+		}
+
+		if actorID != targetUserID && actor.Role < 2 {
+			return ErrPermissionDenied
+		}
+		if conversationRecord.OwnerID != nil &&
+			*conversationRecord.OwnerID == targetUserID {
+			if actorID == targetUserID {
+				return ErrOwnerCannotLeave
+			}
+			return ErrPermissionDenied
+		}
+
+		var target conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			targetUserID,
+		).First(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrMemberNotFound
+			}
+			return fmt.Errorf("查询待移除群成员: %w", err)
+		}
+		if actor.Role == 2 && target.Role != 1 {
+			return ErrPermissionDenied
+		}
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND user_id = ?",
+				conversationID,
+				targetUserID,
+			).
+			Updates(map[string]any{
+				"left_at":    now,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("移除群成员: %w", err)
+		}
+		return nil
+	})
 }
 
 // ListMembers 返回当前有效成员可查看的会话成员资料。
@@ -263,6 +487,56 @@ func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 		return first, second
 	}
 	return second, first
+}
+
+func (r *Repository) userDisplayName(
+	ctx context.Context,
+	userID uint64,
+) (string, error) {
+	var record struct {
+		Title string `gorm:"column:title"`
+	}
+	err := r.db.WithContext(ctx).
+		Table("users AS u").
+		Select("COALESCE(p.nickname, u.username) AS title").
+		Joins("LEFT JOIN user_profiles AS p ON p.user_id = u.id").
+		Where("u.id = ?", userID).
+		Scan(&record).Error
+	if err != nil {
+		return "", fmt.Errorf("查询私聊对方资料: %w", err)
+	}
+	if record.Title == "" {
+		return "", ErrUserNotFound
+	}
+	return record.Title, nil
+}
+
+func countFriends(
+	ctx context.Context,
+	tx *gorm.DB,
+	inviterID uint64,
+	memberUserIDs []uint64,
+) error {
+	var friendCount int64
+	if err := tx.WithContext(ctx).
+		Table("friendships").
+		Where(
+			"status = ? AND ("+
+				"(user_low_id = ? AND user_high_id IN ?) OR "+
+				"(user_high_id = ? AND user_low_id IN ?))",
+			1,
+			inviterID,
+			memberUserIDs,
+			inviterID,
+			memberUserIDs,
+		).
+		Count(&friendCount).Error; err != nil {
+		return fmt.Errorf("校验群成员好友关系: %w", err)
+	}
+	if friendCount != int64(len(memberUserIDs)) {
+		return ErrNotFriend
+	}
+	return nil
 }
 
 func isDuplicateKey(err error) bool {

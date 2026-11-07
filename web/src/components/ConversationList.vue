@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import {shallowRef} from 'vue'
-
 import type {Conversation} from '@/types/api'
 
 const props = defineProps<{
@@ -11,15 +9,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     select: [conversationId: string]
-    createDirect: [peerUserId: string]
     createGroup: []
+    openFriends: []
 }>()
 
-const peerUserId = shallowRef('')
-const showCreate = shallowRef(false)
-
 function title(conversation: Conversation) {
-    return conversation.name || `私聊 · ${conversation.id.slice(-6)}`
+    return conversation.title || conversation.name || '私聊'
 }
 
 function summary(conversation: Conversation) {
@@ -27,14 +22,6 @@ function summary(conversation: Conversation) {
         return `群聊 · ${conversation.member_count} 人`
     }
     return '私聊'
-}
-
-function create() {
-    const value = peerUserId.value.trim()
-    if (!value) return
-    emit('createDirect', value)
-    peerUserId.value = ''
-    showCreate.value = false
 }
 </script>
 
@@ -55,40 +42,20 @@ function create() {
                 </button>
                 <button
                         class="icon-button"
-                        :aria-expanded="showCreate"
-                        aria-controls="create-direct-form"
-                        aria-label="发起私聊"
+                        aria-label="从好友发起私聊"
                         type="button"
-                        @click="showCreate = !showCreate"
+                        @click="emit('openFriends')"
                 >
                     +
                 </button>
             </div>
         </div>
 
-        <form
-                v-if="showCreate"
-                id="create-direct-form"
-                class="create-direct"
-                @submit.prevent="create"
-        >
-            <label class="sr-only" for="peer-user-id">对方用户 ID</label>
-            <input
-                    id="peer-user-id"
-                    v-model="peerUserId"
-                    aria-label="对方用户 ID"
-                    inputmode="numeric"
-                    placeholder="对方用户 ID"
-                    required
-            />
-            <button type="submit">创建</button>
-        </form>
-
         <p v-if="loading" class="panel-hint" role="status" aria-busy="true">
             加载会话中…
         </p>
         <p v-else-if="conversations.length === 0" class="panel-hint" role="status">
-            还没有会话。使用上方“发起私聊”输入对方用户 ID。
+            还没有会话。打开好友列表，选择好友开始私聊或创建群聊。
         </p>
 
         <div class="conversation-list">

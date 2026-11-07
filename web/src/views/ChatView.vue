@@ -11,6 +11,7 @@ import {useRouter} from 'vue-router'
 import ConversationList from '@/components/ConversationList.vue'
 import CreateGroupDialog from '@/components/CreateGroupDialog.vue'
 import FriendsDrawer from '@/components/FriendsDrawer.vue'
+import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageList from '@/components/MessageList.vue'
 import {useAuthStore} from '@/stores/auth'
@@ -25,6 +26,9 @@ const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageLis
 const friendsOpen = shallowRef(false)
 const groupDialogOpen = shallowRef(false)
 const creatingGroup = shallowRef(false)
+const groupMembersOpen = shallowRef(false)
+const managingMembers = shallowRef(false)
+const memberActionError = shallowRef('')
 
 const connectionLabel = computed(() => {
     const labels = {
@@ -48,19 +52,55 @@ const groupReadLabel = computed(() => {
     ).length
     return `${readCount}/${otherMemberCount} 人已读`
 })
-
-async function createDirect(peerUserId: string) {
-    try {
-        await chat.createDirect(peerUserId)
-        messageList.value?.scrollToBottom()
-    } catch (cause) {
-        chat.reportError(cause instanceof Error ? cause.message : '创建私聊失败')
-    }
-}
+const activeConversationTitle = computed(() =>
+    chat.activeConversation
+        ? chat.conversationTitle(chat.activeConversation)
+        : '',
+)
 
 async function selectConversation(conversationId: string) {
     await chat.selectConversation(conversationId)
     messageList.value?.scrollToBottom()
+}
+
+function openGroupMembers() {
+    memberActionError.value = ''
+    groupMembersOpen.value = true
+    const conversationId = chat.activeConversationId
+    if (conversationId) {
+        void chat.loadMembers(conversationId, true)
+    }
+    void friendships.loadAll()
+}
+
+async function inviteMembers(userIds: string[]) {
+    managingMembers.value = true
+    memberActionError.value = ''
+    try {
+        await chat.inviteGroupMembers(userIds)
+    } catch (cause) {
+        memberActionError.value =
+            cause instanceof Error ? cause.message : '邀请群成员失败'
+    } finally {
+        managingMembers.value = false
+    }
+}
+
+async function removeMember(userID: string) {
+    managingMembers.value = true
+    memberActionError.value = ''
+    try {
+        await chat.removeGroupMember(userID)
+        if (userID === auth.user?.id) {
+            groupMembersOpen.value = false
+        }
+        messageList.value?.scrollToBottom()
+    } catch (cause) {
+        memberActionError.value =
+            cause instanceof Error ? cause.message : '移除群成员失败'
+    } finally {
+        managingMembers.value = false
+    }
 }
 
 function openGroupCreator() {
@@ -166,7 +206,6 @@ onBeforeUnmount(() => {
             <div class="current-user">
         <span class="current-user-copy">
           <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
-          <small>ID {{ auth.user?.id }}</small>
         </span>
                 <button class="ghost-button" type="button" @click="friendsOpen = true">
                     好友
@@ -188,7 +227,7 @@ onBeforeUnmount(() => {
                     :conversations="chat.conversations"
                     :loading="chat.loadingConversations"
                     @create-group="openGroupCreator"
-                    @create-direct="createDirect"
+                    @open-friends="friendsOpen = true"
                     @select="selectConversation"
             />
 
@@ -224,9 +263,6 @@ onBeforeUnmount(() => {
                                 </span>
                             </p>
                         </div>
-                        <span class="conversation-id">
-              ID {{ chat.activeConversation.id }}
-            </span>
                     </header>
 
                     <div
@@ -252,6 +288,13 @@ onBeforeUnmount(() => {
                         >
                             +{{ hiddenGroupMemberCount }}
                         </span>
+                        <button
+                                class="text-button group-manage-button"
+                                type="button"
+                                @click="openGroupMembers"
+                        >
+                            管理成员
+                        </button>
                     </div>
 
                     <MessageList
@@ -293,6 +336,20 @@ onBeforeUnmount(() => {
                 :open="groupDialogOpen"
                 @close="groupDialogOpen = false"
                 @create="createGroup"
+        />
+
+        <GroupMembersDialog
+                :busy="managingMembers"
+                :current-user-id="auth.user?.id ?? ''"
+                :error="memberActionError"
+                :friends="friendships.friends"
+                :group-name="activeConversationTitle"
+                :loading="chat.loadingMembers"
+                :members="chat.activeMembers"
+                :open="groupMembersOpen"
+                @close="groupMembersOpen = false"
+                @invite="inviteMembers"
+                @remove="removeMember"
         />
     </main>
 </template>

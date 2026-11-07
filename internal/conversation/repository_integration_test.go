@@ -90,6 +90,9 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	if len(results) != 1 || results[0].UnreadCount != 3 {
 		t.Fatalf("会话列表 = %+v，期望未读数 3", results)
 	}
+	if results[0].Title == "" {
+		t.Fatalf("私聊标题 = %q，期望对方展示名称", results[0].Title)
+	}
 
 	group, err := service.CreateGroup(
 		context.Background(),
@@ -116,6 +119,9 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	if ownerCount != 1 {
 		t.Fatalf("群主成员数量 = %d，期望 1", ownerCount)
 	}
+	if group.Title != "集成测试群" {
+		t.Fatalf("群会话标题 = %q，期望群名称", group.Title)
+	}
 
 	members, err := service.ListMembers(
 		context.Background(),
@@ -141,6 +147,68 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	)
 	if !errors.Is(err, ErrNotFriend) {
 		t.Fatalf("邀请非好友错误 = %v，期望 %v", err, ErrNotFriend)
+	}
+
+	memberCount, err := service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+			MemberUserIDs:  []uint64{userB},
+		},
+	)
+	if err != nil || memberCount != 2 {
+		t.Fatalf("重复邀请成员 count=%d err=%v，期望幂等返回 2", memberCount, err)
+	}
+
+	if err := service.RemoveMember(
+		context.Background(),
+		RemoveMemberCommand{
+			ActorID:        userB,
+			ConversationID: group.ID,
+			TargetUserID:   userB,
+		},
+	); err != nil {
+		t.Fatalf("普通成员退群失败: %v", err)
+	}
+	if _, err := service.ListMembers(
+		context.Background(),
+		userB,
+		group.ID,
+	); !errors.Is(err, ErrConversationNotFound) {
+		t.Fatalf("退群后读取成员错误 = %v，期望 ErrConversationNotFound", err)
+	}
+	if err := service.RemoveMember(
+		context.Background(),
+		RemoveMemberCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+			TargetUserID:   userA,
+		},
+	); !errors.Is(err, ErrOwnerCannotLeave) {
+		t.Fatalf("群主退群错误 = %v，期望 ErrOwnerCannotLeave", err)
+	}
+
+	memberCount, err = service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+			MemberUserIDs:  []uint64{userB},
+		},
+	)
+	if err != nil || memberCount != 2 {
+		t.Fatalf("重新邀请成员 count=%d err=%v", memberCount, err)
+	}
+	if err := service.RemoveMember(
+		context.Background(),
+		RemoveMemberCommand{
+			ActorID:        userB,
+			ConversationID: group.ID,
+			TargetUserID:   userA,
+		},
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("普通成员移除群主错误 = %v，期望 ErrPermissionDenied", err)
 	}
 }
 

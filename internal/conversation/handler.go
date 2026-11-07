@@ -35,6 +35,11 @@ type createGroupRequest struct {
 	MemberUserIDs []string `json:"member_user_ids"`
 }
 
+type inviteMembersRequest struct {
+	// MemberUserIDs 是继续邀请入群的好友 Snowflake ID 字符串。
+	MemberUserIDs []string `json:"member_user_ids"`
+}
+
 // CreateDirect 处理 POST /api/v1/conversations/private。
 func (h *Handler) CreateDirect(c *gin.Context) {
 	userID, ok := currentUserID(c)
@@ -160,6 +165,69 @@ func (h *Handler) ListMembers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"members": members})
 }
 
+// InviteMembers 处理 POST /api/v1/conversations/:conversation_id/members。
+func (h *Handler) InviteMembers(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	var request inviteMembersRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	memberUserIDs, ok := parseGroupMemberIDs(c, request.MemberUserIDs)
+	if !ok {
+		return
+	}
+	memberCount, err := h.service.InviteMembers(
+		c.Request.Context(),
+		InviteMembersCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			MemberUserIDs:  memberUserIDs,
+		},
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"member_count": memberCount})
+}
+
+// RemoveMember 处理 DELETE /api/v1/conversations/:conversation_id/members/:user_id。
+func (h *Handler) RemoveMember(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	if err != nil || targetUserID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 格式错误"})
+		return
+	}
+	if err := h.service.RemoveMember(
+		c.Request.Context(),
+		RemoveMemberCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			TargetUserID:   targetUserID,
+		},
+	); err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func currentUserID(c *gin.Context) (uint64, bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -174,12 +242,26 @@ func conversationResponse(result Result) gin.H {
 		"id":                strconv.FormatUint(result.ID, 10),
 		"conversation_type": result.ConversationType,
 		"name":              result.Name,
+		"title":             result.Title,
 		"avatar_url":        result.AvatarURL,
 		"last_seq":          result.LastSeq,
 		"last_read_seq":     result.LastReadSeq,
 		"unread_count":      result.UnreadCount,
 		"member_count":      result.MemberCount,
 	}
+}
+
+func parseConversationID(c *gin.Context) (uint64, bool) {
+	conversationID, err := strconv.ParseUint(
+		c.Param("conversation_id"),
+		10,
+		64,
+	)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return 0, false
+	}
+	return conversationID, true
 }
 
 func parseGroupMemberIDs(
@@ -204,6 +286,16 @@ func writeConversationError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrNotFriend):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotFriend.Error()})
+	case errors.Is(err, ErrPermissionDenied):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrPermissionDenied.Error()})
+	case errors.Is(err, ErrNotGroup):
+		c.JSON(http.StatusBadRequest, gin.H{"error": ErrNotGroup.Error()})
+	case errors.Is(err, ErrGroupFull):
+		c.JSON(http.StatusConflict, gin.H{"error": ErrGroupFull.Error()})
+	case errors.Is(err, ErrOwnerCannotLeave):
+		c.JSON(http.StatusConflict, gin.H{"error": ErrOwnerCannotLeave.Error()})
+	case errors.Is(err, ErrMemberNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": ErrMemberNotFound.Error()})
 	case errors.Is(err, ErrUserNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound.Error()})
 	case errors.Is(err, ErrConversationNotFound):

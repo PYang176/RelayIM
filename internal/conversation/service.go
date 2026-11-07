@@ -46,6 +46,30 @@ type CreateGroupCommand struct {
 	MemberUserIDs []uint64
 }
 
+// InviteMembersCommand 是群主或管理员继续邀请成员的参数。
+type InviteMembersCommand struct {
+	// ActorID 是执行邀请的用户 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// MemberUserIDs 是待邀请好友 Snowflake ID。
+	MemberUserIDs []uint64
+}
+
+// RemoveMemberCommand 是群主移除成员或普通成员退群的参数。
+type RemoveMemberCommand struct {
+	// ActorID 是执行操作的用户 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// TargetUserID 是被移除或主动退群的用户 Snowflake ID。
+	TargetUserID uint64
+}
+
 // Result 是接口层可安全使用的会话信息。
 type Result struct {
 	// ID 是会话 Snowflake ID。
@@ -56,6 +80,9 @@ type Result struct {
 
 	// Name 是群名称，私聊时为空。
 	Name string
+
+	// Title 是可直接展示的会话标题，私聊使用对方昵称。
+	Title string
 
 	// AvatarURL 是群头像。
 	AvatarURL string
@@ -118,6 +145,7 @@ func (s *Service) CreateDirect(
 		ID:               record.ID,
 		ConversationType: record.ConversationType,
 		Name:             stringValue(record.Name),
+		Title:            record.Title,
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
 		MemberCount:      2,
@@ -164,10 +192,52 @@ func (s *Service) CreateGroup(
 		ID:               record.ID,
 		ConversationType: record.ConversationType,
 		Name:             stringValue(record.Name),
+		Title:            stringValue(record.Name),
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
 		MemberCount:      uint64(len(memberUserIDs) + 1),
 	}, nil
+}
+
+// InviteMembers 邀请群主或管理员的更多好友加入群聊。
+func (s *Service) InviteMembers(
+	ctx context.Context,
+	command InviteMembersCommand,
+) (uint64, error) {
+	if command.ActorID == 0 || command.ConversationID == 0 {
+		return 0, ErrInvalidInput
+	}
+	memberUserIDs, err := normalizeGroupMemberIDs(
+		command.ActorID,
+		command.MemberUserIDs,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.InviteMembers(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
+		memberUserIDs,
+	)
+}
+
+// RemoveMember 处理群主移除成员或普通成员主动退群。
+func (s *Service) RemoveMember(
+	ctx context.Context,
+	command RemoveMemberCommand,
+) error {
+	if command.ActorID == 0 ||
+		command.ConversationID == 0 ||
+		command.TargetUserID == 0 {
+		return ErrInvalidInput
+	}
+	return s.repo.RemoveMember(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
+		command.TargetUserID,
+	)
 }
 
 // ListMembers 返回当前用户有权查看的会话有效成员。
@@ -218,6 +288,7 @@ func (s *Service) List(ctx context.Context, userID uint64) ([]Result, error) {
 			ID:               record.ID,
 			ConversationType: record.ConversationType,
 			Name:             stringValue(record.Name),
+			Title:            record.Title,
 			AvatarURL:        stringValue(record.AvatarURL),
 			LastSeq:          record.LastSeq,
 			LastReadSeq:      record.LastReadSeq,

@@ -308,7 +308,6 @@ a:focus-visible {
 }
 
 .auth-card input,
-.create-direct input,
 .composer textarea {
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
@@ -322,7 +321,6 @@ a:focus-visible {
 }
 
 .auth-card input:focus,
-.create-direct input:focus,
 .composer textarea:focus {
     border-color: var(--focus);
 }
@@ -387,15 +385,6 @@ a:focus-visible {
     gap: 0.125rem;
 }
 
-.current-user-copy small {
-    max-width: 14rem;
-    overflow: hidden;
-    color: var(--muted);
-    font-family: var(--font-data);
-    font-size: 0.625rem;
-    text-overflow: ellipsis;
-}
-
 .global-error {
     display: flex;
     align-items: center;
@@ -456,26 +445,6 @@ a:focus-visible {
     font-family: inherit;
     font-size: 0.75rem;
     font-weight: 800;
-}
-
-.create-direct {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-}
-
-.create-direct input {
-    min-width: 0;
-    flex: 1;
-    padding: 0.5625rem 0.6875rem;
-}
-
-.create-direct button {
-    border: 1px solid var(--signal);
-    border-radius: var(--radius-sm);
-    padding: 0 0.875rem;
-    color: white;
-    background: var(--signal);
 }
 
 .conversation-list {
@@ -573,18 +542,10 @@ a:focus-visible {
     font-size: 1.1875rem;
 }
 
-.conversation-header p,
-.conversation-id {
+.conversation-header p {
     margin: 0;
     color: var(--muted);
     font-size: 0.6875rem;
-}
-
-.conversation-id {
-    max-width: 18rem;
-    overflow: hidden;
-    font-family: var(--font-data);
-    text-overflow: ellipsis;
 }
 
 .group-member-strip {
@@ -625,6 +586,13 @@ a:focus-visible {
 .group-member-chip.more {
     color: var(--muted);
     background: transparent;
+}
+
+.group-manage-button {
+    margin-left: auto;
+    color: var(--signal-strong);
+    font-size: 0.6875rem;
+    font-weight: 700;
 }
 
 .message-scroller {
@@ -880,7 +848,8 @@ a:focus-visible {
     background: transparent;
 }
 
-.group-dialog {
+.group-dialog,
+.group-members-dialog {
     width: min(38rem, calc(100vw - 2rem));
     max-width: none;
     max-height: min(46rem, calc(100dvh - 2rem));
@@ -891,17 +860,83 @@ a:focus-visible {
     background: var(--surface);
 }
 
-.group-dialog::backdrop {
+.group-dialog::backdrop,
+.group-members-dialog::backdrop {
     background: rgba(21, 52, 59, 0.42);
 }
 
-.group-dialog-card {
+.group-dialog-card,
+.group-members-card {
     max-height: inherit;
     display: flex;
     flex-direction: column;
     gap: 1.125rem;
     padding: 1.25rem;
     overflow-y: auto;
+}
+
+.group-member-manage-list {
+    display: grid;
+    gap: 0.125rem;
+}
+
+.group-member-manage-row {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.625rem;
+    border-bottom: 1px solid var(--line);
+    padding: 0.625rem 0;
+}
+
+.member-role {
+    border-radius: 999px;
+    padding: 0.1875rem 0.5rem;
+    color: var(--muted);
+    background: var(--surface-muted);
+    font-size: 0.625rem;
+    font-weight: 700;
+}
+
+.member-role.owner {
+    color: var(--amber);
+    background: #f7ecd9;
+}
+
+.member-role.admin {
+    color: var(--signal-strong);
+    background: var(--signal-soft);
+}
+
+.danger-text {
+    color: var(--danger);
+}
+
+.member-remove {
+    font-size: 0.6875rem;
+}
+
+.invite-picker {
+    max-height: 20rem;
+    overflow-y: auto;
+}
+
+.invite-button {
+    margin-left: auto;
+}
+
+.group-members-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+}
+
+.group-members-footer span {
+    color: var(--muted);
+    font-size: 0.6875rem;
 }
 
 .group-dialog-header {
@@ -1287,18 +1322,6 @@ a:focus-visible {
         font-size: 1.25rem;
     }
 
-    .create-direct {
-        position: absolute;
-        z-index: 20;
-        top: 4rem;
-        left: 4.5rem;
-        width: min(19rem, calc(100vw - 5.25rem));
-        border: 1px solid var(--line);
-        border-radius: var(--radius-sm);
-        padding: 0.5rem;
-        background: var(--surface);
-    }
-
     .conversation-list {
         display: flex;
         gap: 0.5rem;
@@ -1314,8 +1337,7 @@ a:focus-visible {
         padding: 0.375rem;
     }
 
-    .conversation-copy,
-    .conversation-id {
+    .conversation-copy {
         display: none;
     }
 
@@ -1323,7 +1345,8 @@ a:focus-visible {
         width: 100vw;
     }
 
-    .group-dialog {
+    .group-dialog,
+    .group-members-dialog {
         width: 100vw;
         height: 100dvh;
         max-height: none;
@@ -1332,9 +1355,24 @@ a:focus-visible {
         border-radius: 0;
     }
 
-    .group-dialog-card {
+    .group-dialog-card,
+    .group-members-card {
         min-height: 100%;
         padding: 1rem;
+    }
+
+    .group-member-manage-row {
+        grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    }
+
+    .member-remove {
+        grid-column: 2 / -1;
+        justify-self: start;
+    }
+
+    .group-members-footer {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .group-dialog-actions {
@@ -1379,7 +1417,6 @@ a:focus-visible {
 }
 
 @media (max-width: 26rem) {
-    .current-user-copy small,
     .app-brand div strong {
         display: none;
     }

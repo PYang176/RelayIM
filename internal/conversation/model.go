@@ -28,6 +28,9 @@ type conversation struct {
 	// Name 是群名称，私聊时为空。
 	Name *string `gorm:"column:name"`
 
+	// Title 是对当前用户可直接展示的会话标题。
+	Title string `gorm:"-"`
+
 	// AvatarURL 是群头像地址。
 	AvatarURL *string `gorm:"column:avatar_url"`
 
@@ -87,6 +90,9 @@ type conversationSummary struct {
 
 	// Name 是群名称，私聊时为空。
 	Name *string `gorm:"column:name"`
+
+	// Title 是对当前用户可直接展示的会话标题。
+	Title string `gorm:"column:title"`
 
 	// AvatarURL 是群头像。
 	AvatarURL *string `gorm:"column:avatar_url"`

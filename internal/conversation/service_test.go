@@ -119,3 +119,47 @@ func TestNormalizeGroupMemberIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestInviteMembersValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command InviteMembersCommand
+	}{
+		{
+			name:    "邀请人为空",
+			command: InviteMembersCommand{ConversationID: 1, MemberUserIDs: []uint64{2}},
+		},
+		{
+			name:    "会话为空",
+			command: InviteMembersCommand{ActorID: 1, MemberUserIDs: []uint64{2}},
+		},
+		{
+			name: "邀请自己",
+			command: InviteMembersCommand{
+				ActorID:        1,
+				ConversationID: 1,
+				MemberUserIDs:  []uint64{1},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.InviteMembers(context.Background(), tt.command)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("InviteMembers() 错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
+func TestRemoveMemberValidation(t *testing.T) {
+	service := NewService(nil)
+	err := service.RemoveMember(
+		context.Background(),
+		RemoveMemberCommand{ActorID: 1, ConversationID: 1},
+	)
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("RemoveMember() 错误 = %v，期望 ErrInvalidInput", err)
+	}
+}

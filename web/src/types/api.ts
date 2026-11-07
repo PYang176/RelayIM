@@ -13,6 +13,7 @@ export interface Conversation {
     id: string
     conversation_type: number
     name: string
+    title: string
     avatar_url: string
     last_seq: number
     last_read_seq: number

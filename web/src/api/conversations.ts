@@ -53,3 +53,31 @@ export async function listMembers(
     )
     return response.members
 }
+
+export async function inviteGroupMembers(
+    token: string,
+    conversationId: string,
+    memberUserIds: string[],
+): Promise<number> {
+    const response = await request<{member_count: number}>(
+        `/conversations/${conversationId}/members`,
+        {
+            method: 'POST',
+            body: JSON.stringify({member_user_ids: memberUserIds}),
+        },
+        token,
+    )
+    return response.member_count
+}
+
+export function removeGroupMember(
+    token: string,
+    conversationId: string,
+    userId: string,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationId}/members/${userId}`,
+        {method: 'DELETE'},
+        token,
+    )
+}

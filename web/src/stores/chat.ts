@@ -64,8 +64,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     function conversationTitle(conversation: Conversation): string {
-        if (conversation.name) return conversation.name
-        return `私聊 · ${conversation.id.slice(-6)}`
+        return conversation.title || conversation.name || '私聊'
     }
 
     function upsertConversation(conversation: Conversation) {
@@ -166,7 +165,10 @@ export const useChatStore = defineStore('chat', () => {
         await refreshReadStates()
     }
 
-    async function loadMembers(conversationId: string) {
+    async function loadMembers(conversationId: string, force = false) {
+        if (!force && membersByConversation.value[conversationId]) {
+            return
+        }
         loadingMembers.value = true
         try {
             membersByConversation.value = {
@@ -181,6 +183,48 @@ export const useChatStore = defineStore('chat', () => {
         } finally {
             loadingMembers.value = false
         }
+    }
+
+    async function inviteGroupMembers(memberUserIds: string[]) {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        conversation.member_count = await conversationApi.inviteGroupMembers(
+            auth.token,
+            conversationId,
+            memberUserIds,
+        )
+        await loadMembers(conversationId, true)
+    }
+
+    async function removeGroupMember(targetUserID: string) {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        await conversationApi.removeGroupMember(
+            auth.token,
+            conversationId,
+            targetUserID,
+        )
+        if (targetUserID === auth.user?.id) {
+            conversations.value = conversations.value.filter(
+                (item) => item.id !== conversationId,
+            )
+            delete messagesByConversation.value[conversationId]
+            delete membersByConversation.value[conversationId]
+            activeConversationId.value = ''
+            readStates.value = []
+            if (conversations.value.length > 0) {
+                await selectConversation(conversations.value[0].id)
+            }
+            return
+        }
+        await loadMembers(conversationId, true)
+        conversation.member_count = (
+            membersByConversation.value[conversationId] ?? []
+        ).length
     }
 
     async function loadLatestMessages(conversationId: string) {
@@ -530,6 +574,8 @@ export const useChatStore = defineStore('chat', () => {
         createGroup,
         selectConversation,
         loadMembers,
+        inviteGroupMembers,
+        removeGroupMember,
         loadOlderMessages,
         sendMessage,
         sendAttachment,
