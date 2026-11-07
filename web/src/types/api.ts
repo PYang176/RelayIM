@@ -17,6 +17,16 @@ export interface Conversation {
     last_seq: number
     last_read_seq: number
     unread_count: number
+    member_count: number
+}
+
+export interface ConversationMember {
+    user_id: string
+    username: string
+    nickname: string
+    avatar_url: string
+    role: number
+    joined_at: string
 }
 
 export interface Message {

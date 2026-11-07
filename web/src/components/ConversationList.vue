@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     select: [conversationId: string]
     createDirect: [peerUserId: string]
+    createGroup: []
 }>()
 
 const peerUserId = shallowRef('')
@@ -19,6 +20,13 @@ const showCreate = shallowRef(false)
 
 function title(conversation: Conversation) {
     return conversation.name || `私聊 · ${conversation.id.slice(-6)}`
+}
+
+function summary(conversation: Conversation) {
+    if (conversation.conversation_type === 2) {
+        return `群聊 · ${conversation.member_count} 人`
+    }
+    return '私聊'
 }
 
 function create() {
@@ -36,16 +44,26 @@ function create() {
             <div>
                 <h2>消息</h2>
             </div>
-            <button
-                    class="icon-button"
-                    :aria-expanded="showCreate"
-                    aria-controls="create-direct-form"
-                    aria-label="发起私聊"
-                    type="button"
-                    @click="showCreate = !showCreate"
-            >
-                +
-            </button>
+            <div class="conversation-heading-actions">
+                <button
+                        class="icon-button group-button"
+                        aria-label="创建群聊"
+                        type="button"
+                        @click="emit('createGroup')"
+                >
+                    群
+                </button>
+                <button
+                        class="icon-button"
+                        :aria-expanded="showCreate"
+                        aria-controls="create-direct-form"
+                        aria-label="发起私聊"
+                        type="button"
+                        @click="showCreate = !showCreate"
+                >
+                    +
+                </button>
+            </div>
         </div>
 
         <form
@@ -89,7 +107,7 @@ function create() {
                 <span class="conversation-copy">
           <strong>{{ title(conversation) }}</strong>
           <small>
-            {{ conversation.conversation_type === 2 ? '群聊' : '私聊' }}
+            {{ summary(conversation) }}
             · 序号 {{ conversation.last_seq }}
           </small>
         </span>

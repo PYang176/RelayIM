@@ -97,6 +97,29 @@ type conversationSummary struct {
 	// LastReadSeq 是当前用户最后已读序号。
 	LastReadSeq uint64 `gorm:"column:last_read_seq"`
 
+	// MemberCount 是当前有效成员数量。
+	MemberCount uint64 `gorm:"column:member_count"`
+
 	// UpdatedAt 是会话最近活动时间。
 	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+type memberRecord struct {
+	// UserID 是成员用户 Snowflake ID。
+	UserID uint64 `gorm:"column:user_id"`
+
+	// Username 是成员登录名。
+	Username string `gorm:"column:username"`
+
+	// Nickname 是成员昵称。
+	Nickname string `gorm:"column:nickname"`
+
+	// AvatarURL 是成员头像地址。
+	AvatarURL string `gorm:"column:avatar_url"`
+
+	// Role 表示成员角色，1 成员、2 管理员、3 群主。
+	Role int `gorm:"column:role"`
+
+	// JoinedAt 是成员加入会话的 UTC 时间。
+	JoinedAt time.Time `gorm:"column:joined_at"`
 }

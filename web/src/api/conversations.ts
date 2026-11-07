@@ -1,5 +1,5 @@
 import {request} from './http'
-import type {Conversation} from '@/types/api'
+import type {Conversation, ConversationMember} from '@/types/api'
 
 export async function listConversations(token: string): Promise<Conversation[]> {
     const response = await request<{ conversations: Conversation[] }>(
@@ -22,4 +22,34 @@ export function createDirect(
         },
         token,
     )
+}
+
+export function createGroup(
+    token: string,
+    name: string,
+    memberUserIds: string[],
+): Promise<Conversation> {
+    return request(
+        '/conversations/groups',
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                name,
+                member_user_ids: memberUserIds,
+            }),
+        },
+        token,
+    )
+}
+
+export async function listMembers(
+    token: string,
+    conversationId: string,
+): Promise<ConversationMember[]> {
+    const response = await request<{members: ConversationMember[]}>(
+        `/conversations/${conversationId}/members`,
+        {},
+        token,
+    )
+    return response.members
 }

@@ -30,6 +30,9 @@ type createGroupRequest struct {
 
 	// AvatarURL 是可选群头像地址。
 	AvatarURL string `json:"avatar_url"`
+
+	// MemberUserIDs 是创建群时一起加入的好友 Snowflake ID 字符串。
+	MemberUserIDs []string `json:"member_user_ids"`
 }
 
 // CreateDirect 处理 POST /api/v1/conversations/private。
@@ -81,13 +84,18 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
 		return
 	}
+	memberUserIDs, ok := parseGroupMemberIDs(c, request.MemberUserIDs)
+	if !ok {
+		return
+	}
 
 	result, err := h.service.CreateGroup(
 		c.Request.Context(),
 		CreateGroupCommand{
-			OwnerID:   userID,
-			Name:      request.Name,
-			AvatarURL: request.AvatarURL,
+			OwnerID:       userID,
+			Name:          request.Name,
+			AvatarURL:     request.AvatarURL,
+			MemberUserIDs: memberUserIDs,
 		},
 	)
 	if err != nil {
@@ -118,6 +126,40 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"conversations": response})
 }
 
+// ListMembers 处理 GET /api/v1/conversations/:conversation_id/members。
+func (h *Handler) ListMembers(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, err := strconv.ParseUint(c.Param("conversation_id"), 10, 64)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return
+	}
+	results, err := h.service.ListMembers(
+		c.Request.Context(),
+		userID,
+		conversationID,
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	members := make([]gin.H, 0, len(results))
+	for _, result := range results {
+		members = append(members, gin.H{
+			"user_id":    strconv.FormatUint(result.UserID, 10),
+			"username":   result.Username,
+			"nickname":   result.Nickname,
+			"avatar_url": result.AvatarURL,
+			"role":       result.Role,
+			"joined_at":  result.JoinedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"members": members})
+}
+
 func currentUserID(c *gin.Context) (uint64, bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -136,13 +178,32 @@ func conversationResponse(result Result) gin.H {
 		"last_seq":          result.LastSeq,
 		"last_read_seq":     result.LastReadSeq,
 		"unread_count":      result.UnreadCount,
+		"member_count":      result.MemberCount,
 	}
+}
+
+func parseGroupMemberIDs(
+	c *gin.Context,
+	rawIDs []string,
+) ([]uint64, bool) {
+	result := make([]uint64, 0, len(rawIDs))
+	for _, rawID := range rawIDs {
+		userID, err := strconv.ParseUint(rawID, 10, 64)
+		if err != nil || userID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "member_user_ids 格式错误"})
+			return nil, false
+		}
+		result = append(result, userID)
+	}
+	return result, true
 }
 
 func writeConversationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrSameUser):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrNotFriend):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotFriend.Error()})
 	case errors.Is(err, ErrUserNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound.Error()})
 	case errors.Is(err, ErrConversationNotFound):

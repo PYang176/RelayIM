@@ -174,6 +174,21 @@ func (r *Repository) sendMessage(
 			return fmt.Errorf("保存消息: %w", err)
 		}
 
+		// 发送者本人已经知道刚提交的消息，必须在同一事务推进自己的
+		// 已读游标，否则下一次会话列表会把本人发送的消息算成未读。
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+				input.ConversationID,
+				input.SenderID,
+			).
+			Update(
+				"last_read_seq",
+				gorm.Expr("GREATEST(last_read_seq, ?)", msg.Seq),
+			).Error; err != nil {
+			return fmt.Errorf("推进发送者已读游标: %w", err)
+		}
+
 		// 会话摘要和消息在同一事务提交。任一更新失败都会回滚消息，
 		// 避免 last_seq 与消息表不一致。
 		if err := tx.Model(&conversation{}).

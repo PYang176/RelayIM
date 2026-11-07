@@ -18,4 +18,5 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	group.GET("", handler.List)
 	group.POST("/private", handler.CreateDirect)
 	group.POST("/groups", handler.CreateGroup)
+	group.GET("/:conversation_id/members", handler.ListMembers)
 }

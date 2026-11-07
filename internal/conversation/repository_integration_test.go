@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -90,11 +91,13 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		t.Fatalf("会话列表 = %+v，期望未读数 3", results)
 	}
 
-	group, err := repository.CreateGroup(
+	group, err := service.CreateGroup(
 		context.Background(),
-		userA,
-		"集成测试群",
-		nil,
+		CreateGroupCommand{
+			OwnerID:       userA,
+			Name:          "集成测试群",
+			MemberUserIDs: []uint64{userB},
+		},
 	)
 	if err != nil {
 		t.Fatalf("创建群会话失败: %v", err)
@@ -112,6 +115,32 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	}
 	if ownerCount != 1 {
 		t.Fatalf("群主成员数量 = %d，期望 1", ownerCount)
+	}
+
+	members, err := service.ListMembers(
+		context.Background(),
+		userB,
+		group.ID,
+	)
+	if err != nil {
+		t.Fatalf("查询群成员失败: %v", err)
+	}
+	if len(members) != 2 ||
+		members[0].UserID != userA ||
+		members[0].Role != groupOwnerRole {
+		t.Fatalf("群成员列表 = %+v", members)
+	}
+
+	_, err = service.CreateGroup(
+		context.Background(),
+		CreateGroupCommand{
+			OwnerID:       userA,
+			Name:          "非好友群",
+			MemberUserIDs: []uint64{uint64(snowflake.Generate())},
+		},
+	)
+	if !errors.Is(err, ErrNotFriend) {
+		t.Fatalf("邀请非好友错误 = %v，期望 %v", err, ErrNotFriend)
 	}
 }
 
@@ -213,6 +242,25 @@ func insertConversationTestUsers(t *testing.T, db *gorm.DB) (uint64, uint64) {
 		).Error; err != nil {
 			t.Fatalf("创建集成测试用户失败: %v", err)
 		}
+		if err := db.Exec(
+			"INSERT INTO user_profiles (user_id, nickname) VALUES (?, ?)",
+			user.id,
+			user.username,
+		).Error; err != nil {
+			t.Fatalf("创建集成测试用户资料失败: %v", err)
+		}
+	}
+	friendshipID := uint64(snowflake.Generate())
+	friendLowID, friendHighID := orderedUsers(userA, userB)
+	if err := db.Exec(
+		`INSERT INTO friendships
+			(id, user_low_id, user_high_id, status)
+		 VALUES (?, ?, ?, 1)`,
+		friendshipID,
+		friendLowID,
+		friendHighID,
+	).Error; err != nil {
+		t.Fatalf("创建集成测试好友关系失败: %v", err)
 	}
 	return userA, userB
 }
@@ -229,11 +277,17 @@ func cleanupConversationTestData(
 		"DELETE FROM conversation_members WHERE user_id IN (?, ?)",
 		"DELETE FROM conversations WHERE owner_id IN (?, ?) " +
 			"OR direct_low_user_id IN (?, ?) OR direct_high_user_id IN (?, ?)",
+		"DELETE FROM friend_remarks WHERE user_id IN (?, ?)",
+		"DELETE FROM friendships WHERE user_low_id IN (?, ?) OR user_high_id IN (?, ?)",
+		"DELETE FROM user_profiles WHERE user_id IN (?, ?)",
 		"DELETE FROM users WHERE id IN (?, ?)",
 	}
 	args := [][]any{
 		{userA, userB},
 		{userA, userB, userA, userB, userA, userB},
+		{userA, userB},
+		{userA, userB, userA, userB},
+		{userA, userB},
 		{userA, userB},
 	}
 	for i, statement := range statements {

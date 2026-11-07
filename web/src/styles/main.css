@@ -446,6 +446,18 @@ a:focus-visible {
     font-weight: 600;
 }
 
+.conversation-heading-actions {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.icon-button.group-button {
+    color: var(--signal-strong);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
 .create-direct {
     display: flex;
     gap: 0.5rem;
@@ -573,6 +585,46 @@ a:focus-visible {
     overflow: hidden;
     font-family: var(--font-data);
     text-overflow: ellipsis;
+}
+
+.group-member-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    border-bottom: 1px solid var(--line);
+    padding: 0.625rem 1.5rem;
+    background: color-mix(in srgb, var(--signal-soft) 45%, var(--surface));
+}
+
+.group-member-label {
+    margin-right: 0.125rem;
+    color: var(--muted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.group-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--signal) 22%, var(--line));
+    border-radius: 999px;
+    padding: 0.1875rem 0.5rem;
+    color: var(--signal-strong);
+    background: var(--surface);
+    font-size: 0.6875rem;
+}
+
+.group-member-chip small {
+    color: var(--amber);
+    font-size: 0.5625rem;
+    font-weight: 800;
+}
+
+.group-member-chip.more {
+    color: var(--muted);
+    background: transparent;
 }
 
 .message-scroller {
@@ -826,6 +878,157 @@ a:focus-visible {
     border: 0;
     padding: 0;
     background: transparent;
+}
+
+.group-dialog {
+    width: min(38rem, calc(100vw - 2rem));
+    max-width: none;
+    max-height: min(46rem, calc(100dvh - 2rem));
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    padding: 0;
+    color: var(--ink);
+    background: var(--surface);
+}
+
+.group-dialog::backdrop {
+    background: rgba(21, 52, 59, 0.42);
+}
+
+.group-dialog-card {
+    max-height: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 1.125rem;
+    padding: 1.25rem;
+    overflow-y: auto;
+}
+
+.group-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.group-dialog-header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.group-dialog-header p {
+    max-width: 34rem;
+    margin: 0.25rem 0 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.group-field {
+    display: grid;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.group-field input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.6875rem 0.75rem;
+    color: var(--ink);
+    background: white;
+}
+
+.group-field input:focus {
+    border-color: var(--focus);
+}
+
+.group-member-picker {
+    min-height: 10rem;
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+}
+
+.group-member-picker legend {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.group-member-picker legend span,
+.group-member-picker > p {
+    color: var(--muted);
+    font-size: 0.6875rem;
+    font-weight: 400;
+}
+
+.group-member-list {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.group-member-option {
+    display: grid;
+    grid-template-columns: auto 2.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.625rem;
+    border-radius: var(--radius-sm);
+    padding: 0.5rem;
+    cursor: pointer;
+}
+
+.group-member-option:hover {
+    background: var(--surface-muted);
+}
+
+.group-member-option input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--signal);
+}
+
+.group-member-copy {
+    min-width: 0;
+    display: grid;
+    gap: 0.125rem;
+}
+
+.group-member-copy strong,
+.group-member-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.group-member-copy small {
+    color: var(--muted);
+    font-family: var(--font-data);
+    font-size: 0.625rem;
+}
+
+.group-dialog-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.group-dialog-actions > span {
+    color: var(--muted);
+    font-size: 0.6875rem;
+}
+
+.group-dialog-actions div {
+    display: flex;
+    gap: 0.5rem;
 }
 
 .friends-dialog::backdrop {
@@ -1120,6 +1323,29 @@ a:focus-visible {
         width: 100vw;
     }
 
+    .group-dialog {
+        width: 100vw;
+        height: 100dvh;
+        max-height: none;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .group-dialog-card {
+        min-height: 100%;
+        padding: 1rem;
+    }
+
+    .group-dialog-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .group-dialog-actions div {
+        justify-content: flex-end;
+    }
+
     .friends-drawer {
         padding: 1rem;
     }
@@ -1145,7 +1371,8 @@ a:focus-visible {
     }
 
     .app-header,
-    .conversation-header {
+    .conversation-header,
+    .group-member-strip {
         padding-right: 0.875rem;
         padding-left: 0.875rem;
     }

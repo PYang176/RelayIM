@@ -318,8 +318,8 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("查询已读状态失败: %v", err)
 	}
-	if !hasReadState(readStates, memberID, 4) {
-		t.Fatalf("成员已读状态 = %+v，期望 seq=4", readStates)
+	if !hasReadState(readStates, memberID, 6) {
+		t.Fatalf("成员已读状态 = %+v，期望发送者游标保持在 seq=6", readStates)
 	}
 	if err := service.MarkConversationRead(
 		context.Background(),
@@ -364,6 +364,15 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		mediaRecord.AttachmentID == nil ||
 		*mediaRecord.AttachmentID != attachmentID {
 		t.Fatalf("图片消息 = %+v", mediaRecord)
+	}
+	var senderReadSeq uint64
+	if err := db.Table("conversation_members").
+		Where("conversation_id = ? AND user_id = ?", conversationID, ownerID).
+		Pluck("last_read_seq", &senderReadSeq).Error; err != nil {
+		t.Fatalf("查询发送者已读游标失败: %v", err)
+	}
+	if senderReadSeq != mediaMessage.Seq {
+		t.Fatalf("发送者已读游标 = %d，期望 %d", senderReadSeq, mediaMessage.Seq)
 	}
 
 	mediaHistory, err := service.ListMessages(

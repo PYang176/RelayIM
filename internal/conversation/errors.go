@@ -12,6 +12,9 @@ var (
 	// ErrUserNotFound 表示会话成员对应的用户不存在。
 	ErrUserNotFound = errors.New("会话用户不存在")
 
+	// ErrNotFriend 表示创建群聊时选择了非好友用户。
+	ErrNotFriend = errors.New("只能邀请好友加入群聊")
+
 	// ErrConversationNotFound 表示当前用户无法访问该会话。
 	ErrConversationNotFound = errors.New("会话不存在或无权访问")
 )

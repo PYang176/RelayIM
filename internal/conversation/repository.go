@@ -90,12 +90,13 @@ func (r *Repository) CreateDirect(
 	return nil, false, err
 }
 
-// CreateGroup 在事务中创建群会话并加入群主。
+// CreateGroup 在事务中创建群会话并加入群主和受邀好友。
 func (r *Repository) CreateGroup(
 	ctx context.Context,
 	ownerID uint64,
 	name string,
 	avatarURL *string,
+	memberUserIDs []uint64,
 ) (*conversation, error) {
 	now := time.Now().UTC()
 	result := &conversation{
@@ -110,17 +111,48 @@ func (r *Repository) CreateGroup(
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 受邀成员必须仍是群主的有效好友。前端选择列表只是交互提示，
+		// 后端校验才是防止任意用户被批量拉入群聊的权限边界。
+		var friendCount int64
+		if err := tx.Table("friendships").
+			Where(
+				"status = ? AND ("+
+					"(user_low_id = ? AND user_high_id IN ?) OR "+
+					"(user_high_id = ? AND user_low_id IN ?))",
+				1,
+				ownerID,
+				memberUserIDs,
+				ownerID,
+				memberUserIDs,
+			).
+			Count(&friendCount).Error; err != nil {
+			return fmt.Errorf("校验群成员好友关系: %w", err)
+		}
+		if friendCount != int64(len(memberUserIDs)) {
+			return ErrNotFriend
+		}
+
 		if err := tx.Create(result).Error; err != nil {
 			return err
 		}
-		owner := conversationMember{
+		members := make([]conversationMember, 0, len(memberUserIDs)+1)
+		members = append(members, conversationMember{
 			ConversationID: result.ID,
 			UserID:         ownerID,
 			Role:           groupOwnerRole,
 			JoinedAt:       now,
 			UpdatedAt:      now,
+		})
+		for _, userID := range memberUserIDs {
+			members = append(members, conversationMember{
+				ConversationID: result.ID,
+				UserID:         userID,
+				Role:           1,
+				JoinedAt:       now,
+				UpdatedAt:      now,
+			})
 		}
-		return tx.Create(&owner).Error
+		return tx.Create(&members).Error
 	})
 	if err != nil {
 		if isForeignKeyError(err) {
@@ -141,7 +173,10 @@ func (r *Repository) ListForUser(
 		Table("conversation_members AS m").
 		Select(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
-				"c.last_seq, m.last_read_seq, c.updated_at",
+				"c.last_seq, m.last_read_seq, c.updated_at, "+
+				"(SELECT COUNT(*) FROM conversation_members AS active_member "+
+				"WHERE active_member.conversation_id = c.id "+
+				"AND active_member.left_at IS NULL) AS member_count",
 		).
 		Joins("JOIN conversations AS c ON c.id = m.conversation_id").
 		Where("m.user_id = ? AND m.left_at IS NULL AND c.status = ?",
@@ -155,6 +190,52 @@ func (r *Repository) ListForUser(
 		return nil, fmt.Errorf("查询用户会话: %w", err)
 	}
 	return results, nil
+}
+
+// ListMembers 返回当前有效成员可查看的会话成员资料。
+func (r *Repository) ListMembers(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+) ([]memberRecord, error) {
+	var membershipCount int64
+	if err := r.db.WithContext(ctx).
+		Table("conversation_members").
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			userID,
+		).
+		Count(&membershipCount).Error; err != nil {
+		return nil, fmt.Errorf("校验会话成员权限: %w", err)
+	}
+	if membershipCount != 1 {
+		return nil, ErrConversationNotFound
+	}
+
+	var records []memberRecord
+	if err := r.db.WithContext(ctx).
+		Table("conversation_members AS cm").
+		Select(
+			"cm.user_id, u.username, "+
+				"COALESCE(p.nickname, u.username) AS nickname, "+
+				"COALESCE(p.avatar_url, '') AS avatar_url, "+
+				"cm.role, cm.joined_at",
+		).
+		Joins("JOIN users AS u ON u.id = cm.user_id").
+		Joins("LEFT JOIN user_profiles AS p ON p.user_id = cm.user_id").
+		Where(
+			"cm.conversation_id = ? AND cm.left_at IS NULL",
+			conversationID,
+		).
+		Order(
+			"CASE cm.role WHEN 3 THEN 0 WHEN 2 THEN 1 ELSE 2 END, " +
+				"p.nickname ASC, u.username ASC",
+		).
+		Scan(&records).Error; err != nil {
+		return nil, fmt.Errorf("查询会话成员: %w", err)
+	}
+	return records, nil
 }
 
 func (r *Repository) findDirect(

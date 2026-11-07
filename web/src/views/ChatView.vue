@@ -9,6 +9,7 @@ import {
 import {useRouter} from 'vue-router'
 
 import ConversationList from '@/components/ConversationList.vue'
+import CreateGroupDialog from '@/components/CreateGroupDialog.vue'
 import FriendsDrawer from '@/components/FriendsDrawer.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageList from '@/components/MessageList.vue'
@@ -22,6 +23,8 @@ const friendships = useFriendshipStore()
 const router = useRouter()
 const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageList')
 const friendsOpen = shallowRef(false)
+const groupDialogOpen = shallowRef(false)
+const creatingGroup = shallowRef(false)
 
 const connectionLabel = computed(() => {
     const labels = {
@@ -31,6 +34,19 @@ const connectionLabel = computed(() => {
         disconnected: '连接已断开',
     }
     return labels[chat.connectionState]
+})
+const visibleGroupMembers = computed(() => chat.activeMembers.slice(0, 6))
+const hiddenGroupMemberCount = computed(() =>
+    Math.max(0, chat.activeMembers.length - visibleGroupMembers.value.length),
+)
+const groupReadLabel = computed(() => {
+    const conversation = chat.activeConversation
+    if (!conversation) return ''
+    const otherMemberCount = Math.max(0, conversation.member_count - 1)
+    const readCount = chat.activeReadStates.filter(
+        (state) => state.last_read_seq >= conversation.last_seq,
+    ).length
+    return `${readCount}/${otherMemberCount} 人已读`
 })
 
 async function createDirect(peerUserId: string) {
@@ -45,6 +61,34 @@ async function createDirect(peerUserId: string) {
 async function selectConversation(conversationId: string) {
     await chat.selectConversation(conversationId)
     messageList.value?.scrollToBottom()
+}
+
+function openGroupCreator() {
+    groupDialogOpen.value = true
+    void friendships.loadAll()
+}
+
+async function createGroup(payload: {
+    name: string
+    memberUserIds: string[]
+}) {
+    creatingGroup.value = true
+    try {
+        await chat.createGroup(payload.name, payload.memberUserIds)
+        groupDialogOpen.value = false
+        messageList.value?.scrollToBottom()
+    } catch (cause) {
+        chat.reportError(cause instanceof Error ? cause.message : '创建群聊失败')
+    } finally {
+        creatingGroup.value = false
+    }
+}
+
+function memberName(member: {
+    nickname: string
+    username: string
+}) {
+    return member.nickname || member.username
 }
 
 async function sendMessage(content: string) {
@@ -143,6 +187,7 @@ onBeforeUnmount(() => {
                     :active-id="chat.activeConversationId"
                     :conversations="chat.conversations"
                     :loading="chat.loadingConversations"
+                    @create-group="openGroupCreator"
                     @create-direct="createDirect"
                     @select="selectConversation"
             />
@@ -154,15 +199,60 @@ onBeforeUnmount(() => {
                             <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
                             <p>
                                 最后序号 {{ chat.activeConversation.last_seq }}
-                                <span v-if="chat.activeReadStates.length">
+                                <span
+                                        v-if="
+                                            chat.activeConversation.conversation_type === 2
+                                        "
+                                >
+                                    · {{ chat.activeConversation.member_count }} 位成员
+                                </span>
+                                <span
+                                        v-if="
+                                            chat.activeConversation.conversation_type === 2 &&
+                                            chat.activeConversation.last_seq > 0
+                                        "
+                                >
+                                    · {{ groupReadLabel }}
+                                </span>
+                                <span
+                                        v-else-if="
+                                            chat.activeConversation.conversation_type === 1 &&
+                                            chat.activeReadStates.length
+                                        "
+                                >
                   · 对方已读 {{ chat.activeReadStates[0].last_read_seq }}
-                </span>
+                                </span>
                             </p>
                         </div>
                         <span class="conversation-id">
               ID {{ chat.activeConversation.id }}
             </span>
                     </header>
+
+                    <div
+                            v-if="chat.activeConversation.conversation_type === 2"
+                            class="group-member-strip"
+                            aria-label="群成员"
+                    >
+                        <span class="group-member-label">
+                            <span v-if="chat.loadingMembers">成员加载中</span>
+                            <span v-else>群成员</span>
+                        </span>
+                        <span
+                                v-for="member in visibleGroupMembers"
+                                :key="member.user_id"
+                                class="group-member-chip"
+                        >
+                            {{ memberName(member) }}
+                            <small v-if="member.role === 3">群主</small>
+                        </span>
+                        <span
+                                v-if="hiddenGroupMemberCount > 0"
+                                class="group-member-chip more"
+                        >
+                            +{{ hiddenGroupMemberCount }}
+                        </span>
+                    </div>
 
                     <MessageList
                             ref="messageList"
@@ -184,7 +274,7 @@ onBeforeUnmount(() => {
                 <div v-else class="empty-workspace">
                     <span class="empty-logo">G</span>
                     <h1>选择一个会话</h1>
-                    <p>或者使用左侧“+”输入对方用户 ID 创建私聊。</p>
+                    <p>使用左侧“+”创建私聊，或点击“群”邀请好友创建群聊。</p>
                 </div>
             </section>
         </section>
@@ -193,6 +283,16 @@ onBeforeUnmount(() => {
                 :open="friendsOpen"
                 @close="friendsOpen = false"
                 @open-direct="openFriendDirect"
+        />
+
+        <CreateGroupDialog
+                :busy="creatingGroup"
+                :error="friendships.error"
+                :friends="friendships.friends"
+                :loading="friendships.loading"
+                :open="groupDialogOpen"
+                @close="groupDialogOpen = false"
+                @create="createGroup"
         />
     </main>
 </template>

@@ -76,3 +76,46 @@ func TestCreateGroupValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeGroupMemberIDs(t *testing.T) {
+	tests := []struct {
+		name    string
+		ownerID uint64
+		userIDs []uint64
+		want    []uint64
+		wantErr error
+	}{
+		{
+			name:    "没有受邀成员",
+			ownerID: 1,
+			wantErr: ErrInvalidInput,
+		},
+		{
+			name:    "包含群主自己",
+			ownerID: 1,
+			userIDs: []uint64{2, 1},
+			wantErr: ErrInvalidInput,
+		},
+		{
+			name:    "重复成员去重",
+			ownerID: 1,
+			userIDs: []uint64{2, 2, 3},
+			want:    []uint64{2, 3},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeGroupMemberIDs(tt.ownerID, tt.userIDs)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("normalizeGroupMemberIDs() 错误 = %v，期望 %v", err, tt.wantErr)
+			}
+			if tt.wantErr == nil &&
+				(len(got) != len(tt.want) ||
+					got[0] != tt.want[0] ||
+					got[1] != tt.want[1]) {
+				t.Fatalf("normalizeGroupMemberIDs() = %v，期望 %v", got, tt.want)
+			}
+		})
+	}
+}

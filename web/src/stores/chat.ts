@@ -7,6 +7,7 @@ import {useChatSocket} from '@/composables/useChatSocket'
 import {useAuthStore} from '@/stores/auth'
 import type {
     Conversation,
+    ConversationMember,
     DeliverySummary,
     Message,
     ReadState,
@@ -22,10 +23,12 @@ export const useChatStore = defineStore('chat', () => {
     const auth = useAuthStore()
     const conversations = ref<Conversation[]>([])
     const messagesByConversation = ref<Record<string, ChatMessage[]>>({})
+    const membersByConversation = ref<Record<string, ConversationMember[]>>({})
     const activeConversationId = shallowRef('')
     const readStates = ref<ReadState[]>([])
     const loadingConversations = shallowRef(false)
     const loadingMessages = shallowRef(false)
+    const loadingMembers = shallowRef(false)
     const uploadingAttachment = shallowRef(false)
     const uploadProgress = shallowRef(0)
     const hasMoreByConversation = ref<Record<string, boolean>>({})
@@ -36,6 +39,9 @@ export const useChatStore = defineStore('chat', () => {
     )
     const activeMessages = computed(
         () => messagesByConversation.value[activeConversationId.value] ?? [],
+    )
+    const activeMembers = computed(
+        () => membersByConversation.value[activeConversationId.value] ?? [],
     )
     const activeReadStates = computed(() =>
         readStates.value.filter((item) => item.user_id !== auth.user?.id),
@@ -128,14 +134,53 @@ export const useChatStore = defineStore('chat', () => {
         await selectConversation(conversation.id)
     }
 
+    async function createGroup(name: string, memberUserIds: string[]) {
+        clearError()
+        const conversation = await conversationApi.createGroup(
+            auth.token,
+            name.trim(),
+            memberUserIds,
+        )
+        upsertConversation(conversation)
+        await selectConversation(conversation.id)
+    }
+
     async function selectConversation(conversationId: string) {
         activeConversationId.value = conversationId
         readStates.value = []
+        const conversation = conversations.value.find(
+            (item) => item.id === conversationId,
+        )
+        const tasks: Promise<void>[] = []
         if (!messagesByConversation.value[conversationId]) {
-            await loadLatestMessages(conversationId)
+            tasks.push(loadLatestMessages(conversationId))
         }
+        if (
+            conversation?.conversation_type === 2 &&
+            !membersByConversation.value[conversationId]
+        ) {
+            tasks.push(loadMembers(conversationId))
+        }
+        await Promise.all(tasks)
         await markRead()
         await refreshReadStates()
+    }
+
+    async function loadMembers(conversationId: string) {
+        loadingMembers.value = true
+        try {
+            membersByConversation.value = {
+                ...membersByConversation.value,
+                [conversationId]: await conversationApi.listMembers(
+                    auth.token,
+                    conversationId,
+                ),
+            }
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : '加载群成员失败')
+        } finally {
+            loadingMembers.value = false
+        }
     }
 
     async function loadLatestMessages(conversationId: string) {
@@ -240,7 +285,13 @@ export const useChatStore = defineStore('chat', () => {
         const conversation = conversations.value.find((item) => item.id === conversationId)
         if (conversation) {
             conversation.last_seq = Math.max(conversation.last_seq, response.seq)
+            conversation.last_read_seq = Math.max(
+                conversation.last_read_seq,
+                response.seq,
+            )
+            conversation.unread_count = 0
         }
+        void refreshReadStates()
         window.setTimeout(() => {
             void refreshDelivery(conversationId, response.message_id)
         }, 1200)
@@ -286,7 +337,13 @@ export const useChatStore = defineStore('chat', () => {
             )
             if (conversation) {
                 conversation.last_seq = Math.max(conversation.last_seq, response.seq)
+                conversation.last_read_seq = Math.max(
+                    conversation.last_read_seq,
+                    response.seq,
+                )
+                conversation.unread_count = 0
             }
+            void refreshReadStates()
             window.setTimeout(() => {
                 void refreshDelivery(conversationId, response.message_id)
             }, 1200)
@@ -400,7 +457,11 @@ export const useChatStore = defineStore('chat', () => {
             message_type: payload.msg_type ?? 1,
             content: payload.content ?? '',
             attachment_id: undefined,
-            attachment_url: payload.url,
+            // 实时事件只携带受保护的内容路径，浏览器 img 无法附加 JWT。
+            // 先显示加载态，换取短时签名 URL 后再交给图片或下载组件。
+            attachment_url: payload.url?.startsWith('/api/v1/attachments/')
+                ? undefined
+                : payload.url,
             attachment_name: payload.file_name,
             created_at: new Date().toISOString(),
         }
@@ -440,6 +501,7 @@ export const useChatStore = defineStore('chat', () => {
         disconnectWebSocket()
         conversations.value = []
         messagesByConversation.value = {}
+        membersByConversation.value = {}
         activeConversationId.value = ''
         readStates.value = []
         error.value = ''
@@ -448,13 +510,16 @@ export const useChatStore = defineStore('chat', () => {
     return {
         conversations,
         messagesByConversation,
+        membersByConversation,
         activeConversationId,
         activeConversation,
         activeMessages,
+        activeMembers,
         activeReadStates,
         connectionState,
         loadingConversations,
         loadingMessages,
+        loadingMembers,
         uploadingAttachment,
         uploadProgress,
         hasMoreByConversation,
@@ -462,7 +527,9 @@ export const useChatStore = defineStore('chat', () => {
         conversationTitle,
         loadConversations,
         createDirect,
+        createGroup,
         selectConversation,
+        loadMembers,
         loadOlderMessages,
         sendMessage,
         sendAttachment,
