@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"ginChatProject/internal/platform/snowflake"
@@ -25,12 +26,14 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-type sendTextInput struct {
+type sendMessageInput struct {
 	ConversationID   uint64
 	SenderID         uint64
 	ClientMessageID  string
+	MessageType      int
 	Content          string
 	ReplyToMessageID *uint64
+	AttachmentID     *uint64
 }
 
 type listMessagesInput struct {
@@ -51,10 +54,10 @@ type deliverySummaryRecord struct {
 	DeliveredUsers   uint64 `gorm:"column:delivered_users"`
 }
 
-// sendText 在单个事务中保存文本消息和 Outbox 事件。
-func (r *Repository) sendText(
+// sendMessage 在单个事务中保存消息、Outbox 和会话序号。
+func (r *Repository) sendMessage(
 	ctx context.Context,
-	input sendTextInput,
+	input sendMessageInput,
 ) (*message, bool, error) {
 	// 第一层幂等快速路径：客户端超时重试通常能直接拿到原消息，
 	// 不进入会话行锁，减少重复请求对热点会话的争用。
@@ -77,9 +80,10 @@ func (r *Repository) sendText(
 		ConversationID:   input.ConversationID,
 		SenderID:         input.SenderID,
 		ClientMessageID:  input.ClientMessageID,
-		MessageType:      messageTypeText,
+		MessageType:      input.MessageType,
 		Content:          input.Content,
 		ReplyToMessageID: input.ReplyToMessageID,
+		AttachmentID:     input.AttachmentID,
 		CreatedAt:        now,
 	}
 
@@ -146,6 +150,23 @@ func (r *Repository) sendText(
 			return fmt.Errorf("检查重复消息: %w", err)
 		}
 
+		var attachmentRecord *attachment
+		if input.AttachmentID != nil {
+			attachmentRecord, err = usableAttachment(
+				ctx,
+				tx,
+				input.SenderID,
+				*input.AttachmentID,
+			)
+			if err != nil {
+				return err
+			}
+			if input.MessageType == messageTypeImage &&
+				!strings.HasPrefix(attachmentRecord.MIMEType, "image/") {
+				return ErrInvalidAttachment
+			}
+		}
+
 		// 当前事务持有会话行锁，LastSeq 在读取和更新之间不会被其他
 		// 发送者修改，因此当前会话的 seq 能保持严格连续。
 		msg.Seq = conversationRecord.LastSeq + 1
@@ -166,11 +187,20 @@ func (r *Repository) sendText(
 
 		// 事件载荷只保留 Consumer 定位消息所需的最小字段，并把 Snowflake
 		// ID 转成字符串，避免前端或跨语言消费者出现数字精度丢失。
+		attachmentID := ""
+		attachmentName := ""
+		if attachmentRecord != nil {
+			attachmentID = strconv.FormatUint(attachmentRecord.ID, 10)
+			attachmentName = attachmentRecord.OriginalName
+		}
 		payload, err := json.Marshal(messageCreatedPayload{
 			MessageID:      strconv.FormatUint(msg.ID, 10),
 			ConversationID: strconv.FormatUint(msg.ConversationID, 10),
 			SenderID:       strconv.FormatUint(msg.SenderID, 10),
 			Seq:            msg.Seq,
+			MessageType:    msg.MessageType,
+			AttachmentID:   attachmentID,
+			AttachmentName: attachmentName,
 		})
 		if err != nil {
 			return fmt.Errorf("序列化消息事件: %w", err)
@@ -198,16 +228,22 @@ func (r *Repository) sendText(
 	}
 
 	// 不同会话可能并发使用同一个客户端消息 ID，唯一索引会返回 1062。
-	// 此时事务已回滚，需要按唯一键读取先提交的原消息并返回同一结果。
+	// 同一附件被并发绑定也会触发 1062。此时事务已回滚，先按客户端
+	// 幂等键读取先提交的原消息；找不到时说明冲突来自附件唯一约束。
 	if isDuplicateKey(err) {
 		existing, findErr := r.findByClientMessageID(ctx, input.SenderID, input.ClientMessageID)
-		if findErr != nil {
+		if findErr == nil {
+			if existing.ConversationID != input.ConversationID {
+				return nil, false, ErrClientMessageConflict
+			}
+			return existing, true, nil
+		}
+		if !errors.Is(findErr, gorm.ErrRecordNotFound) {
 			return nil, false, fmt.Errorf("读取重复消息: %w", findErr)
 		}
-		if existing.ConversationID != input.ConversationID {
-			return nil, false, ErrClientMessageConflict
+		if input.AttachmentID != nil {
+			return nil, false, ErrAttachmentAlreadyUsed
 		}
-		return existing, true, nil
 	}
 
 	return nil, false, err
@@ -262,14 +298,20 @@ func (r *Repository) listMessages(
 
 	ascending := input.AfterSeq > 0
 	query := r.db.WithContext(ctx).
-		Where("conversation_id = ?", input.ConversationID)
+		Table("messages AS m").
+		Select(
+			"m.*, a.original_name AS attachment_name, "+
+				"a.object_key AS attachment_object_key",
+		).
+		Joins("LEFT JOIN attachments AS a ON a.id = m.attachment_id").
+		Where("m.conversation_id = ?", input.ConversationID)
 	switch {
 	case input.AfterSeq > 0:
-		query = query.Where("seq > ?", input.AfterSeq).Order("seq ASC")
+		query = query.Where("m.seq > ?", input.AfterSeq).Order("m.seq ASC")
 	case input.BeforeSeq > 0:
-		query = query.Where("seq < ?", input.BeforeSeq).Order("seq DESC")
+		query = query.Where("m.seq < ?", input.BeforeSeq).Order("m.seq DESC")
 	default:
-		query = query.Order("seq DESC")
+		query = query.Order("m.seq DESC")
 	}
 
 	records := make([]message, 0, input.Limit+1)

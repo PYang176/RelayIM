@@ -16,6 +16,7 @@ import (
 
 	"ginChatProject/internal/messaging"
 	"ginChatProject/internal/platform/bootstrap"
+	"ginChatProject/internal/platform/objectstore"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/ws"
 )
@@ -63,6 +64,18 @@ func Run() error {
 	}
 	defer sqlDB.Close()
 
+	storageCfg := bootstrap.LoadObjectStorageConfig()
+	var attachmentStorage messaging.AttachmentStorage
+	if storageCfg.AccessKey == "" || storageCfg.SecretKey == "" {
+		log.Println("未配置 S3 凭据，附件上传保持禁用")
+	} else {
+		client, err := objectstore.NewClient(ctx, storageCfg)
+		if err != nil {
+			return fmt.Errorf("初始化附件存储失败: %w", err)
+		}
+		attachmentStorage = client
+	}
+
 	// 启动阶段 2：启动具备明确取消语义的 RabbitMQ 后台任务。
 	var backgroundWorkers sync.WaitGroup
 	defer func() {
@@ -103,7 +116,7 @@ func Run() error {
 	// 只负责 HTTP 监听和连接池生命周期。
 	server := &http.Server{
 		Addr:              serverAddr(),
-		Handler:           router.Router(db),
+		Handler:           router.Router(db, attachmentStorage),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

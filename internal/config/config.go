@@ -59,3 +59,24 @@ type RabbitMQConfig struct {
 	// Prefetch 限制单个消费者尚未 ACK 的消息数量。
 	Prefetch int `mapstructure:"prefetch"`
 }
+
+// ObjectStorageConfig 控制 SeaweedFS 的 S3 兼容对象存储。
+type ObjectStorageConfig struct {
+	// Endpoint 是 S3 API 的 host:port，不包含协议前缀。
+	Endpoint string `mapstructure:"endpoint"`
+
+	// AccessKey 是 S3 访问密钥。
+	AccessKey string `mapstructure:"access_key"`
+
+	// SecretKey 是 S3 访问密钥对应的秘密。
+	SecretKey string `mapstructure:"secret_key"`
+
+	// Bucket 保存聊天图片和文件。
+	Bucket string `mapstructure:"bucket"`
+
+	// Region 是 S3 客户端签名使用的区域名称。
+	Region string `mapstructure:"region"`
+
+	// UseSSL 表示是否使用 HTTPS 连接对象存储。
+	UseSSL bool `mapstructure:"use_ssl"`
+}

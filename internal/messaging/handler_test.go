@@ -65,6 +65,20 @@ func (s *stubTextMessageSender) SendText(
 	return s.result, s.err
 }
 
+func (s *stubTextMessageSender) SendAttachment(
+	_ context.Context,
+	command SendAttachmentCommand,
+) (SendTextResult, error) {
+	s.calls++
+	s.command = SendTextCommand{
+		ConversationID:  command.ConversationID,
+		SenderID:        command.SenderID,
+		ClientMessageID: command.ClientMessageID,
+		Content:         command.Content,
+	}
+	return s.result, s.err
+}
+
 func TestHandlerSendText(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 7, 8, 30, 0, 0, time.UTC)
 	tests := []struct {
@@ -495,7 +509,7 @@ func TestHandlerGetDeliverySummary(t *testing.T) {
 }
 
 func newMessagingHandlerRouter(
-	sender TextMessageSender,
+	sender MessageSender,
 	userID uint64,
 ) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -507,10 +521,10 @@ func newMessagingHandlerRouter(
 		c.Next()
 	})
 
-	handler := NewHandler(sender, nil)
+	handler := NewHandler(sender, nil, nil)
 	router.POST(
 		"/api/v1/conversations/:conversation_id/messages",
-		handler.SendText,
+		handler.SendMessage,
 	)
 	return router
 }
@@ -528,7 +542,7 @@ func newMessagingReaderRouter(
 		c.Next()
 	})
 
-	handler := NewHandler(nil, reader)
+	handler := NewHandler(nil, reader, nil)
 	router.GET(
 		"/api/v1/conversations/:conversation_id/messages",
 		handler.ListMessages,

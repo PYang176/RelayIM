@@ -33,6 +33,9 @@ type WsMessage struct {
 	// URL 是旧版媒体地址字段。
 	URL string `json:"url,omitempty"`
 
+	// FileName 是附件消息的原始文件名。
+	FileName string `json:"file_name,omitempty"`
+
 	// Action 是 WebSocket 信令类型。
 	Action string `json:"action"`
 }

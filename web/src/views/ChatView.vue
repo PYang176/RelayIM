@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  shallowRef,
-  useTemplateRef,
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    shallowRef,
+    useTemplateRef,
 } from 'vue'
-import { useRouter } from 'vue-router'
+import {useRouter} from 'vue-router'
 
 import ConversationList from '@/components/ConversationList.vue'
 import FriendsDrawer from '@/components/FriendsDrawer.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageList from '@/components/MessageList.vue'
-import { useAuthStore } from '@/stores/auth'
-import { useChatStore } from '@/stores/chat'
-import { useFriendshipStore } from '@/stores/friendships'
+import {useAuthStore} from '@/stores/auth'
+import {useChatStore} from '@/stores/chat'
+import {useFriendshipStore} from '@/stores/friendships'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -24,163 +24,175 @@ const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageLis
 const friendsOpen = shallowRef(false)
 
 const connectionLabel = computed(() => {
-  const labels = {
-    connected: '实时连接正常',
-    connecting: '正在连接',
-    reconnecting: '正在重连',
-    disconnected: '连接已断开',
-  }
-  return labels[chat.connectionState]
+    const labels = {
+        connected: '实时连接正常',
+        connecting: '正在连接',
+        reconnecting: '正在重连',
+        disconnected: '连接已断开',
+    }
+    return labels[chat.connectionState]
 })
 
 async function createDirect(peerUserId: string) {
-  try {
-    await chat.createDirect(peerUserId)
-    messageList.value?.scrollToBottom()
-  } catch (cause) {
-    chat.reportError(cause instanceof Error ? cause.message : '创建私聊失败')
-  }
+    try {
+        await chat.createDirect(peerUserId)
+        messageList.value?.scrollToBottom()
+    } catch (cause) {
+        chat.reportError(cause instanceof Error ? cause.message : '创建私聊失败')
+    }
 }
 
 async function selectConversation(conversationId: string) {
-  await chat.selectConversation(conversationId)
-  messageList.value?.scrollToBottom()
+    await chat.selectConversation(conversationId)
+    messageList.value?.scrollToBottom()
 }
 
 async function sendMessage(content: string) {
-  try {
-    await chat.sendMessage(content)
-    messageList.value?.scrollToBottom()
-  } catch (cause) {
-    chat.reportError(cause instanceof Error ? cause.message : '发送消息失败')
-  }
+    try {
+        await chat.sendMessage(content)
+        messageList.value?.scrollToBottom()
+    } catch (cause) {
+        chat.reportError(cause instanceof Error ? cause.message : '发送消息失败')
+    }
+}
+
+async function sendFile(file: File) {
+    try {
+        await chat.sendAttachment(file)
+        messageList.value?.scrollToBottom()
+    } catch (cause) {
+        chat.reportError(cause instanceof Error ? cause.message : '发送附件失败')
+    }
 }
 
 function markVisibleConversationRead() {
-  if (document.visibilityState === 'visible') {
-    void chat.markRead()
-  }
+    if (document.visibilityState === 'visible') {
+        void chat.markRead()
+    }
 }
 
 async function logout() {
-  chat.reset()
-  friendships.reset()
-  auth.logout()
-  await router.replace('/login')
+    chat.reset()
+    friendships.reset()
+    auth.logout()
+    await router.replace('/login')
 }
 
 async function openFriendDirect(userID: string) {
-  friendsOpen.value = false
-  try {
-    await chat.createDirect(userID)
-    messageList.value?.scrollToBottom()
-  } catch (cause) {
-    chat.reportError(cause instanceof Error ? cause.message : '打开好友会话失败')
-  }
+    friendsOpen.value = false
+    try {
+        await chat.createDirect(userID)
+        messageList.value?.scrollToBottom()
+    } catch (cause) {
+        chat.reportError(cause instanceof Error ? cause.message : '打开好友会话失败')
+    }
 }
 
 onMounted(async () => {
-  document.addEventListener('visibilitychange', markVisibleConversationRead)
-  try {
-    await auth.restoreUser()
-  } catch {
-    auth.logout()
-    await router.replace('/login')
-    return
-  }
-  await chat.connectWebSocket()
+    document.addEventListener('visibilitychange', markVisibleConversationRead)
+    try {
+        await auth.restoreUser()
+    } catch {
+        auth.logout()
+        await router.replace('/login')
+        return
+    }
+    await chat.connectWebSocket()
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('visibilitychange', markVisibleConversationRead)
-  chat.disconnectWebSocket()
+    document.removeEventListener('visibilitychange', markVisibleConversationRead)
+    chat.disconnectWebSocket()
 })
 </script>
 
 <template>
-  <main class="chat-page">
-    <a class="skip-link" href="#message-log">跳到消息内容</a>
-    <header class="app-header">
-      <div class="app-brand">
-        <span class="brand-dot">G</span>
-        <div>
-          <strong>GinChat</strong>
-          <small :class="['connection-state', chat.connectionState]">
-            {{ connectionLabel }}
-          </small>
-        </div>
-      </div>
-      <div class="current-user">
+    <main class="chat-page">
+        <a class="skip-link" href="#message-log">跳到消息内容</a>
+        <header class="app-header">
+            <div class="app-brand">
+                <span class="brand-dot">G</span>
+                <div>
+                    <strong>GinChat</strong>
+                    <small :class="['connection-state', chat.connectionState]">
+                        {{ connectionLabel }}
+                    </small>
+                </div>
+            </div>
+            <div class="current-user">
         <span class="current-user-copy">
           <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
           <small>ID {{ auth.user?.id }}</small>
         </span>
-        <button class="ghost-button" type="button" @click="friendsOpen = true">
-          好友
-        </button>
-        <button class="ghost-button" type="button" @click="logout">退出</button>
-      </div>
-    </header>
+                <button class="ghost-button" type="button" @click="friendsOpen = true">
+                    好友
+                </button>
+                <button class="ghost-button" type="button" @click="logout">退出</button>
+            </div>
+        </header>
 
-    <div v-if="chat.error" class="global-error" role="alert">
-      <span>{{ chat.error }}</span>
-      <button aria-label="关闭错误提示" type="button" @click="chat.clearError">
-        关闭
-      </button>
-    </div>
+        <div v-if="chat.error" class="global-error" role="alert">
+            <span>{{ chat.error }}</span>
+            <button aria-label="关闭错误提示" type="button" @click="chat.clearError">
+                关闭
+            </button>
+        </div>
 
-    <section class="chat-layout">
-      <ConversationList
-        :active-id="chat.activeConversationId"
-        :conversations="chat.conversations"
-        :loading="chat.loadingConversations"
-        @create-direct="createDirect"
-        @select="selectConversation"
-      />
+        <section class="chat-layout">
+            <ConversationList
+                    :active-id="chat.activeConversationId"
+                    :conversations="chat.conversations"
+                    :loading="chat.loadingConversations"
+                    @create-direct="createDirect"
+                    @select="selectConversation"
+            />
 
-      <section class="conversation-main">
-        <template v-if="chat.activeConversation">
-          <header class="conversation-header">
-            <div>
-              <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
-              <p>
-                最后序号 {{ chat.activeConversation.last_seq }}
-                <span v-if="chat.activeReadStates.length">
+            <section class="conversation-main">
+                <template v-if="chat.activeConversation">
+                    <header class="conversation-header">
+                        <div>
+                            <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
+                            <p>
+                                最后序号 {{ chat.activeConversation.last_seq }}
+                                <span v-if="chat.activeReadStates.length">
                   · 对方已读 {{ chat.activeReadStates[0].last_read_seq }}
                 </span>
-              </p>
-            </div>
-            <span class="conversation-id">
+                            </p>
+                        </div>
+                        <span class="conversation-id">
               ID {{ chat.activeConversation.id }}
             </span>
-          </header>
+                    </header>
 
-          <MessageList
-            ref="messageList"
-            :current-user-id="auth.user?.id ?? ''"
-            :has-more="Boolean(chat.hasMoreByConversation[chat.activeConversationId])"
-            :loading="chat.loadingMessages"
-            :messages="chat.activeMessages"
-            @load-older="chat.loadOlderMessages"
-          />
-          <MessageComposer
-            :disabled="chat.connectionState !== 'connected'"
-            @send="sendMessage"
-          />
-        </template>
+                    <MessageList
+                            ref="messageList"
+                            :current-user-id="auth.user?.id ?? ''"
+                            :has-more="Boolean(chat.hasMoreByConversation[chat.activeConversationId])"
+                            :loading="chat.loadingMessages"
+                            :messages="chat.activeMessages"
+                            @load-older="chat.loadOlderMessages"
+                    />
+                    <MessageComposer
+                            :disabled="chat.connectionState !== 'connected'"
+                            :upload-progress="chat.uploadProgress"
+                            :uploading="chat.uploadingAttachment"
+                            @send-file="sendFile"
+                            @send="sendMessage"
+                    />
+                </template>
 
-        <div v-else class="empty-workspace">
-          <span class="empty-logo">G</span>
-          <h1>选择一个会话</h1>
-          <p>或者使用左侧“+”输入对方用户 ID 创建私聊。</p>
-        </div>
-      </section>
-    </section>
+                <div v-else class="empty-workspace">
+                    <span class="empty-logo">G</span>
+                    <h1>选择一个会话</h1>
+                    <p>或者使用左侧“+”输入对方用户 ID 创建私聊。</p>
+                </div>
+            </section>
+        </section>
 
-    <FriendsDrawer
-      :open="friendsOpen"
-      @close="friendsOpen = false"
-      @open-direct="openFriendDirect"
-    />
-  </main>
+        <FriendsDrawer
+                :open="friendsOpen"
+                @close="friendsOpen = false"
+                @open-direct="openFriendDirect"
+        />
+    </main>
 </template>

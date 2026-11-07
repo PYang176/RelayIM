@@ -33,6 +33,14 @@ rabbitmq:
   claim_lease_seconds: 30
   prefetch: 20
 
+s3:
+  endpoint: 127.0.0.1:8333
+  access_key: ""
+  secret_key: ""
+  bucket: ginchat-media
+  region: us-east-1
+  use_ssl: false
+
 snowflake:
   # 多实例部署时，每个实例必须使用不同且唯一的 worker ID。
   workID: 1

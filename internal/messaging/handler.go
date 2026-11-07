@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"ginChatProject/internal/middleware"
+	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,9 +16,13 @@ import (
 
 const maxMessageRequestBodyBytes = 1 << 20
 
-// TextMessageSender 是 Handler 发送文本消息所需的最小业务能力。
-type TextMessageSender interface {
+// MessageSender 是 Handler 发送文本和附件消息所需的最小业务能力。
+type MessageSender interface {
 	SendText(ctx context.Context, command SendTextCommand) (SendTextResult, error)
+	SendAttachment(
+		ctx context.Context,
+		command SendAttachmentCommand,
+	) (SendTextResult, error)
 }
 
 // MessageReader 是 Handler 查询历史消息所需的最小业务能力。
@@ -35,17 +41,41 @@ type MessageReader interface {
 	) (DeliverySummary, error)
 }
 
+// AttachmentManager 提供附件上传和受控下载。
+type AttachmentManager interface {
+	UploadAttachment(
+		ctx context.Context,
+		command UploadAttachmentCommand,
+	) (AttachmentResult, error)
+	OpenAttachment(
+		ctx context.Context,
+		userID uint64,
+		attachmentID uint64,
+	) (OpenAttachmentResult, error)
+	GetAttachmentInfo(
+		ctx context.Context,
+		userID uint64,
+		attachmentID uint64,
+	) (AttachmentResult, error)
+}
+
 // Handler 处理新版消息 HTTP 请求。
 type Handler struct {
-	service TextMessageSender
-	reader  MessageReader
+	service     MessageSender
+	reader      MessageReader
+	attachments AttachmentManager
 }
 
 // NewHandler 创建消息 Handler。
-func NewHandler(service TextMessageSender, reader MessageReader) *Handler {
+func NewHandler(
+	service MessageSender,
+	reader MessageReader,
+	attachments AttachmentManager,
+) *Handler {
 	return &Handler{
-		service: service,
-		reader:  reader,
+		service:     service,
+		reader:      reader,
+		attachments: attachments,
 	}
 }
 
@@ -58,6 +88,12 @@ type sendTextRequest struct {
 
 	// ReplyToMessageID 是可选引用消息 Snowflake ID 字符串。
 	ReplyToMessageID *string `json:"reply_to_message_id"`
+
+	// MessageType 表示消息类型，默认 1 文本、2 图片、3 文件。
+	MessageType int `json:"message_type"`
+
+	// AttachmentID 是图片或文件附件 Snowflake ID 字符串。
+	AttachmentID *string `json:"attachment_id"`
 }
 
 type sendTextResponse struct {
@@ -99,6 +135,15 @@ type messageHistoryResponse struct {
 	// ReplyToMessageID 是可选引用消息 Snowflake ID 字符串。
 	ReplyToMessageID *string `json:"reply_to_message_id,omitempty"`
 
+	// AttachmentID 是可选附件 Snowflake ID 字符串。
+	AttachmentID string `json:"attachment_id,omitempty"`
+
+	// AttachmentURL 是受权限保护的附件下载地址。
+	AttachmentURL string `json:"attachment_url,omitempty"`
+
+	// AttachmentName 是附件原始文件名。
+	AttachmentName string `json:"attachment_name,omitempty"`
+
 	// CreatedAt 是消息创建的 UTC 时间。
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -111,8 +156,8 @@ type readStateResponse struct {
 	LastReadSeq uint64 `json:"last_read_seq"`
 }
 
-// SendText 处理 POST /api/v1/conversations/:conversation_id/messages。
-func (h *Handler) SendText(c *gin.Context) {
+// SendMessage 处理 POST /api/v1/conversations/:conversation_id/messages。
+func (h *Handler) SendMessage(c *gin.Context) {
 	// 发送者身份只来自认证中间件，客户端伪造 sender_id 不会进入业务命令。
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -153,13 +198,37 @@ func (h *Handler) SendText(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.SendText(c.Request.Context(), SendTextCommand{
-		ConversationID:   conversationID,
-		SenderID:         userID,
-		ClientMessageID:  request.ClientMessageID,
-		Content:          request.Content,
-		ReplyToMessageID: replyToMessageID,
-	})
+	messageType := request.MessageType
+	if messageType == 0 {
+		messageType = messageTypeText
+	}
+
+	var result SendTextResult
+	if messageType == messageTypeText {
+		result, err = h.service.SendText(c.Request.Context(), SendTextCommand{
+			ConversationID:   conversationID,
+			SenderID:         userID,
+			ClientMessageID:  request.ClientMessageID,
+			Content:          request.Content,
+			ReplyToMessageID: replyToMessageID,
+		})
+	} else {
+		attachmentID, ok := parseAttachmentID(c, request.AttachmentID)
+		if !ok {
+			return
+		}
+		result, err = h.service.SendAttachment(
+			c.Request.Context(),
+			SendAttachmentCommand{
+				ConversationID:  conversationID,
+				SenderID:        userID,
+				ClientMessageID: request.ClientMessageID,
+				MessageType:     messageType,
+				AttachmentID:    attachmentID,
+				Content:         request.Content,
+			},
+		)
+	}
 	if err != nil {
 		writeMessagingError(c, err)
 		return
@@ -228,6 +297,12 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			value := strconv.FormatUint(*message.ReplyToMessageID, 10)
 			replyTo = &value
 		}
+		attachmentID := ""
+		attachmentURL := ""
+		if message.AttachmentID != nil {
+			attachmentID = strconv.FormatUint(*message.AttachmentID, 10)
+			attachmentURL = message.AttachmentURL
+		}
 		response = append(response, messageHistoryResponse{
 			MessageID:        strconv.FormatUint(message.ID, 10),
 			ConversationID:   strconv.FormatUint(message.ConversationID, 10),
@@ -236,6 +311,9 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			MessageType:      message.MessageType,
 			Content:          message.Content,
 			ReplyToMessageID: replyTo,
+			AttachmentID:     attachmentID,
+			AttachmentURL:    attachmentURL,
+			AttachmentName:   message.AttachmentName,
 			CreatedAt:        message.CreatedAt,
 		})
 	}
@@ -321,6 +399,143 @@ func (h *Handler) GetDeliverySummary(c *gin.Context) {
 	})
 }
 
+// UploadAttachment 处理 POST /api/v1/attachments。
+func (h *Handler) UploadAttachment(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(
+		c.Writer,
+		c.Request.Body,
+		maxAttachmentBytes+(1<<20),
+	)
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要上传的文件"})
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取上传文件失败"})
+		return
+	}
+	defer file.Close()
+
+	detectBuffer := make([]byte, 512)
+	n, readErr := io.ReadFull(file, detectBuffer)
+	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) && !errors.Is(readErr, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取上传文件失败"})
+		return
+	}
+	contentType := http.DetectContentType(detectBuffer[:n])
+	if contentType == "text/html" || contentType == "image/svg+xml" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持该文件类型"})
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "处理上传文件失败"})
+		return
+	}
+
+	result, err := h.attachments.UploadAttachment(
+		c.Request.Context(),
+		UploadAttachmentCommand{
+			OwnerID:     userID,
+			Filename:    fileHeader.Filename,
+			ContentType: contentType,
+			Size:        fileHeader.Size,
+			Reader:      file,
+		},
+	)
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"attachment_id": strconv.FormatUint(result.ID, 10),
+		"message_type":  result.MessageType,
+		"mime_type":     result.MIMEType,
+		"size_bytes":    result.SizeBytes,
+		"filename":      result.Filename,
+		"url":           result.URL,
+	})
+}
+
+// DownloadAttachment 处理 GET /api/v1/attachments/:id/content。
+func (h *Handler) DownloadAttachment(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	attachmentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || attachmentID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "附件 ID 格式错误"})
+		return
+	}
+	result, err := h.attachments.OpenAttachment(
+		c.Request.Context(),
+		userID,
+		attachmentID,
+	)
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+	defer result.Reader.Close()
+
+	disposition := "attachment"
+	if len(result.MIMEType) >= 6 && result.MIMEType[:6] == "image/" {
+		disposition = "inline"
+	}
+	contentDisposition := mime.FormatMediaType(
+		disposition,
+		map[string]string{"filename": result.Filename},
+	)
+	c.Header("Content-Disposition", contentDisposition)
+	c.DataFromReader(
+		http.StatusOK,
+		result.SizeBytes,
+		result.MIMEType,
+		result.Reader,
+		nil,
+	)
+}
+
+// GetAttachmentInfo 处理 GET /api/v1/attachments/:id。
+func (h *Handler) GetAttachmentInfo(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	attachmentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || attachmentID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "附件 ID 格式错误"})
+		return
+	}
+	result, err := h.attachments.GetAttachmentInfo(
+		c.Request.Context(),
+		userID,
+		attachmentID,
+	)
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=300")
+	c.JSON(http.StatusOK, gin.H{
+		"attachment_id": strconv.FormatUint(result.ID, 10),
+		"message_type":  result.MessageType,
+		"mime_type":     result.MIMEType,
+		"size_bytes":    result.SizeBytes,
+		"filename":      result.Filename,
+		"url":           result.URL,
+	})
+}
+
 func parseReplyToMessageID(
 	c *gin.Context,
 	raw *string,
@@ -336,6 +551,22 @@ func parseReplyToMessageID(
 		return nil, false
 	}
 	return &replyToMessageID, true
+}
+
+func parseAttachmentID(
+	c *gin.Context,
+	raw *string,
+) (uint64, bool) {
+	if raw == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "附件消息缺少 attachment_id"})
+		return 0, false
+	}
+	attachmentID, err := strconv.ParseUint(strings.TrimSpace(*raw), 10, 64)
+	if err != nil || attachmentID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "attachment_id 格式错误"})
+		return 0, false
+	}
+	return attachmentID, true
 }
 
 func parseOptionalUint64Query(c *gin.Context, key string) (uint64, bool) {
@@ -374,6 +605,14 @@ func writeMessagingError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotMember.Error()})
 	case errors.Is(err, ErrDeviceUnavailable):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrDeviceUnavailable.Error()})
+	case errors.Is(err, ErrInvalidAttachment):
+		c.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidAttachment.Error()})
+	case errors.Is(err, ErrAttachmentNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": ErrAttachmentNotFound.Error()})
+	case errors.Is(err, ErrAttachmentAlreadyUsed):
+		c.JSON(http.StatusConflict, gin.H{"error": ErrAttachmentAlreadyUsed.Error()})
+	case errors.Is(err, ErrAttachmentStorageUnavailable):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": ErrAttachmentStorageUnavailable.Error()})
 	case errors.Is(err, ErrConversationNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrConversationNotFound.Error()})
 	case errors.Is(err, ErrMessageNotFound):

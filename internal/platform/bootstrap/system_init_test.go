@@ -105,6 +105,30 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GINCHAT_S3_ENDPOINT", "127.0.0.1:8333")
+	t.Setenv("GINCHAT_S3_ACCESS_KEY", "test-access")
+	t.Setenv("GINCHAT_S3_SECRET_KEY", "test-secret")
+	t.Setenv("GINCHAT_S3_BUCKET", "ginchat-test")
+	t.Setenv("GINCHAT_S3_REGION", "us-east-1")
+	t.Setenv("GINCHAT_S3_USE_SSL", "false")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+
+	cfg := loadObjectStorageConfig(v)
+	if cfg.Endpoint != "127.0.0.1:8333" ||
+		cfg.AccessKey != "test-access" ||
+		cfg.SecretKey != "test-secret" ||
+		cfg.Bucket != "ginchat-test" ||
+		cfg.Region != "us-east-1" ||
+		cfg.UseSSL {
+		t.Fatalf("LoadObjectStorageConfig() = %+v", cfg)
+	}
+}
+
 func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_MYSQL_HOST", "127.0.0.1")
 	t.Setenv("GINCHAT_MYSQL_PORT", "3307")

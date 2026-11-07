@@ -14,6 +14,8 @@
 | `00001_identity_and_social.sql` | 用户、设备、好友关系与好友备注 |
 | `00002_conversation_and_message.sql` | 会话、成员、附件、消息与送达记录 |
 | `00003_reliable_messaging.sql` | Outbox 与消费幂等记录 |
+| `00004_attachment_filename.sql` | 附件原始文件名 |
+| `00005_unique_attachment_binding.sql` | 一个附件最多绑定一条消息 |
 
 ## 执行迁移
 

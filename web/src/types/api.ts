@@ -1,98 +1,111 @@
 export interface UserSummary {
-  id: string
-  username: string
-  nickname: string
+    id: string
+    username: string
+    nickname: string
 }
 
 export interface LoginResponse {
-  token: string
-  user: UserSummary
+    token: string
+    user: UserSummary
 }
 
 export interface Conversation {
-  id: string
-  conversation_type: number
-  name: string
-  avatar_url: string
-  last_seq: number
-  last_read_seq: number
-  unread_count: number
+    id: string
+    conversation_type: number
+    name: string
+    avatar_url: string
+    last_seq: number
+    last_read_seq: number
+    unread_count: number
 }
 
 export interface Message {
-  message_id: string
-  conversation_id: string
-  sender_id: string
-  seq: number
-  message_type: number
-  content: string
-  reply_to_message_id?: string
-  created_at: string
+    message_id: string
+    conversation_id: string
+    sender_id: string
+    seq: number
+    message_type: number
+    content: string
+    reply_to_message_id?: string
+    attachment_id?: string
+    attachment_url?: string
+    attachment_name?: string
+    created_at: string
 }
 
 export interface MessagePage {
-  messages: Message[]
-  has_more: boolean
+    messages: Message[]
+    has_more: boolean
 }
 
 export interface SendMessageResponse {
-  message_id: string
-  conversation_id: string
-  seq: number
-  created_at: string
-  duplicate: boolean
+    message_id: string
+    conversation_id: string
+    seq: number
+    created_at: string
+    duplicate: boolean
 }
 
 export interface WsTicketResponse {
-  ticket: string
-  expires_in_seconds: number
-  device_id: string
-  device_name: string
-  platform: number
+    ticket: string
+    expires_in_seconds: number
+    device_id: string
+    device_name: string
+    platform: number
 }
 
 export interface WsMessage {
-  action: string
-  message_id: string
-  conversation_id?: string
-  sender_id?: string
-  seq?: number
-  msg_type?: number
-  content?: string
-  url?: string
+    action: string
+    message_id: string
+    conversation_id?: string
+    sender_id?: string
+    seq?: number
+    msg_type?: number
+    content?: string
+    url?: string
+    file_name?: string
 }
 
 export interface ReadState {
-  user_id: string
-  last_read_seq: number
+    user_id: string
+    last_read_seq: number
 }
 
 export interface DeliverySummary {
-  delivered_devices: number
-  delivered_users: number
+    delivered_devices: number
+    delivered_users: number
+}
+
+export interface AttachmentResponse {
+    attachment_id: string
+    message_type: number
+    mime_type: string
+    size_bytes: number
+    filename: string
+    url: string
 }
 
 export interface FriendUser {
-  id: string
-  username: string
-  nickname: string
-  avatar_url: string
+    id: string
+    username: string
+    nickname: string
+    avatar_url: string
 }
 
 export interface Friend {
-  friendship_id: string
-  user: FriendUser
-  remark: string
+    friendship_id: string
+    user: FriendUser
+    remark: string
 }
 
 export interface FriendRequest {
-  id: string
-  user: FriendUser
-  status: number
-  remark: string
-  created_at: string
+    id: string
+    user: FriendUser
+    status: number
+    remark: string
+    created_at: string
 }
 
 export interface ApiErrorBody {
-  error?: string
+    error?: string
 }

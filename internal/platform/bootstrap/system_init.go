@@ -65,6 +65,12 @@ func bindConfigEnv(v *viper.Viper) error {
 		"rabbitmq.retry_base_seconds":      "GINCHAT_RABBITMQ_RETRY_BASE_SECONDS",
 		"rabbitmq.claim_lease_seconds":     "GINCHAT_RABBITMQ_CLAIM_LEASE_SECONDS",
 		"rabbitmq.prefetch":                "GINCHAT_RABBITMQ_PREFETCH",
+		"s3.endpoint":                      "GINCHAT_S3_ENDPOINT",
+		"s3.access_key":                    "GINCHAT_S3_ACCESS_KEY",
+		"s3.secret_key":                    "GINCHAT_S3_SECRET_KEY",
+		"s3.bucket":                        "GINCHAT_S3_BUCKET",
+		"s3.region":                        "GINCHAT_S3_REGION",
+		"s3.use_ssl":                       "GINCHAT_S3_USE_SSL",
 		"snowflake.workID":                 "GINCHAT_SNOWFLAKE_WORK_ID",
 	}
 
@@ -113,6 +119,32 @@ func loadRabbitMQConfig(v *viper.Viper) config.RabbitMQConfig {
 	}
 	if cfg.Prefetch <= 0 {
 		cfg.Prefetch = 20
+	}
+	return cfg
+}
+
+// LoadObjectStorageConfig 从 Viper 读取 SeaweedFS S3 配置。
+func LoadObjectStorageConfig() config.ObjectStorageConfig {
+	return loadObjectStorageConfig(viper.GetViper())
+}
+
+func loadObjectStorageConfig(v *viper.Viper) config.ObjectStorageConfig {
+	cfg := config.ObjectStorageConfig{
+		Endpoint:  strings.TrimSpace(v.GetString("s3.endpoint")),
+		AccessKey: strings.TrimSpace(v.GetString("s3.access_key")),
+		SecretKey: strings.TrimSpace(v.GetString("s3.secret_key")),
+		Bucket:    strings.TrimSpace(v.GetString("s3.bucket")),
+		Region:    strings.TrimSpace(v.GetString("s3.region")),
+		UseSSL:    v.GetBool("s3.use_ssl"),
+	}
+	if cfg.Endpoint == "" {
+		cfg.Endpoint = "127.0.0.1:8333"
+	}
+	if cfg.Bucket == "" {
+		cfg.Bucket = "ginchat-media"
+	}
+	if cfg.Region == "" {
+		cfg.Region = "us-east-1"
 	}
 	return cfg
 }

@@ -27,3 +27,7 @@ go get github.com/bwmarrin/snowflake
 
 //安装rabbitMQ的库
 go get github.com/rabbitmq/amqp091-go
+
+//安装 SeaweedFS S3 兼容对象存储客户端，用于图片和文件附件
+//v7.0.95 与当前 Go 1.25 兼容；更高版本可能要求 Go 1.26
+go get github.com/minio/minio-go/v7@v7.0.95

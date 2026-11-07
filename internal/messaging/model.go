@@ -5,10 +5,16 @@ import "time"
 const (
 	conversationStatusActive = 1
 	messageTypeText          = 1
+	messageTypeImage         = 2
+	messageTypeFile          = 3
 	outboxStatusPending      = 0
 	outboxStatusProcessing   = 1
 	outboxStatusPublished    = 2
 	outboxStatusDead         = 3
+	attachmentStatusPending  = 1
+	attachmentStatusReady    = 2
+	attachmentStatusBlocked  = 3
+	attachmentStatusDeleted  = 4
 )
 
 type conversation struct {
@@ -87,6 +93,15 @@ type message struct {
 	// ReplyToMessageID 是被引用消息的 Snowflake ID，必须属于同一会话。
 	ReplyToMessageID *uint64 `gorm:"column:reply_to_message_id"`
 
+	// AttachmentID 是图片或文件消息关联的附件 Snowflake ID。
+	AttachmentID *uint64 `gorm:"column:attachment_id"`
+
+	// AttachmentName 是查询历史消息时联表得到的附件文件名。
+	AttachmentName *string `gorm:"->;column:attachment_name"`
+
+	// AttachmentObjectKey 是查询历史消息时联表得到的对象键。
+	AttachmentObjectKey *string `gorm:"->;column:attachment_object_key"`
+
 	// CreatedAt 是服务端接受消息的 UTC 时间。
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
@@ -108,6 +123,39 @@ type messageDelivery struct {
 
 func (messageDelivery) TableName() string {
 	return "message_deliveries"
+}
+
+type attachment struct {
+	// ID 是附件 Snowflake ID。
+	ID uint64 `gorm:"column:id;primaryKey;autoIncrement:false"`
+
+	// OwnerID 是上传附件的用户 Snowflake ID。
+	OwnerID uint64 `gorm:"column:owner_id"`
+
+	// ObjectKey 是对象存储内部键，不直接暴露给客户端。
+	ObjectKey string `gorm:"column:object_key"`
+
+	// OriginalName 是用户上传时的原始文件名。
+	OriginalName string `gorm:"column:original_name"`
+
+	// MIMEType 是服务端检测后的 MIME 类型。
+	MIMEType string `gorm:"column:mime_type"`
+
+	// SizeBytes 是附件字节数。
+	SizeBytes int64 `gorm:"column:size_bytes"`
+
+	// Status 表示附件状态：1 待确认、2 可用、3 阻止、4 删除。
+	Status int `gorm:"column:status"`
+
+	// CreatedAt 是附件元数据创建的 UTC 时间。
+	CreatedAt time.Time `gorm:"column:created_at"`
+
+	// FinalizedAt 是附件上传并确认完成的 UTC 时间。
+	FinalizedAt *time.Time `gorm:"column:finalized_at"`
+}
+
+func (attachment) TableName() string {
+	return "attachments"
 }
 
 type outboxEvent struct {
@@ -185,4 +233,13 @@ type messageCreatedPayload struct {
 
 	// Seq 是消息在会话内的递增序号，用于 Consumer 和客户端排序。
 	Seq uint64 `json:"seq"`
+
+	// MessageType 表示文本、图片或文件消息。
+	MessageType int `json:"message_type"`
+
+	// AttachmentID 是可选附件 Snowflake ID 字符串。
+	AttachmentID string `json:"attachment_id,omitempty"`
+
+	// AttachmentName 是可选附件原始文件名。
+	AttachmentName string `json:"attachment_name,omitempty"`
 }

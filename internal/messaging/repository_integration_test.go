@@ -37,6 +37,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	outsiderID := uint64(snowflake.Generate())
 	conversationID := uint64(snowflake.Generate())
 	memberDeviceID := uint64(snowflake.Generate())
+	attachmentID := uint64(snowflake.Generate())
 	userIDs := []uint64{ownerID, memberID, outsiderID}
 
 	// 先注册清理函数，保证后续任何步骤失败时都不会把测试数据留在本地库。
@@ -48,6 +49,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 			{"DELETE FROM message_deliveries WHERE device_id = ?", []any{memberDeviceID}},
 			{"DELETE FROM outbox_events WHERE aggregate_id = ?", []any{conversationID}},
 			{"DELETE FROM messages WHERE conversation_id = ?", []any{conversationID}},
+			{"DELETE FROM attachments WHERE id = ?", []any{attachmentID}},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
 			{"DELETE FROM devices WHERE id = ?", []any{memberDeviceID}},
@@ -80,6 +82,19 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		"消息回执测试设备",
 	).Error; err != nil {
 		t.Fatalf("创建测试设备失败: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO attachments
+			(id, owner_id, object_key, original_name, mime_type, size_bytes, status, finalized_at)
+		 VALUES (?, ?, ?, ?, ?, ?, 2, CURRENT_TIMESTAMP(3))`,
+		attachmentID,
+		ownerID,
+		fmt.Sprintf("tests/%d/image.png", attachmentID),
+		"image.png",
+		"image/png",
+		1024,
+	).Error; err != nil {
+		t.Fatalf("创建测试附件失败: %v", err)
 	}
 
 	// 使用群会话测试，因为同一张 conversation_members 表也能代表发送权限。
@@ -324,6 +339,61 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	}
 	if want := int64(concurrentMessages + 1); outboxCount != want {
 		t.Fatalf("Outbox 数量 = %d，期望 %d", outboxCount, want)
+	}
+
+	mediaMessage, err := service.SendAttachment(
+		context.Background(),
+		SendAttachmentCommand{
+			ConversationID:  conversationID,
+			SenderID:        ownerID,
+			ClientMessageID: "media-message-1",
+			MessageType:     messageTypeImage,
+			AttachmentID:    attachmentID,
+			Content:         "",
+		},
+	)
+	if err != nil {
+		t.Fatalf("发送图片消息失败: %v", err)
+	}
+	var mediaRecord message
+	if err := db.Where("id = ?", mediaMessage.MessageID).
+		First(&mediaRecord).Error; err != nil {
+		t.Fatalf("查询图片消息失败: %v", err)
+	}
+	if mediaRecord.MessageType != messageTypeImage ||
+		mediaRecord.AttachmentID == nil ||
+		*mediaRecord.AttachmentID != attachmentID {
+		t.Fatalf("图片消息 = %+v", mediaRecord)
+	}
+
+	mediaHistory, err := service.ListMessages(
+		context.Background(),
+		ListMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         ownerID,
+			AfterSeq:       mediaMessage.Seq - 1,
+			Limit:          1,
+		},
+	)
+	if err != nil ||
+		len(mediaHistory.Messages) != 1 ||
+		mediaHistory.Messages[0].AttachmentName != "image.png" {
+		t.Fatalf("图片消息历史 = %+v, err=%v", mediaHistory, err)
+	}
+
+	_, err = service.SendAttachment(
+		context.Background(),
+		SendAttachmentCommand{
+			ConversationID:  conversationID,
+			SenderID:        ownerID,
+			ClientMessageID: "media-message-2",
+			MessageType:     messageTypeFile,
+			AttachmentID:    attachmentID,
+			Content:         "",
+		},
+	)
+	if !errors.Is(err, ErrAttachmentAlreadyUsed) {
+		t.Fatalf("重复绑定附件错误 = %v，期望 %v", err, ErrAttachmentAlreadyUsed)
 	}
 }
 

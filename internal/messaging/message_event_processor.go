@@ -95,6 +95,29 @@ func (p *MessageCreatedProcessor) Process(
 	if err != nil {
 		return permanentEventError{err: err}
 	}
+	messageType := payload.MessageType
+	if messageType == 0 {
+		messageType = messageTypeText
+	}
+	if messageType != messageTypeText &&
+		messageType != messageTypeImage &&
+		messageType != messageTypeFile {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: 不支持的消息类型 %d",
+			ErrInvalidEvent,
+			messageType,
+		)}
+	}
+	var attachmentID uint64
+	if messageType != messageTypeText {
+		attachmentID, err = strconv.ParseUint(payload.AttachmentID, 10, 64)
+		if err != nil || attachmentID == 0 {
+			return permanentEventError{err: fmt.Errorf(
+				"%w: attachment_id 格式错误",
+				ErrInvalidEvent,
+			)}
+		}
+	}
 	if conversationID != aggregateID {
 		return permanentEventError{err: fmt.Errorf(
 			"%w: aggregate_id 与会话 ID 不一致",
@@ -135,6 +158,20 @@ func (p *MessageCreatedProcessor) Process(
 		if err != nil {
 			return fmt.Errorf("校验消息事件事实: %w", err)
 		}
+		if messageRecord.MessageType != messageType {
+			return permanentEventError{err: fmt.Errorf(
+				"%w: 消息类型与数据库不一致",
+				ErrInvalidEvent,
+			)}
+		}
+		if messageType != messageTypeText &&
+			(messageRecord.AttachmentID == nil ||
+				*messageRecord.AttachmentID != attachmentID) {
+			return permanentEventError{err: fmt.Errorf(
+				"%w: 消息附件与数据库不一致",
+				ErrInvalidEvent,
+			)}
+		}
 
 		var recipientIDs []uint64
 		if err := tx.Table("conversation_members").
@@ -148,13 +185,22 @@ func (p *MessageCreatedProcessor) Process(
 		}
 
 		if p.realtime != nil && len(recipientIDs) > 0 {
+			attachmentURL := ""
+			if attachmentID > 0 {
+				attachmentURL = fmt.Sprintf(
+					"/api/v1/attachments/%d/content",
+					attachmentID,
+				)
+			}
 			realtimePayload, err := json.Marshal(ws.WsMessage{
 				MessageID:      strconv.FormatUint(messageID, 10),
 				ConversationID: strconv.FormatUint(conversationID, 10),
 				SenderID:       strconv.FormatUint(senderID, 10),
 				Seq:            payload.Seq,
-				MsgType:        messageRecord.MessageType,
+				MsgType:        messageType,
 				Content:        messageRecord.Content,
+				URL:            attachmentURL,
+				FileName:       payload.AttachmentName,
 				Action:         ws.ActionMessage,
 			})
 			if err != nil {

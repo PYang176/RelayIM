@@ -15,7 +15,8 @@ const (
 
 // Service 提供消息业务用例。
 type Service struct {
-	repo *Repository
+	repo    *Repository
+	storage AttachmentStorage
 }
 
 // NewService 创建消息服务。
@@ -39,6 +40,16 @@ type SendTextResult struct {
 	Seq            uint64
 	CreatedAt      time.Time
 	Duplicate      bool
+}
+
+// SendAttachmentCommand 是发送图片或文件消息的参数。
+type SendAttachmentCommand struct {
+	ConversationID  uint64
+	SenderID        uint64
+	ClientMessageID string
+	MessageType     int
+	AttachmentID    uint64
+	Content         string
 }
 
 // ListMessagesCommand 是历史消息分页参数。
@@ -81,6 +92,15 @@ type MessageResult struct {
 
 	// ReplyToMessageID 是可选引用消息 Snowflake ID。
 	ReplyToMessageID *uint64
+
+	// AttachmentID 是可选附件 Snowflake ID。
+	AttachmentID *uint64
+
+	// AttachmentName 是可选附件原始文件名。
+	AttachmentName string
+
+	// AttachmentURL 是短时附件下载地址。
+	AttachmentURL string
 
 	// CreatedAt 是消息创建的 UTC 时间。
 	CreatedAt time.Time
@@ -140,10 +160,11 @@ func (s *Service) SendText(
 
 	// duplicate=true 表示命中幂等重试。Service 对首次发送和重试返回同一种
 	// 业务结果，同时把这个标记留给上层记录日志和指标。
-	msg, duplicate, err := s.repo.sendText(ctx, sendTextInput{
+	msg, duplicate, err := s.repo.sendMessage(ctx, sendMessageInput{
 		ConversationID:   command.ConversationID,
 		SenderID:         command.SenderID,
 		ClientMessageID:  command.ClientMessageID,
+		MessageType:      messageTypeText,
 		Content:          command.Content,
 		ReplyToMessageID: command.ReplyToMessageID,
 	})
@@ -152,6 +173,46 @@ func (s *Service) SendText(
 	}
 
 	// 只返回业务结果，不把包含 GORM 字段的内部消息模型暴露给 Handler。
+	return SendTextResult{
+		MessageID:      msg.ID,
+		ConversationID: msg.ConversationID,
+		Seq:            msg.Seq,
+		CreatedAt:      msg.CreatedAt,
+		Duplicate:      duplicate,
+	}, nil
+}
+
+// SendAttachment 校验附件消息并调用数据库事务。
+func (s *Service) SendAttachment(
+	ctx context.Context,
+	command SendAttachmentCommand,
+) (SendTextResult, error) {
+	command.ClientMessageID = strings.TrimSpace(command.ClientMessageID)
+	command.Content = strings.TrimSpace(command.Content)
+	if command.ConversationID == 0 ||
+		command.SenderID == 0 ||
+		command.AttachmentID == 0 ||
+		(command.MessageType != messageTypeImage &&
+			command.MessageType != messageTypeFile) {
+		return SendTextResult{}, ErrInvalidMessage
+	}
+	if command.ClientMessageID == "" ||
+		len(command.ClientMessageID) > 64 ||
+		utf8.RuneCountInString(command.Content) > maxTextContentRunes {
+		return SendTextResult{}, ErrInvalidMessage
+	}
+
+	msg, duplicate, err := s.repo.sendMessage(ctx, sendMessageInput{
+		ConversationID:  command.ConversationID,
+		SenderID:        command.SenderID,
+		ClientMessageID: command.ClientMessageID,
+		MessageType:     command.MessageType,
+		Content:         command.Content,
+		AttachmentID:    &command.AttachmentID,
+	})
+	if err != nil {
+		return SendTextResult{}, err
+	}
 	return SendTextResult{
 		MessageID:      msg.ID,
 		ConversationID: msg.ConversationID,
@@ -192,6 +253,14 @@ func (s *Service) ListMessages(
 
 	results := make([]MessageResult, 0, len(records))
 	for _, record := range records {
+		attachmentURL := ""
+		if record.AttachmentObjectKey != nil && s.storage != nil {
+			attachmentURL, _ = s.storage.PresignedGetURL(
+				ctx,
+				*record.AttachmentObjectKey,
+				15*time.Minute,
+			)
+		}
 		results = append(results, MessageResult{
 			ID:               record.ID,
 			ConversationID:   record.ConversationID,
@@ -200,6 +269,9 @@ func (s *Service) ListMessages(
 			MessageType:      record.MessageType,
 			Content:          record.Content,
 			ReplyToMessageID: record.ReplyToMessageID,
+			AttachmentID:     record.AttachmentID,
+			AttachmentName:   stringValue(record.AttachmentName),
+			AttachmentURL:    attachmentURL,
 			CreatedAt:        record.CreatedAt,
 		})
 	}
@@ -258,4 +330,11 @@ func (s *Service) GetDeliverySummary(
 		return DeliverySummary{}, ErrInvalidMessage
 	}
 	return s.repo.getDeliverySummary(ctx, userID, conversationID, messageID)
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

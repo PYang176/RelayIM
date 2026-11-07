@@ -33,4 +33,16 @@ var (
 
 	// ErrInvalidReadSequence 表示已读序号超过会话当前最大序号。
 	ErrInvalidReadSequence = errors.New("已读序号超过会话当前消息序号")
+
+	// ErrInvalidAttachment 表示附件元数据或上传内容不合法。
+	ErrInvalidAttachment = errors.New("附件不合法")
+
+	// ErrAttachmentNotFound 表示附件不存在或当前用户无权访问。
+	ErrAttachmentNotFound = errors.New("附件不存在或无权访问")
+
+	// ErrAttachmentStorageUnavailable 表示对象存储暂时不可用。
+	ErrAttachmentStorageUnavailable = errors.New("附件存储暂不可用")
+
+	// ErrAttachmentAlreadyUsed 表示附件已绑定到其他消息。
+	ErrAttachmentAlreadyUsed = errors.New("附件已绑定其他消息")
 )

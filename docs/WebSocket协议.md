@@ -57,6 +57,24 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 客户端必须以 `message_id` 去重，并按 `conversation_id + seq` 排序。RabbitMQ 采用至少一次投递，不能依赖 WebSocket 帧顺序作为最终消息顺序。
 
+图片或文件消息的 `msg_type` 为 `2` 或 `3`，并增加受保护的内容路径和原始文件名：
+
+```json
+{
+  "action": "message",
+  "message_id": "1839281749283749121",
+  "conversation_id": "1839281749283749120",
+  "sender_id": "1839281749283749001",
+  "seq": 7,
+  "msg_type": 2,
+  "content": "",
+  "url": "/api/v1/attachments/1839281749283749122/content",
+  "file_name": "截图.png"
+}
+```
+
+客户端收到该事件后调用 `GET /api/v1/attachments/:id` 换取新的短时预签名地址。WebSocket 不广播永久对象地址，预签名 URL 也不能写入数据库。
+
 ## 4. 客户端回执
 
 收到消息后，客户端按设备发送送达回执：

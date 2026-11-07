@@ -1,6 +1,7 @@
 package router
 
 import (
+	messagingapp "ginChatProject/internal/messaging"
 	conversationrouter "ginChatProject/internal/router/conversation"
 	friendshiprouter "ginChatProject/internal/router/friendship"
 	identityrouter "ginChatProject/internal/router/identity"
@@ -17,7 +18,10 @@ import (
 //	return r
 //}
 
-func Router(db *gorm.DB) *gin.Engine {
+func Router(
+	db *gorm.DB,
+	storage messagingapp.AttachmentStorage,
+) *gin.Engine {
 	r := gin.New()
 	// WebSocket 当前仍需查询参数携带 Token；跳过该路径访问日志，避免凭证落盘。
 	r.Use(
@@ -41,7 +45,7 @@ func Router(db *gorm.DB) *gin.Engine {
 	friendshiprouter.Register(r, db)
 
 	// 新版消息模块
-	messagingrouter.Register(r, db)
+	messagingrouter.Register(r, db, storage)
 
 	// websocket
 	ws.Register(r, db)
