@@ -2,6 +2,7 @@ package router
 
 import (
 	conversationrouter "ginChatProject/internal/router/conversation"
+	friendshiprouter "ginChatProject/internal/router/friendship"
 	identityrouter "ginChatProject/internal/router/identity"
 	"ginChatProject/internal/router/index"
 	messagingrouter "ginChatProject/internal/router/messaging"
@@ -35,6 +36,9 @@ func Router(db *gorm.DB) *gin.Engine {
 
 	// 新版会话模块
 	conversationrouter.Register(r, db)
+
+	// 新版好友模块
+	friendshiprouter.Register(r, db)
 
 	// 新版消息模块
 	messagingrouter.Register(r, db)

@@ -1,0 +1,156 @@
+package friendship
+
+import (
+	"context"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+const (
+	maxSearchQueryRunes   = 50
+	maxRequestRemarkRunes = 200
+	maxFriendRemarkRunes  = 64
+)
+
+// Service 提供好友搜索、申请和关系管理。
+type Service struct {
+	repo *Repository
+}
+
+// NewService 创建好友服务。
+func NewService(repo *Repository) *Service {
+	return &Service{repo: repo}
+}
+
+// UserResult 是可展示的公开用户资料。
+type UserResult struct {
+	ID        uint64
+	Username  string
+	Nickname  string
+	AvatarURL string
+}
+
+// FriendResult 是好友列表项。
+type FriendResult struct {
+	FriendshipID uint64
+	User         UserResult
+	Remark       string
+}
+
+// RequestResult 是好友申请列表项。
+type RequestResult struct {
+	ID        uint64
+	User      UserResult
+	Status    int
+	Remark    string
+	CreatedAt time.Time
+}
+
+// SearchUsers 按用户名或昵称搜索用户。
+func (s *Service) SearchUsers(
+	ctx context.Context,
+	userID uint64,
+	query string,
+) ([]UserResult, error) {
+	query = strings.TrimSpace(query)
+	if userID == 0 ||
+		query == "" ||
+		utf8.RuneCountInString(query) > maxSearchQueryRunes {
+		return nil, ErrInvalidInput
+	}
+	return s.repo.searchUsers(ctx, userID, query)
+}
+
+// SendRequest 创建或重新激活一条好友申请。
+func (s *Service) SendRequest(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+	remark string,
+) error {
+	remark = strings.TrimSpace(remark)
+	if userID == 0 || targetUserID == 0 || userID == targetUserID {
+		return ErrInvalidInput
+	}
+	if utf8.RuneCountInString(remark) > maxRequestRemarkRunes {
+		return ErrInvalidInput
+	}
+	return s.repo.sendRequest(ctx, userID, targetUserID, remark)
+}
+
+// AcceptRequest 同意好友申请并激活好友关系。
+func (s *Service) AcceptRequest(
+	ctx context.Context,
+	userID uint64,
+	requestID uint64,
+) error {
+	if userID == 0 || requestID == 0 {
+		return ErrInvalidInput
+	}
+	return s.repo.respondToRequest(ctx, userID, requestID, true)
+}
+
+// RejectRequest 拒绝好友申请。
+func (s *Service) RejectRequest(
+	ctx context.Context,
+	userID uint64,
+	requestID uint64,
+) error {
+	if userID == 0 || requestID == 0 {
+		return ErrInvalidInput
+	}
+	return s.repo.respondToRequest(ctx, userID, requestID, false)
+}
+
+// ListFriends 返回当前用户的有效好友。
+func (s *Service) ListFriends(
+	ctx context.Context,
+	userID uint64,
+) ([]FriendResult, error) {
+	if userID == 0 {
+		return nil, ErrInvalidInput
+	}
+	return s.repo.listFriends(ctx, userID)
+}
+
+// ListRequests 返回当前用户收到或发出的好友申请。
+func (s *Service) ListRequests(
+	ctx context.Context,
+	userID uint64,
+	received bool,
+) ([]RequestResult, error) {
+	if userID == 0 {
+		return nil, ErrInvalidInput
+	}
+	return s.repo.listRequests(ctx, userID, received)
+}
+
+// SetRemark 设置当前用户独立的好友备注；空备注表示删除。
+func (s *Service) SetRemark(
+	ctx context.Context,
+	userID uint64,
+	friendUserID uint64,
+	remark string,
+) error {
+	remark = strings.TrimSpace(remark)
+	if userID == 0 || friendUserID == 0 || userID == friendUserID {
+		return ErrInvalidInput
+	}
+	if utf8.RuneCountInString(remark) > maxFriendRemarkRunes {
+		return ErrInvalidInput
+	}
+	return s.repo.setRemark(ctx, userID, friendUserID, remark)
+}
+
+// DeleteFriend 软删除当前用户与目标用户的好友关系。
+func (s *Service) DeleteFriend(
+	ctx context.Context,
+	userID uint64,
+	friendUserID uint64,
+) error {
+	if userID == 0 || friendUserID == 0 || userID == friendUserID {
+		return ErrInvalidInput
+	}
+	return s.repo.deleteFriend(ctx, userID, friendUserID)
+}

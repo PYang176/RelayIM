@@ -72,6 +72,27 @@ export interface DeliverySummary {
   delivered_users: number
 }
 
+export interface FriendUser {
+  id: string
+  username: string
+  nickname: string
+  avatar_url: string
+}
+
+export interface Friend {
+  friendship_id: string
+  user: FriendUser
+  remark: string
+}
+
+export interface FriendRequest {
+  id: string
+  user: FriendUser
+  status: number
+  remark: string
+  created_at: string
+}
+
 export interface ApiErrorBody {
   error?: string
 }

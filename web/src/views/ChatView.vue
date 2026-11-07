@@ -1,17 +1,27 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  useTemplateRef,
+} from 'vue'
 import { useRouter } from 'vue-router'
 
 import ConversationList from '@/components/ConversationList.vue'
+import FriendsDrawer from '@/components/FriendsDrawer.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageList from '@/components/MessageList.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
+import { useFriendshipStore } from '@/stores/friendships'
 
 const auth = useAuthStore()
 const chat = useChatStore()
+const friendships = useFriendshipStore()
 const router = useRouter()
 const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageList')
+const friendsOpen = shallowRef(false)
 
 const connectionLabel = computed(() => {
   const labels = {
@@ -54,8 +64,19 @@ function markVisibleConversationRead() {
 
 async function logout() {
   chat.reset()
+  friendships.reset()
   auth.logout()
   await router.replace('/login')
+}
+
+async function openFriendDirect(userID: string) {
+  friendsOpen.value = false
+  try {
+    await chat.createDirect(userID)
+    messageList.value?.scrollToBottom()
+  } catch (cause) {
+    chat.reportError(cause instanceof Error ? cause.message : '打开好友会话失败')
+  }
 }
 
 onMounted(async () => {
@@ -94,6 +115,9 @@ onBeforeUnmount(() => {
           <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
           <small>ID {{ auth.user?.id }}</small>
         </span>
+        <button class="ghost-button" type="button" @click="friendsOpen = true">
+          好友
+        </button>
         <button class="ghost-button" type="button" @click="logout">退出</button>
       </div>
     </header>
@@ -152,5 +176,11 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </section>
+
+    <FriendsDrawer
+      :open="friendsOpen"
+      @close="friendsOpen = false"
+      @open-direct="openFriendDirect"
+    />
   </main>
 </template>
