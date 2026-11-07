@@ -16,9 +16,7 @@ import (
 
 	"ginChatProject/internal/messaging"
 	"ginChatProject/internal/platform/bootstrap"
-	"ginChatProject/internal/repository"
 	"ginChatProject/internal/router"
-	"ginChatProject/internal/task"
 	"ginChatProject/internal/ws"
 )
 
@@ -65,11 +63,7 @@ func Run() error {
 	}
 	defer sqlDB.Close()
 
-	// 启动阶段 2：启动后台任务。Consumer 在 Run 返回时停止接收新的任务。
-	userRepo := repository.NewUserRepository(db)
-	heartbeatTask := task.NewHeartbeatSyncTask(userRepo)
-	go heartbeatTask.Start()
-
+	// 启动阶段 2：启动具备明确取消语义的 RabbitMQ 后台任务。
 	var backgroundWorkers sync.WaitGroup
 	defer func() {
 		// Run 退出时先取消后台任务，再等待连接和轮询协程释放资源。

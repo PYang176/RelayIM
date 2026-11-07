@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/redisstore"
-	"ginChatProject/internal/service"
 	"log"
 	"net"
 	"net/http"
@@ -26,13 +25,11 @@ var upgrader = websocket.Upgrader{
 }
 
 // WebsocketHandler 处理 WebSocket 鉴权、连接交付和客户端回执。
-type WebsocketHandler struct {
-	msgService *service.MessageService
-}
+type WebsocketHandler struct{}
 
-// NewWebsocketHandler 注入消息服务。
-func NewWebsocketHandler(svc *service.MessageService) *WebsocketHandler {
-	return &WebsocketHandler{msgService: svc}
+// NewWebsocketHandler 创建 WebSocket Handler。
+func NewWebsocketHandler() *WebsocketHandler {
+	return &WebsocketHandler{}
 }
 
 // Connect 完成鉴权后把连接交给单写协程客户端。
@@ -82,42 +79,20 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
-	client.Run(ctx, func(messageCtx context.Context, raw []byte) error {
-		return h.handleClientMessage(messageCtx, runtimeSession.UserID, raw)
-	})
+	client.Run(ctx, h.handleClientMessage)
 }
 
 func (h *WebsocketHandler) handleClientMessage(
-	ctx context.Context,
-	userID uint64,
+	_ context.Context,
 	raw []byte,
 ) error {
 	var message WsMessage
 	if err := json.Unmarshal(raw, &message); err != nil {
+		// 非法帧直接忽略；连接仍由读写超时和 Pong 机制保持或关闭。
 		return nil
 	}
-
-	operationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	switch message.Action {
-	case ActionAck:
-		if err := h.msgService.AckMessage(
-			operationCtx,
-			message.MessageID,
-			uint(userID),
-		); err != nil {
-			return err
-		}
-	case ActionRead:
-		if err := h.msgService.ReadMessage(
-			operationCtx,
-			message.MessageID,
-			uint(userID),
-		); err != nil {
-			return err
-		}
-	}
+	// 新版送达和已读尚未迁移到 message_deliveries/last_read_seq，
+	// 暂不在 WebSocket Handler 中调用旧 message 表。
 	return nil
 }
 

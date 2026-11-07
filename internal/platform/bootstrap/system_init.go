@@ -142,13 +142,15 @@ func loadMySQLConfig(v *viper.Viper) config.MySQLConfig {
 func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 	dsn := GetMySQLDsn(cfg)
 
-	// 自定义日志模版，打印SQL语句
+	// 默认只记录慢 SQL 和错误，避免消息正文、密码哈希等数据进入普通日志。
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold: time.Second, // 慢 SQL 阈值
-			LogLevel:      logger.Info, // 打印所有 SQL
-			Colorful:      true,        // 彩色输出
+			SlowThreshold:             time.Second,
+			LogLevel:                  logger.Warn,
+			Colorful:                  true,
+			ParameterizedQueries:      true,
+			IgnoreRecordNotFoundError: true,
 		},
 	)
 

@@ -42,25 +42,12 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 ## 4. 客户端回执
 
-送达：
+送达和已读回执暂未启用。旧 `message` 表不在当前数据库迁移中，因此 WebSocket Handler 不再调用旧回执服务。
 
-```json
-{
-  "action": "ack",
-  "message_id": "1839281749283749121"
-}
-```
+下一阶段需要基于以下新版结构实现：
 
-已读：
-
-```json
-{
-  "action": "read",
-  "message_id": "1839281749283749121"
-}
-```
-
-新版消息已实现 `message_deliveries` 与 `conversation_members.last_read_seq` 数据结构，但回执接口仍需迁移到新版会话模型。
+- `message_deliveries`：按消息和设备记录送达。
+- `conversation_members.last_read_seq`：按用户维护已读游标。
 
 ## 5. Origin 与安全边界
 

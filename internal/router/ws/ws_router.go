@@ -1,21 +1,12 @@
 package ws
 
 import (
-	"ginChatProject/internal/repository"
-	"ginChatProject/internal/service"
 	"ginChatProject/internal/ws"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
-// Register websocket路由注册函数
-func Register(r *gin.Engine, db *gorm.DB) {
-	friendRepo := repository.NewFriendRepository(db)
-	msgRepo := repository.NewMessageRepository(db)
-	groupRepo := repository.NewGroupRepository(db)
-
-	msgService := service.NewMessageService(msgRepo, friendRepo, groupRepo)
-	wsHandler := ws.NewWebsocketHandler(msgService)
+// Register 注册新版 WebSocket 路由。
+func Register(r *gin.Engine) {
+	wsHandler := ws.NewWebsocketHandler()
 	r.GET("/ws", wsHandler.Connect)
-
 }
