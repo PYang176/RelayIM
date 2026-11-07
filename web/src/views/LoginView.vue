@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -8,9 +8,9 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const mode = ref<'login' | 'register'>('login')
-const busy = ref(false)
-const error = ref('')
+const mode = shallowRef<'login' | 'register'>('login')
+const busy = shallowRef(false)
+const error = shallowRef('')
 const form = reactive({
   username: '',
   password: '',
@@ -46,23 +46,41 @@ function switchMode(nextMode: 'login' | 'register') {
   <main class="auth-page">
     <section class="auth-story">
       <div class="brand-mark">G</div>
-      <p class="eyebrow">GO · RABBITMQ · WEBSOCKET</p>
-      <h1>更可靠的<br />即时沟通体验</h1>
+      <h1>消息抵达之前，<br />每一步都有记录</h1>
       <p class="story-copy">
-        消息事务、Outbox、实时投递和断线补拉组成一条可验证的聊天链路。
+        从会话序号、事务写入，到异步投递和设备确认，GinChat
+        把聊天中容易被忽略的状态做成可追踪的记录。
       </p>
-      <div class="story-points">
-        <span>消息不丢</span>
-        <span>多设备送达</span>
-        <span>会话内有序</span>
-      </div>
+      <ol class="delivery-path" aria-label="一条消息的处理路径">
+        <li>
+          <span class="path-seq">01</span>
+          <strong>保存会话消息</strong>
+          <small>客户端幂等键与连续序号同时落库</small>
+        </li>
+        <li>
+          <span class="path-seq">02</span>
+          <strong>提交待发布事件</strong>
+          <small>消息与 Outbox 在同一个事务中提交</small>
+        </li>
+        <li>
+          <span class="path-seq">03</span>
+          <strong>分发在线连接</strong>
+          <small>RabbitMQ 消费后写入有界发送队列</small>
+        </li>
+        <li>
+          <span class="path-seq">04</span>
+          <strong>记录设备确认</strong>
+          <small>送达和已读使用不同的状态语义</small>
+        </li>
+      </ol>
     </section>
 
     <section class="auth-panel">
       <div class="auth-card">
-        <div class="mode-tabs">
+        <div class="mode-tabs" role="group" aria-label="认证方式">
           <button
             :class="{ active: mode === 'login' }"
+            :aria-pressed="mode === 'login'"
             type="button"
             @click="switchMode('login')"
           >
@@ -70,6 +88,7 @@ function switchMode(nextMode: 'login' | 'register') {
           </button>
           <button
             :class="{ active: mode === 'register' }"
+            :aria-pressed="mode === 'register'"
             type="button"
             @click="switchMode('register')"
           >
@@ -90,6 +109,7 @@ function switchMode(nextMode: 'login' | 'register') {
               autocomplete="username"
               maxlength="32"
               minlength="2"
+              autofocus
               required
             />
           </label>
@@ -121,7 +141,7 @@ function switchMode(nextMode: 'login' | 'register') {
             />
           </label>
 
-          <p v-if="error" class="form-error">{{ error }}</p>
+          <p v-if="error" class="form-error" role="alert">{{ error }}</p>
 
           <button class="primary-button" :disabled="busy" type="submit">
             {{ busy ? '处理中…' : mode === 'login' ? '进入 GinChat' : '注册并登录' }}

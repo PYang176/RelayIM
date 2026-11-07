@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ConversationList from '@/components/ConversationList.vue'
@@ -11,7 +11,7 @@ import { useChatStore } from '@/stores/chat'
 const auth = useAuthStore()
 const chat = useChatStore()
 const router = useRouter()
-const messageList = ref<InstanceType<typeof MessageList> | null>(null)
+const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageList')
 
 const connectionLabel = computed(() => {
   const labels = {
@@ -28,9 +28,7 @@ async function createDirect(peerUserId: string) {
     await chat.createDirect(peerUserId)
     messageList.value?.scrollToBottom()
   } catch (cause) {
-    chat.$patch({
-      error: cause instanceof Error ? cause.message : '创建私聊失败',
-    })
+    chat.reportError(cause instanceof Error ? cause.message : '创建私聊失败')
   }
 }
 
@@ -44,9 +42,7 @@ async function sendMessage(content: string) {
     await chat.sendMessage(content)
     messageList.value?.scrollToBottom()
   } catch (cause) {
-    chat.$patch({
-      error: cause instanceof Error ? cause.message : '发送消息失败',
-    })
+    chat.reportError(cause instanceof Error ? cause.message : '发送消息失败')
   }
 }
 
@@ -82,6 +78,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="chat-page">
+    <a class="skip-link" href="#message-log">跳到消息内容</a>
     <header class="app-header">
       <div class="app-brand">
         <span class="brand-dot">G</span>
@@ -101,9 +98,12 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <p v-if="chat.error" class="global-error" @click="chat.$patch({ error: '' })">
-      {{ chat.error }}
-    </p>
+    <div v-if="chat.error" class="global-error" role="alert">
+      <span>{{ chat.error }}</span>
+      <button aria-label="关闭错误提示" type="button" @click="chat.clearError">
+        关闭
+      </button>
+    </div>
 
     <section class="chat-layout">
       <ConversationList

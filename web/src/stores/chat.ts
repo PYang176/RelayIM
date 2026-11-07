@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
-import { computed, markRaw, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
-import * as authApi from '@/api/auth'
 import * as conversationApi from '@/api/conversations'
 import * as messageApi from '@/api/messages'
+import { useChatSocket } from '@/composables/useChatSocket'
 import { useAuthStore } from '@/stores/auth'
 import type {
   Conversation,
@@ -13,31 +13,21 @@ import type {
   WsMessage,
 } from '@/types/api'
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
-
 export interface ChatMessage extends Message {
   delivery?: DeliverySummary
   outgoing?: boolean
 }
 
-const DEVICE_KEY = 'ginchat.device_id'
-
 export const useChatStore = defineStore('chat', () => {
+  const auth = useAuthStore()
   const conversations = ref<Conversation[]>([])
   const messagesByConversation = ref<Record<string, ChatMessage[]>>({})
-  const activeConversationId = ref('')
+  const activeConversationId = shallowRef('')
   const readStates = ref<ReadState[]>([])
-  const connectionState = ref<ConnectionState>('disconnected')
-  const loadingConversations = ref(false)
-  const loadingMessages = ref(false)
+  const loadingConversations = shallowRef(false)
+  const loadingMessages = shallowRef(false)
   const hasMoreByConversation = ref<Record<string, boolean>>({})
-  const error = ref('')
-
-  let socket: WebSocket | null = null
-  let reconnectTimer: number | undefined
-  let reconnectAttempt = 0
-  let intentionallyClosed = false
-  let connecting = false
+  const error = shallowRef('')
 
   const activeConversation = computed(() =>
     conversations.value.find((item) => item.id === activeConversationId.value),
@@ -46,8 +36,16 @@ export const useChatStore = defineStore('chat', () => {
     () => messagesByConversation.value[activeConversationId.value] ?? [],
   )
   const activeReadStates = computed(() =>
-    readStates.value.filter((item) => item.user_id !== useAuthStore().user?.id),
+    readStates.value.filter((item) => item.user_id !== auth.user?.id),
   )
+
+  const realtime = useChatSocket({
+    getToken: () => auth.token,
+    onConnected: handleSocketConnected,
+    onMessage: handleSocketMessage,
+    onError: setError,
+  })
+  const connectionState = realtime.connectionState
 
   function setError(message: string) {
     error.value = message
@@ -97,7 +95,7 @@ export const useChatStore = defineStore('chat', () => {
     }
     conversation.last_seq = Math.max(conversation.last_seq, message.seq)
     const isIncoming =
-      message.sender_id !== useAuthStore().user?.id &&
+      message.sender_id !== auth.user?.id &&
       message.conversation_id !== activeConversationId.value
     if (isIncoming || document.visibilityState !== 'visible') {
       conversation.unread_count += 1
@@ -105,7 +103,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadConversations() {
-    const auth = useAuthStore()
     loadingConversations.value = true
     try {
       conversations.value = await conversationApi.listConversations(auth.token)
@@ -120,7 +117,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function createDirect(peerUserId: string) {
-    const auth = useAuthStore()
     clearError()
     const conversation = await conversationApi.createDirect(
       auth.token,
@@ -141,7 +137,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadLatestMessages(conversationId: string) {
-    const auth = useAuthStore()
     loadingMessages.value = true
     clearError()
     try {
@@ -178,7 +173,6 @@ export const useChatStore = defineStore('chat', () => {
     if (!conversationId || messages.length === 0) return
     if (!hasMoreByConversation.value[conversationId]) return
 
-    const auth = useAuthStore()
     const page = await messageApi.listMessages(auth.token, conversationId, {
       beforeSeq: messages[0].seq,
       limit: 30,
@@ -200,7 +194,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function syncConversationAfterReconnect(conversation: Conversation) {
-    const auth = useAuthStore()
     const localMessages = messagesByConversation.value[conversation.id] ?? []
     const lastLocalSeq =
       localMessages.length > 0 ? localMessages[localMessages.length - 1].seq : 0
@@ -225,7 +218,6 @@ export const useChatStore = defineStore('chat', () => {
     const trimmed = content.trim()
     if (!conversationId || !trimmed) return
 
-    const auth = useAuthStore()
     clearError()
     const response = await messageApi.sendText(
       auth.token,
@@ -253,7 +245,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function refreshDelivery(conversationId: string, messageId: string) {
-    const auth = useAuthStore()
     try {
       const delivery = await messageApi.getDeliverySummary(
         auth.token,
@@ -273,7 +264,6 @@ export const useChatStore = defineStore('chat', () => {
   async function refreshReadStates() {
     const conversationId = activeConversationId.value
     if (!conversationId) return
-    const auth = useAuthStore()
     try {
       readStates.value = await messageApi.listReadStates(auth.token, conversationId)
     } catch {
@@ -282,9 +272,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function sendSocket(payload: WsMessage) {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return false
-    socket.send(JSON.stringify(payload))
-    return true
+    return realtime.send(payload)
   }
 
   function sendAck(messageId: string) {
@@ -346,88 +334,20 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function connectWebSocket() {
-    if (connecting) return
-    const auth = useAuthStore()
-    if (!auth.token) return
-    connecting = true
-    intentionallyClosed = false
-    clearTimeout(reconnectTimer)
-    connectionState.value = reconnectAttempt > 0 ? 'reconnecting' : 'connecting'
-
-    try {
-      const deviceId = localStorage.getItem(DEVICE_KEY) ?? ''
-      const ticket = await authApi.issueWsTicket(auth.token, deviceId)
-      localStorage.setItem(DEVICE_KEY, ticket.device_id)
-
-      if (socket) {
-        intentionallyClosed = true
-        socket.close()
-        intentionallyClosed = false
-      }
-      const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const ws = new WebSocket(
-        `${scheme}://${window.location.host}/ws?ticket=${encodeURIComponent(ticket.ticket)}`,
-      )
-      socket = markRaw(ws)
-
-      ws.onopen = () => {
-        if (socket !== ws) return
-        reconnectAttempt = 0
-        connectionState.value = 'connected'
-        void loadConversations().then(async () => {
-          for (const conversation of conversations.value) {
-            await syncConversationAfterReconnect(conversation)
-          }
-          await markRead()
-        })
-      }
-      ws.onmessage = (event) => {
-        if (socket !== ws) return
-        try {
-          handleSocketMessage(JSON.parse(String(event.data)) as WsMessage)
-        } catch {
-          setError('收到无法解析的 WebSocket 消息')
-        }
-      }
-      ws.onerror = () => {
-        if (socket === ws) {
-          connectionState.value = 'disconnected'
-        }
-      }
-      ws.onclose = () => {
-        if (socket !== ws) return
-        socket = null
-        connectionState.value = 'disconnected'
-        if (!intentionallyClosed && auth.token) {
-          scheduleReconnect()
-        }
-      }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '建立实时连接失败')
-      connectionState.value = 'disconnected'
-      scheduleReconnect()
-    } finally {
-      connecting = false
+  async function handleSocketConnected() {
+    await loadConversations()
+    for (const conversation of conversations.value) {
+      await syncConversationAfterReconnect(conversation)
     }
+    await markRead()
   }
 
-  function scheduleReconnect() {
-    clearTimeout(reconnectTimer)
-    reconnectAttempt += 1
-    const delay = Math.min(1000 * 2 ** (reconnectAttempt - 1), 30_000)
-    connectionState.value = 'reconnecting'
-    reconnectTimer = window.setTimeout(() => {
-      void connectWebSocket()
-    }, delay)
+  function connectWebSocket() {
+    return realtime.connect()
   }
 
   function disconnectWebSocket() {
-    intentionallyClosed = true
-    clearTimeout(reconnectTimer)
-    socket?.close()
-    socket = null
-    connectionState.value = 'disconnected'
+    realtime.disconnect()
   }
 
   function reset() {
@@ -460,6 +380,8 @@ export const useChatStore = defineStore('chat', () => {
     connectWebSocket,
     disconnectWebSocket,
     markRead,
+    reportError: setError,
+    clearError,
     reset,
   }
 })

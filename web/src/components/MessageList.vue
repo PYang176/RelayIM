@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, useTemplateRef, watch } from 'vue'
 
 import type { ChatMessage } from '@/stores/chat'
 
@@ -14,7 +14,7 @@ const emit = defineEmits<{
   loadOlder: []
 }>()
 
-const scroller = ref<HTMLElement | null>(null)
+const scroller = useTemplateRef<HTMLElement>('scroller')
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -48,7 +48,15 @@ defineExpose({ scrollToBottom })
 </script>
 
 <template>
-  <div ref="scroller" class="message-scroller">
+  <div
+    id="message-log"
+    ref="scroller"
+    class="message-scroller"
+    role="log"
+    aria-live="polite"
+    aria-relevant="additions text"
+    aria-label="当前会话消息"
+  >
     <button
       v-if="hasMore"
       class="load-older"
@@ -58,8 +66,13 @@ defineExpose({ scrollToBottom })
       加载更早消息
     </button>
 
-    <p v-if="loading" class="panel-hint">加载消息中…</p>
-    <p v-else-if="messages.length === 0" class="empty-chat">
+    <div v-if="loading" class="message-skeleton" role="status" aria-busy="true">
+      <span />
+      <span />
+      <span />
+      <span class="sr-only">加载消息中</span>
+    </div>
+    <p v-else-if="messages.length === 0" class="empty-chat" role="status">
       <span>还没有消息</span>
       发送第一条消息开始聊天
     </p>
@@ -69,6 +82,7 @@ defineExpose({ scrollToBottom })
       :key="message.message_id"
       :class="['message-row', { outgoing: isOutgoing(message) }]"
     >
+      <span class="message-seq" aria-label="消息序号">{{ message.seq }}</span>
       <div class="message-bubble">
         <p>{{ message.content }}</p>
         <footer>

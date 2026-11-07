@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { shallowRef } from 'vue'
 
 import type { Conversation } from '@/types/api'
 
@@ -14,8 +14,8 @@ const emit = defineEmits<{
   createDirect: [peerUserId: string]
 }>()
 
-const peerUserId = ref('')
-const showCreate = ref(false)
+const peerUserId = shallowRef('')
+const showCreate = shallowRef(false)
 
 function title(conversation: Conversation) {
   return conversation.name || `私聊 · ${conversation.id.slice(-6)}`
@@ -34,22 +34,31 @@ function create() {
   <aside class="conversation-panel">
     <div class="conversation-heading">
       <div>
-        <p class="eyebrow">CONVERSATIONS</p>
         <h2>消息</h2>
       </div>
       <button
         class="icon-button"
+        :aria-expanded="showCreate"
+        aria-controls="create-direct-form"
+        aria-label="发起私聊"
         type="button"
-        title="发起私聊"
         @click="showCreate = !showCreate"
       >
         +
       </button>
     </div>
 
-    <form v-if="showCreate" class="create-direct" @submit.prevent="create">
+    <form
+      v-if="showCreate"
+      id="create-direct-form"
+      class="create-direct"
+      @submit.prevent="create"
+    >
+      <label class="sr-only" for="peer-user-id">对方用户 ID</label>
       <input
+        id="peer-user-id"
         v-model="peerUserId"
+        aria-label="对方用户 ID"
         inputmode="numeric"
         placeholder="对方用户 ID"
         required
@@ -57,9 +66,11 @@ function create() {
       <button type="submit">创建</button>
     </form>
 
-    <p v-if="loading" class="panel-hint">加载会话中…</p>
-    <p v-else-if="conversations.length === 0" class="panel-hint">
-      暂无会话，点击右上角创建私聊。
+    <p v-if="loading" class="panel-hint" role="status" aria-busy="true">
+      加载会话中…
+    </p>
+    <p v-else-if="conversations.length === 0" class="panel-hint" role="status">
+      还没有会话。使用上方“发起私聊”输入对方用户 ID。
     </p>
 
     <div class="conversation-list">
@@ -67,6 +78,7 @@ function create() {
         v-for="conversation in conversations"
         :key="conversation.id"
         :class="{ active: conversation.id === activeId }"
+        :aria-current="conversation.id === activeId ? 'true' : undefined"
         class="conversation-item"
         type="button"
         @click="emit('select', conversation.id)"

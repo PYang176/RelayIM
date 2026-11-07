@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, shallowRef } from 'vue'
 
 const props = defineProps<{
   disabled: boolean
@@ -9,8 +9,8 @@ const emit = defineEmits<{
   send: [content: string]
 }>()
 
-const content = ref('')
-const sending = ref(false)
+const content = shallowRef('')
+const sending = shallowRef(false)
 const remaining = computed(() => 8000 - [...content.value].length)
 
 async function submit() {
@@ -35,8 +35,11 @@ function handleKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="composer">
+    <label class="sr-only" for="message-input">消息内容</label>
     <textarea
+      id="message-input"
       v-model="content"
+      aria-describedby="message-input-help"
       :disabled="disabled"
       maxlength="8000"
       placeholder="输入消息，Enter 发送，Shift + Enter 换行"
@@ -44,7 +47,7 @@ function handleKeydown(event: KeyboardEvent) {
       @keydown="handleKeydown"
     />
     <div class="composer-footer">
-      <span>{{ remaining }} 字符</span>
+      <span id="message-input-help">{{ remaining }} 字符</span>
       <button
         class="primary-button compact"
         :disabled="disabled || sending || !content.trim()"
