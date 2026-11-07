@@ -93,7 +93,10 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="current-user">
-        <span>{{ auth.user?.nickname || auth.user?.username }}</span>
+        <span class="current-user-copy">
+          <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
+          <small>ID {{ auth.user?.id }}</small>
+        </span>
         <button class="ghost-button" type="button" @click="logout">退出</button>
       </div>
     </header>

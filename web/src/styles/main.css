@@ -286,6 +286,17 @@ button:disabled {
   gap: 3px;
 }
 
+.current-user-copy {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.current-user-copy small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .brand-dot {
   width: 36px;
   height: 36px;
