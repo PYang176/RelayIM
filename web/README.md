@@ -1,0 +1,65 @@
+# GinChat Web
+
+## 技术栈
+
+- Vue 3.5
+- TypeScript
+- Vite
+- Vue Router
+- Pinia
+
+## 目录规范
+
+```text
+src/
+├── api/          接口函数和 HTTP 封装
+├── components/   可复用业务组件
+├── router/       路由和登录守卫
+├── stores/       跨页面 Pinia 状态
+├── styles/       全局样式
+├── types/        前后端协议类型
+└── views/        页面级组件
+```
+
+- 页面组件不直接调用 `fetch`。
+- Snowflake ID 全部使用字符串。
+- WebSocket 建立前申请一次性 Ticket。
+- 收到消息后发送 ACK；阅读后发送 Read。
+- 断线重连后使用 `after_seq` 补拉。
+
+## 本地启动
+
+先启动 Go 后端、MySQL、Redis 和 RabbitMQ：
+
+```powershell
+cd "E:\Develop Projects\golang projects\ginChatProject"
+.\scripts\run-server.ps1
+```
+
+再启动前端：
+
+```powershell
+cd "E:\Develop Projects\golang projects\ginChatProject\web"
+npm install
+npm run dev
+```
+
+浏览器访问：
+
+```text
+http://127.0.0.1:5173
+```
+
+Vite 将 `/api` 和 `/ws` 代理到：
+
+```text
+http://127.0.0.1:8081
+ws://127.0.0.1:8081
+```
+
+## 检查
+
+```powershell
+npm run typecheck
+npm run build
+```
