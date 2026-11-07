@@ -21,7 +21,9 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		"POST /api/v1/auth/ws-ticket",
 		"GET /api/v1/conversations",
 		"POST /api/v1/conversations/private",
+		"GET /api/v1/conversations/:conversation_id/read-states",
 		"GET /api/v1/conversations/:conversation_id/messages",
+		"GET /api/v1/conversations/:conversation_id/messages/:message_id/delivery",
 		"POST /api/v1/conversations/:conversation_id/messages",
 		"GET /ws",
 	}

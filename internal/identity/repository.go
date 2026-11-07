@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
@@ -88,6 +89,56 @@ func (r *Repository) FindByID(ctx context.Context, userID uint64) (*user, *userP
 		return nil, nil, fmt.Errorf("查询用户资料: %w", err)
 	}
 	return &userRecord, &profile, nil
+}
+
+// FindActiveDevice 查询属于指定用户且未被撤销的设备。
+func (r *Repository) FindActiveDevice(
+	ctx context.Context,
+	userID uint64,
+	deviceID uint64,
+) (*device, error) {
+	var result device
+	err := r.db.WithContext(ctx).
+		Where(
+			"id = ? AND user_id = ? AND revoked_at IS NULL",
+			deviceID,
+			userID,
+		).
+		First(&result).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrDeviceNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询用户设备: %w", err)
+	}
+	return &result, nil
+}
+
+// CreateDevice 保存新的用户设备。
+func (r *Repository) CreateDevice(ctx context.Context, record *device) error {
+	if err := r.db.WithContext(ctx).Create(record).Error; err != nil {
+		return fmt.Errorf("创建设备: %w", err)
+	}
+	return nil
+}
+
+// TouchDevice 更新设备最近活跃时间。
+func (r *Repository) TouchDevice(
+	ctx context.Context,
+	deviceID uint64,
+	seenAt time.Time,
+) error {
+	result := r.db.WithContext(ctx).
+		Model(&device{}).
+		Where("id = ? AND revoked_at IS NULL", deviceID).
+		Update("last_seen_at", seenAt)
+	if result.Error != nil {
+		return fmt.Errorf("更新设备活跃时间: %w", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return ErrDeviceNotFound
+	}
+	return nil
 }
 
 func isDuplicateKey(err error) bool {

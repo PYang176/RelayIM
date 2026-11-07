@@ -45,6 +45,15 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
+// WSTicketSession 是一次性 WebSocket Ticket 绑定后的用户和设备。
+type WSTicketSession struct {
+	// UserID 是 Ticket 所属用户 Snowflake ID。
+	UserID uint64
+
+	// DeviceID 是 Ticket 绑定的设备 Snowflake ID。
+	DeviceID uint64
+}
+
 // Manager 组合 JWT 与 Redis 白名单，HTTP 和 WebSocket 共用该组件。
 type Manager struct{}
 
@@ -124,8 +133,9 @@ func (m *Manager) Authenticate(ctx context.Context, token string) (Session, erro
 func (m *Manager) IssueWSTicket(
 	ctx context.Context,
 	userID uint64,
+	deviceID uint64,
 ) (string, time.Duration, error) {
-	if userID == 0 {
+	if userID == 0 || deviceID == 0 {
 		return "", 0, ErrInvalidToken
 	}
 
@@ -135,7 +145,8 @@ func (m *Manager) IssueWSTicket(
 	}
 	ticket := base64.RawURLEncoding.EncodeToString(randomBytes)
 	key := wsTicketKey(ticket)
-	if err := redisstore.RDB.Set(ctx, key, userID, wsTicketTTL).Err(); err != nil {
+	value := fmt.Sprintf("%d:%d", userID, deviceID)
+	if err := redisstore.RDB.Set(ctx, key, value, wsTicketTTL).Err(); err != nil {
 		return "", 0, fmt.Errorf("%w: 保存 WebSocket Ticket: %w", ErrAuthUnavailable, err)
 	}
 	return ticket, wsTicketTTL, nil
@@ -145,25 +156,37 @@ func (m *Manager) IssueWSTicket(
 func (m *Manager) ConsumeWSTicket(
 	ctx context.Context,
 	ticket string,
-) (uint64, error) {
+) (WSTicketSession, error) {
 	ticket = strings.TrimSpace(ticket)
 	if ticket == "" {
-		return 0, ErrWSTicketInvalid
+		return WSTicketSession{}, ErrWSTicketInvalid
 	}
 
 	value, err := redisstore.RDB.GetDel(ctx, wsTicketKey(ticket)).Result()
 	if errors.Is(err, redis.Nil) || value == "" {
-		return 0, ErrWSTicketInvalid
+		return WSTicketSession{}, ErrWSTicketInvalid
 	}
 	if err != nil {
-		return 0, fmt.Errorf("%w: 读取 WebSocket Ticket: %w", ErrAuthUnavailable, err)
+		return WSTicketSession{}, fmt.Errorf(
+			"%w: 读取 WebSocket Ticket: %w",
+			ErrAuthUnavailable,
+			err,
+		)
 	}
 
-	userID, err := strconv.ParseUint(value, 10, 64)
-	if err != nil || userID == 0 {
-		return 0, ErrWSTicketInvalid
+	userIDText, deviceIDText, found := strings.Cut(value, ":")
+	if !found {
+		return WSTicketSession{}, ErrWSTicketInvalid
 	}
-	return userID, nil
+	userID, userErr := strconv.ParseUint(userIDText, 10, 64)
+	deviceID, deviceErr := strconv.ParseUint(deviceIDText, 10, 64)
+	if userErr != nil || deviceErr != nil || userID == 0 || deviceID == 0 {
+		return WSTicketSession{}, ErrWSTicketInvalid
+	}
+	return WSTicketSession{
+		UserID:   userID,
+		DeviceID: deviceID,
+	}, nil
 }
 
 func wsTicketKey(ticket string) string {

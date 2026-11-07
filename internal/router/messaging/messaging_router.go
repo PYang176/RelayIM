@@ -15,6 +15,11 @@ func Register(r *gin.Engine, db *gorm.DB) {
 
 	group := r.Group("/api/v1/conversations")
 	group.Use(middleware.AuthMiddleware())
+	group.GET(
+		"/:conversation_id/messages/:message_id/delivery",
+		handler.GetDeliverySummary,
+	)
+	group.GET("/:conversation_id/read-states", handler.ListReadStates)
 	group.GET("/:conversation_id/messages", handler.ListMessages)
 	group.POST("/:conversation_id/messages", handler.SendText)
 }

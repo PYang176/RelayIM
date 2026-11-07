@@ -14,7 +14,8 @@ Authorization: Bearer <JWT>
 ```json
 {
   "ticket": "短时随机票据",
-  "expires_in_seconds": 30
+  "expires_in_seconds": 30,
+  "device_id": "1839281749283749120"
 }
 ```
 
@@ -58,12 +59,28 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 ## 4. 客户端回执
 
-送达和已读回执暂未启用。旧 `message` 表不在当前数据库迁移中，因此 WebSocket Handler 不再调用旧回执服务。
+收到消息后，客户端按设备发送送达回执：
 
-下一阶段需要基于以下新版结构实现：
+```json
+{
+  "action": "ack",
+  "message_id": "1839281749283749121"
+}
+```
 
-- `message_deliveries`：按消息和设备记录送达。
-- `conversation_members.last_read_seq`：按用户维护已读游标。
+服务端使用 Ticket 绑定的设备 ID 写入 `message_deliveries(message_id, device_id)`，重复 ACK 幂等。
+
+用户阅读到某个位置后发送：
+
+```json
+{
+  "action": "read",
+  "conversation_id": "1839281749283749120",
+  "seq": 11
+}
+```
+
+服务端单调推进 `conversation_members.last_read_seq`，较小序号不会覆盖较大序号。
 
 ## 5. Origin 与安全边界
 

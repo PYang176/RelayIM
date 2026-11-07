@@ -36,12 +36,30 @@ type conversationMember struct {
 	// UserID 是成员用户的 Snowflake ID。
 	UserID uint64 `gorm:"column:user_id"`
 
+	// LastReadSeq 是成员最后已读的会话消息序号。
+	LastReadSeq uint64 `gorm:"column:last_read_seq"`
+
 	// LeftAt 是退群时间，为空表示当前仍是有效成员。
 	LeftAt *time.Time `gorm:"column:left_at"`
 }
 
 func (conversationMember) TableName() string {
 	return "conversation_members"
+}
+
+type device struct {
+	// ID 是设备 Snowflake ID。
+	ID uint64 `gorm:"column:id;primaryKey"`
+
+	// UserID 是设备所属用户 Snowflake ID。
+	UserID uint64 `gorm:"column:user_id"`
+
+	// RevokedAt 非空表示设备已撤销。
+	RevokedAt *time.Time `gorm:"column:revoked_at"`
+}
+
+func (device) TableName() string {
+	return "devices"
 }
 
 type message struct {
@@ -75,6 +93,21 @@ type message struct {
 
 func (message) TableName() string {
 	return "messages"
+}
+
+type messageDelivery struct {
+	// MessageID 是已送达消息 Snowflake ID。
+	MessageID uint64 `gorm:"column:message_id;primaryKey"`
+
+	// DeviceID 是接收设备 Snowflake ID。
+	DeviceID uint64 `gorm:"column:device_id;primaryKey"`
+
+	// DeliveredAt 是设备确认送达的 UTC 时间。
+	DeliveredAt time.Time `gorm:"column:delivered_at"`
+}
+
+func (messageDelivery) TableName() string {
+	return "message_deliveries"
 }
 
 type outboxEvent struct {

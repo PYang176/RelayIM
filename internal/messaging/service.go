@@ -95,6 +95,24 @@ type MessagePage struct {
 	HasMore bool
 }
 
+// ReadStateResult 是会话成员当前已读位置。
+type ReadStateResult struct {
+	// UserID 是成员 Snowflake 用户 ID。
+	UserID uint64
+
+	// LastReadSeq 是成员最后已读序号。
+	LastReadSeq uint64
+}
+
+// DeliverySummary 是一条消息的送达汇总。
+type DeliverySummary struct {
+	// DeliveredDevices 是已确认收到消息的设备数量。
+	DeliveredDevices uint64
+
+	// DeliveredUsers 是已确认收到消息的去重用户数量。
+	DeliveredUsers uint64
+}
+
 // SendText 校验文本消息并调用数据库事务。
 func (s *Service) SendText(
 	ctx context.Context,
@@ -189,4 +207,55 @@ func (s *Service) ListMessages(
 		Messages: results,
 		HasMore:  hasMore,
 	}, nil
+}
+
+// AcknowledgeMessage 记录指定设备已收到消息。
+func (s *Service) AcknowledgeMessage(
+	ctx context.Context,
+	userID uint64,
+	deviceID uint64,
+	messageID uint64,
+) error {
+	if userID == 0 || deviceID == 0 || messageID == 0 {
+		return ErrInvalidMessage
+	}
+	return s.repo.acknowledgeMessage(ctx, userID, deviceID, messageID)
+}
+
+// MarkConversationRead 推进当前成员的会话已读游标。
+func (s *Service) MarkConversationRead(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+	seq uint64,
+) error {
+	if userID == 0 || conversationID == 0 || seq == 0 {
+		return ErrInvalidMessage
+	}
+	return s.repo.markConversationRead(ctx, userID, conversationID, seq)
+}
+
+// ListReadStates 返回会话全部有效成员的已读游标。
+func (s *Service) ListReadStates(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+) ([]ReadStateResult, error) {
+	if userID == 0 || conversationID == 0 {
+		return nil, ErrInvalidMessage
+	}
+	return s.repo.listReadStates(ctx, userID, conversationID)
+}
+
+// GetDeliverySummary 返回指定消息的设备级送达汇总。
+func (s *Service) GetDeliverySummary(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+	messageID uint64,
+) (DeliverySummary, error) {
+	if userID == 0 || conversationID == 0 || messageID == 0 {
+		return DeliverySummary{}, ErrInvalidMessage
+	}
+	return s.repo.getDeliverySummary(ctx, userID, conversationID, messageID)
 }

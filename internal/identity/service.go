@@ -13,11 +13,12 @@ import (
 )
 
 const (
-	minPasswordBytes = 8
-	maxPasswordBytes = 72
-	maxNicknameRunes = 64
-	minUsernameRunes = 2
-	maxUsernameRunes = 32
+	minPasswordBytes   = 8
+	maxPasswordBytes   = 72
+	maxNicknameRunes   = 64
+	maxDeviceNameRunes = 100
+	minUsernameRunes   = 2
+	maxUsernameRunes   = 32
 )
 
 var usernamePattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
@@ -81,6 +82,33 @@ type LoginResult struct {
 
 	// User 是脱敏后的用户信息。
 	User UserResult
+}
+
+// EnsureDeviceCommand 是申请 WebSocket Ticket 时的设备信息。
+type EnsureDeviceCommand struct {
+	// UserID 是当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// DeviceID 是客户端已保存的设备 Snowflake ID；为空时创建新设备。
+	DeviceID uint64
+
+	// DeviceName 是客户端展示名称。
+	DeviceName string
+
+	// Platform 表示设备平台：1 Web、2 Android、3 iOS、4 Desktop。
+	Platform int
+}
+
+// DeviceResult 是设备注册结果。
+type DeviceResult struct {
+	// ID 是设备 Snowflake ID。
+	ID uint64
+
+	// DeviceName 是设备展示名称。
+	DeviceName string
+
+	// Platform 表示设备平台。
+	Platform int
 }
 
 // Register 创建用户身份和默认资料。
@@ -200,6 +228,66 @@ func (s *Service) Me(ctx context.Context, userID uint64) (UserResult, error) {
 		ID:       userRecord.ID,
 		Username: userRecord.Username,
 		Nickname: profile.Nickname,
+	}, nil
+}
+
+// EnsureDevice 查询或创建设备，并更新最近活跃时间。
+func (s *Service) EnsureDevice(
+	ctx context.Context,
+	command EnsureDeviceCommand,
+) (DeviceResult, error) {
+	if command.UserID == 0 {
+		return DeviceResult{}, ErrInvalidInput
+	}
+
+	now := time.Now().UTC()
+	if command.DeviceID > 0 {
+		record, err := s.repo.FindActiveDevice(
+			ctx,
+			command.UserID,
+			command.DeviceID,
+		)
+		if err != nil {
+			return DeviceResult{}, err
+		}
+		if err := s.repo.TouchDevice(ctx, record.ID, now); err != nil {
+			return DeviceResult{}, err
+		}
+		return DeviceResult{
+			ID:         record.ID,
+			DeviceName: record.DeviceName,
+			Platform:   record.Platform,
+		}, nil
+	}
+
+	command.DeviceName = strings.TrimSpace(command.DeviceName)
+	if command.DeviceName == "" {
+		command.DeviceName = "Web"
+	}
+	if command.Platform == 0 {
+		command.Platform = 1
+	}
+	if command.Platform < 1 ||
+		command.Platform > 4 ||
+		utf8.RuneCountInString(command.DeviceName) > maxDeviceNameRunes {
+		return DeviceResult{}, ErrInvalidInput
+	}
+
+	record := &device{
+		ID:         uint64(snowflake.Generate()),
+		UserID:     command.UserID,
+		Platform:   command.Platform,
+		DeviceName: command.DeviceName,
+		LastSeenAt: &now,
+		CreatedAt:  now,
+	}
+	if err := s.repo.CreateDevice(ctx, record); err != nil {
+		return DeviceResult{}, err
+	}
+	return DeviceResult{
+		ID:         record.ID,
+		DeviceName: record.DeviceName,
+		Platform:   record.Platform,
 	}, nil
 }
 

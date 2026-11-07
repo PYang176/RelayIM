@@ -53,6 +53,9 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 		t.Fatalf("注册用户失败: %v", err)
 	}
 	t.Cleanup(func() {
+		if err := db.Exec("DELETE FROM devices WHERE user_id = ?", registered.ID).Error; err != nil {
+			t.Errorf("清理用户设备失败: %v", err)
+		}
 		if err := db.Exec("DELETE FROM user_profiles WHERE user_id = ?", registered.ID).Error; err != nil {
 			t.Errorf("清理用户资料失败: %v", err)
 		}
@@ -96,5 +99,27 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	}
 	if currentUser.Nickname != "集成测试用户" {
 		t.Fatalf("当前用户昵称 = %q，期望集成测试用户", currentUser.Nickname)
+	}
+
+	deviceResult, err := service.EnsureDevice(context.Background(), EnsureDeviceCommand{
+		UserID:     registered.ID,
+		DeviceName: "集成测试 Web",
+		Platform:   1,
+	})
+	if err != nil {
+		t.Fatalf("创建设备失败: %v", err)
+	}
+	if deviceResult.ID == 0 || deviceResult.DeviceName != "集成测试 Web" {
+		t.Fatalf("设备结果 = %+v", deviceResult)
+	}
+	sameDevice, err := service.EnsureDevice(context.Background(), EnsureDeviceCommand{
+		UserID:   registered.ID,
+		DeviceID: deviceResult.ID,
+	})
+	if err != nil {
+		t.Fatalf("复用设备失败: %v", err)
+	}
+	if sameDevice.ID != deviceResult.ID {
+		t.Fatalf("复用设备 ID = %d，期望 %d", sameDevice.ID, deviceResult.ID)
 	}
 }

@@ -40,7 +40,7 @@ func Router(db *gorm.DB) *gin.Engine {
 	messagingrouter.Register(r, db)
 
 	// websocket
-	ws.Register(r)
+	ws.Register(r, db)
 
 	// index
 	index.Register(r)

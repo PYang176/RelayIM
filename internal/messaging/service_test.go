@@ -121,3 +121,23 @@ func TestServiceListMessagesValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestServiceReceiptValidation(t *testing.T) {
+	service := NewService(nil)
+	if err := service.AcknowledgeMessage(
+		context.Background(),
+		0,
+		1,
+		1,
+	); !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("ACK 参数错误 = %v，期望 ErrInvalidMessage", err)
+	}
+	if err := service.MarkConversationRead(
+		context.Background(),
+		1,
+		0,
+		1,
+	); !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("已读参数错误 = %v，期望 ErrInvalidMessage", err)
+	}
+}

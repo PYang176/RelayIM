@@ -18,4 +18,7 @@ var (
 
 	// ErrUserNotFound 表示按用户 ID 查询时用户不存在。
 	ErrUserNotFound = errors.New("用户不存在")
+
+	// ErrDeviceNotFound 表示设备不存在、已撤销或不属于当前用户。
+	ErrDeviceNotFound = errors.New("设备不存在或无权访问")
 )

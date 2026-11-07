@@ -41,6 +41,16 @@ type listMessagesInput struct {
 	Limit          int
 }
 
+type readStateRecord struct {
+	UserID      uint64 `gorm:"column:user_id"`
+	LastReadSeq uint64 `gorm:"column:last_read_seq"`
+}
+
+type deliverySummaryRecord struct {
+	DeliveredDevices uint64 `gorm:"column:delivered_devices"`
+	DeliveredUsers   uint64 `gorm:"column:delivered_users"`
+}
+
 // sendText 在单个事务中保存文本消息和 Outbox 事件。
 func (r *Repository) sendText(
 	ctx context.Context,
@@ -276,6 +286,199 @@ func (r *Repository) listMessages(
 		slices.Reverse(records)
 	}
 	return records, hasMore, nil
+}
+
+// acknowledgeMessage 记录消息到具体设备的幂等送达回执。
+func (r *Repository) acknowledgeMessage(
+	ctx context.Context,
+	userID uint64,
+	deviceID uint64,
+	messageID uint64,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var deviceRecord device
+		if err := tx.Where(
+			"id = ? AND user_id = ? AND revoked_at IS NULL",
+			deviceID,
+			userID,
+		).First(&deviceRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrDeviceUnavailable
+			}
+			return fmt.Errorf("校验 ACK 设备: %w", err)
+		}
+
+		var memberCount int64
+		if err := tx.Table("messages AS m").
+			Joins(
+				"JOIN conversation_members AS cm "+
+					"ON cm.conversation_id = m.conversation_id",
+			).
+			Where(
+				"m.id = ? AND cm.user_id = ? AND cm.left_at IS NULL",
+				messageID,
+				userID,
+			).
+			Count(&memberCount).Error; err != nil {
+			return fmt.Errorf("校验 ACK 消息权限: %w", err)
+		}
+		if memberCount != 1 {
+			return ErrNotMember
+		}
+
+		if err := tx.Exec(
+			"INSERT IGNORE INTO message_deliveries "+
+				"(message_id, device_id, delivered_at) VALUES (?, ?, ?)",
+			messageID,
+			deviceID,
+			time.Now().UTC(),
+		).Error; err != nil {
+			return fmt.Errorf("保存消息送达回执: %w", err)
+		}
+		return nil
+	})
+}
+
+// markConversationRead 单调推进成员的已读游标。
+func (r *Repository) markConversationRead(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+	seq uint64,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conversationRecord conversation
+		if err := tx.Where(
+			"id = ? AND status = ?",
+			conversationID,
+			conversationStatusActive,
+		).
+			First(&conversationRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("查询已读会话: %w", err)
+		}
+		if seq > conversationRecord.LastSeq {
+			return ErrInvalidReadSequence
+		}
+
+		var member conversationMember
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+				conversationID,
+				userID,
+			).
+			First(&member).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotMember
+			}
+			return fmt.Errorf("查询已读成员: %w", err)
+		}
+		if member.LastReadSeq >= seq {
+			return nil
+		}
+		if err := tx.Model(&conversationMember{}).
+			Where("conversation_id = ? AND user_id = ?", conversationID, userID).
+			Update("last_read_seq", seq).Error; err != nil {
+			return fmt.Errorf("更新成员已读序号: %w", err)
+		}
+		return nil
+	})
+}
+
+// listReadStates 返回会话有效成员的已读游标。
+func (r *Repository) listReadStates(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+) ([]ReadStateResult, error) {
+	var memberCount int64
+	if err := r.db.WithContext(ctx).Model(&conversationMember{}).
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			userID,
+		).
+		Count(&memberCount).Error; err != nil {
+		return nil, fmt.Errorf("校验已读状态查询权限: %w", err)
+	}
+	if memberCount != 1 {
+		return nil, ErrNotMember
+	}
+
+	var records []readStateRecord
+	if err := r.db.WithContext(ctx).
+		Table("conversation_members").
+		Select("user_id, last_read_seq").
+		Where("conversation_id = ? AND left_at IS NULL", conversationID).
+		Order("user_id ASC").
+		Scan(&records).Error; err != nil {
+		return nil, fmt.Errorf("查询成员已读状态: %w", err)
+	}
+
+	results := make([]ReadStateResult, 0, len(records))
+	for _, record := range records {
+		results = append(results, ReadStateResult{
+			UserID:      record.UserID,
+			LastReadSeq: record.LastReadSeq,
+		})
+	}
+	return results, nil
+}
+
+// getDeliverySummary 统计消息已确认送达的设备和用户数量。
+func (r *Repository) getDeliverySummary(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+	messageID uint64,
+) (DeliverySummary, error) {
+	var memberCount int64
+	if err := r.db.WithContext(ctx).Model(&conversationMember{}).
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			userID,
+		).
+		Count(&memberCount).Error; err != nil {
+		return DeliverySummary{}, fmt.Errorf("校验送达状态查询权限: %w", err)
+	}
+	if memberCount != 1 {
+		return DeliverySummary{}, ErrNotMember
+	}
+
+	var messageCount int64
+	if err := r.db.WithContext(ctx).Model(&message{}).
+		Where(
+			"id = ? AND conversation_id = ?",
+			messageID,
+			conversationID,
+		).
+		Count(&messageCount).Error; err != nil {
+		return DeliverySummary{}, fmt.Errorf("校验送达状态消息: %w", err)
+	}
+	if messageCount != 1 {
+		return DeliverySummary{}, ErrMessageNotFound
+	}
+
+	var summary deliverySummaryRecord
+	if err := r.db.WithContext(ctx).
+		Table("message_deliveries AS md").
+		Select(
+			"COUNT(*) AS delivered_devices, "+
+				"COUNT(DISTINCT d.user_id) AS delivered_users",
+		).
+		Joins("JOIN devices AS d ON d.id = md.device_id").
+		Where("md.message_id = ?", messageID).
+		Scan(&summary).Error; err != nil {
+		return DeliverySummary{}, fmt.Errorf("统计消息送达状态: %w", err)
+	}
+	return DeliverySummary{
+		DeliveredDevices: summary.DeliveredDevices,
+		DeliveredUsers:   summary.DeliveredUsers,
+	}, nil
 }
 
 func isDuplicateKey(err error) bool {

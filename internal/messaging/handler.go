@@ -22,6 +22,17 @@ type TextMessageSender interface {
 // MessageReader 是 Handler 查询历史消息所需的最小业务能力。
 type MessageReader interface {
 	ListMessages(ctx context.Context, command ListMessagesCommand) (MessagePage, error)
+	ListReadStates(
+		ctx context.Context,
+		userID uint64,
+		conversationID uint64,
+	) ([]ReadStateResult, error)
+	GetDeliverySummary(
+		ctx context.Context,
+		userID uint64,
+		conversationID uint64,
+		messageID uint64,
+	) (DeliverySummary, error)
 }
 
 // Handler 处理新版消息 HTTP 请求。
@@ -90,6 +101,14 @@ type messageHistoryResponse struct {
 
 	// CreatedAt 是消息创建的 UTC 时间。
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type readStateResponse struct {
+	// UserID 是成员 Snowflake 用户 ID 字符串。
+	UserID string `json:"user_id"`
+
+	// LastReadSeq 是成员最后已读序号。
+	LastReadSeq uint64 `json:"last_read_seq"`
 }
 
 // SendText 处理 POST /api/v1/conversations/:conversation_id/messages。
@@ -226,6 +245,82 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	})
 }
 
+// ListReadStates 处理 GET /api/v1/conversations/:conversation_id/read-states。
+func (h *Handler) ListReadStates(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+
+	conversationID, err := strconv.ParseUint(
+		c.Param("conversation_id"),
+		10,
+		64,
+	)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return
+	}
+
+	results, err := h.reader.ListReadStates(
+		c.Request.Context(),
+		userID,
+		conversationID,
+	)
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+
+	response := make([]readStateResponse, 0, len(results))
+	for _, result := range results {
+		response = append(response, readStateResponse{
+			UserID:      strconv.FormatUint(result.UserID, 10),
+			LastReadSeq: result.LastReadSeq,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"read_states": response})
+}
+
+// GetDeliverySummary 处理消息设备送达汇总查询。
+func (h *Handler) GetDeliverySummary(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	conversationID, err := strconv.ParseUint(
+		c.Param("conversation_id"),
+		10,
+		64,
+	)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return
+	}
+	messageID, err := strconv.ParseUint(c.Param("message_id"), 10, 64)
+	if err != nil || messageID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "message_id 格式错误"})
+		return
+	}
+
+	summary, err := h.reader.GetDeliverySummary(
+		c.Request.Context(),
+		userID,
+		conversationID,
+		messageID,
+	)
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"delivered_devices": summary.DeliveredDevices,
+		"delivered_users":   summary.DeliveredUsers,
+	})
+}
+
 func parseReplyToMessageID(
 	c *gin.Context,
 	raw *string,
@@ -273,10 +368,16 @@ func writeMessagingError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidMessage), errors.Is(err, ErrInvalidReply):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrInvalidReadSequence):
+		c.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidReadSequence.Error()})
 	case errors.Is(err, ErrNotMember):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotMember.Error()})
+	case errors.Is(err, ErrDeviceUnavailable):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrDeviceUnavailable.Error()})
 	case errors.Is(err, ErrConversationNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrConversationNotFound.Error()})
+	case errors.Is(err, ErrMessageNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": ErrMessageNotFound.Error()})
 	case errors.Is(err, ErrConversationClosed):
 		c.JSON(http.StatusConflict, gin.H{"error": ErrConversationClosed.Error()})
 	case errors.Is(err, ErrClientMessageConflict):

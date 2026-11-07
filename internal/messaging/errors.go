@@ -24,4 +24,13 @@ var (
 
 	// ErrMessageEventNotFound 表示事件引用的消息事实不存在。
 	ErrMessageEventNotFound = errors.New("消息事件对应的消息不存在")
+
+	// ErrMessageNotFound 表示指定消息不存在或不属于当前会话。
+	ErrMessageNotFound = errors.New("消息不存在")
+
+	// ErrDeviceUnavailable 表示设备不存在、已撤销或不属于当前用户。
+	ErrDeviceUnavailable = errors.New("设备不存在或已失效")
+
+	// ErrInvalidReadSequence 表示已读序号超过会话当前最大序号。
+	ErrInvalidReadSequence = errors.New("已读序号超过会话当前消息序号")
 )

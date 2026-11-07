@@ -22,7 +22,7 @@ func TestClientConcurrentProducersUseSingleWriter(t *testing.T) {
 		if err != nil {
 			return
 		}
-		client := NewClient(7, connection, nil)
+		client := NewClient(7, 99, connection, nil)
 		if !manager.Add(client) {
 			_ = connection.Close()
 			return

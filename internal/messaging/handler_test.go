@@ -22,10 +22,12 @@ type stubTextMessageSender struct {
 }
 
 type stubMessageReader struct {
-	page    MessagePage
-	err     error
-	calls   int
-	command ListMessagesCommand
+	page       MessagePage
+	readStates []ReadStateResult
+	delivery   DeliverySummary
+	err        error
+	calls      int
+	command    ListMessagesCommand
 }
 
 func (s *stubMessageReader) ListMessages(
@@ -35,6 +37,23 @@ func (s *stubMessageReader) ListMessages(
 	s.calls++
 	s.command = command
 	return s.page, s.err
+}
+
+func (s *stubMessageReader) ListReadStates(
+	_ context.Context,
+	_ uint64,
+	_ uint64,
+) ([]ReadStateResult, error) {
+	return s.readStates, s.err
+}
+
+func (s *stubMessageReader) GetDeliverySummary(
+	_ context.Context,
+	_ uint64,
+	_ uint64,
+	_ uint64,
+) (DeliverySummary, error) {
+	return s.delivery, s.err
 }
 
 func (s *stubTextMessageSender) SendText(
@@ -410,6 +429,71 @@ func TestHandlerListMessagesRejectsInvalidRequest(t *testing.T) {
 	}
 }
 
+func TestHandlerListReadStates(t *testing.T) {
+	reader := &stubMessageReader{
+		readStates: []ReadStateResult{
+			{UserID: 42, LastReadSeq: 7},
+			{UserID: 43, LastReadSeq: 5},
+		},
+	}
+	router := newMessagingReaderRouter(reader, 42)
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/conversations/200/read-states",
+		nil,
+	)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d，期望 200，响应 = %s",
+			response.Code,
+			response.Body.String(),
+		)
+	}
+
+	var body struct {
+		ReadStates []readStateResponse `json:"read_states"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析已读状态失败: %v", err)
+	}
+	if len(body.ReadStates) != 2 ||
+		body.ReadStates[0].UserID != "42" ||
+		body.ReadStates[0].LastReadSeq != 7 {
+		t.Fatalf("已读状态响应 = %+v", body)
+	}
+}
+
+func TestHandlerGetDeliverySummary(t *testing.T) {
+	reader := &stubMessageReader{
+		delivery: DeliverySummary{
+			DeliveredDevices: 2,
+			DeliveredUsers:   1,
+		},
+	}
+	router := newMessagingReaderRouter(reader, 42)
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/conversations/200/messages/300/delivery",
+		nil,
+	)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d，期望 200", response.Code)
+	}
+	var body struct {
+		DeliveredDevices uint64 `json:"delivered_devices"`
+		DeliveredUsers   uint64 `json:"delivered_users"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析送达汇总失败: %v", err)
+	}
+	if body.DeliveredDevices != 2 || body.DeliveredUsers != 1 {
+		t.Fatalf("送达汇总 = %+v", body)
+	}
+}
+
 func newMessagingHandlerRouter(
 	sender TextMessageSender,
 	userID uint64,
@@ -448,6 +532,14 @@ func newMessagingReaderRouter(
 	router.GET(
 		"/api/v1/conversations/:conversation_id/messages",
 		handler.ListMessages,
+	)
+	router.GET(
+		"/api/v1/conversations/:conversation_id/read-states",
+		handler.ListReadStates,
+	)
+	router.GET(
+		"/api/v1/conversations/:conversation_id/messages/:message_id/delivery",
+		handler.GetDeliverySummary,
 	)
 	return router
 }

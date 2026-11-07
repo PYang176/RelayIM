@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/redisstore"
 	"log"
@@ -26,11 +27,29 @@ var upgrader = websocket.Upgrader{
 }
 
 // WebsocketHandler 处理 WebSocket 鉴权、连接交付和客户端回执。
-type WebsocketHandler struct{}
+type WebsocketHandler struct {
+	receipts ReceiptService
+}
+
+// ReceiptService 处理新版送达和已读回执。
+type ReceiptService interface {
+	AcknowledgeMessage(
+		ctx context.Context,
+		userID uint64,
+		deviceID uint64,
+		messageID uint64,
+	) error
+	MarkConversationRead(
+		ctx context.Context,
+		userID uint64,
+		conversationID uint64,
+		seq uint64,
+	) error
+}
 
 // NewWebsocketHandler 创建 WebSocket Handler。
-func NewWebsocketHandler() *WebsocketHandler {
-	return &WebsocketHandler{}
+func NewWebsocketHandler(receipts ReceiptService) *WebsocketHandler {
+	return &WebsocketHandler{receipts: receipts}
 }
 
 // Connect 完成鉴权后把连接交给单写协程客户端。
@@ -41,7 +60,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		return
 	}
 
-	userID, err := authn.DefaultManager.ConsumeWSTicket(
+	ticketSession, err := authn.DefaultManager.ConsumeWSTicket(
 		c.Request.Context(),
 		ticket,
 	)
@@ -61,10 +80,11 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	}
 
 	client := NewClient(
-		userID,
+		ticketSession.UserID,
+		ticketSession.DeviceID,
 		conn,
 		func(heartbeatCtx context.Context) {
-			h.updateHeartbeat(heartbeatCtx, userID)
+			h.updateHeartbeat(heartbeatCtx, ticketSession.UserID)
 		},
 	)
 	if !Manager.Add(client) {
@@ -84,11 +104,20 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
-	client.Run(ctx, h.handleClientMessage)
+	client.Run(ctx, func(messageCtx context.Context, raw []byte) error {
+		return h.handleClientMessage(
+			messageCtx,
+			ticketSession.UserID,
+			ticketSession.DeviceID,
+			raw,
+		)
+	})
 }
 
 func (h *WebsocketHandler) handleClientMessage(
-	_ context.Context,
+	ctx context.Context,
+	userID uint64,
+	deviceID uint64,
 	raw []byte,
 ) error {
 	var message WsMessage
@@ -96,9 +125,35 @@ func (h *WebsocketHandler) handleClientMessage(
 		// 非法帧直接忽略；连接仍由读写超时和 Pong 机制保持或关闭。
 		return nil
 	}
-	// 新版送达和已读尚未迁移到 message_deliveries/last_read_seq，
-	// 暂不在 WebSocket Handler 中调用旧 message 表。
-	return nil
+	operationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	switch message.Action {
+	case ActionAck:
+		messageID, err := strconv.ParseUint(message.MessageID, 10, 64)
+		if err != nil || messageID == 0 {
+			return fmt.Errorf("ACK message_id 格式错误")
+		}
+		return h.receipts.AcknowledgeMessage(
+			operationCtx,
+			userID,
+			deviceID,
+			messageID,
+		)
+	case ActionRead:
+		conversationID, err := strconv.ParseUint(message.ConversationID, 10, 64)
+		if err != nil || conversationID == 0 || message.Seq == 0 {
+			return fmt.Errorf("已读回执参数格式错误")
+		}
+		return h.receipts.MarkConversationRead(
+			operationCtx,
+			userID,
+			conversationID,
+			message.Seq,
+		)
+	default:
+		return nil
+	}
 }
 
 func (h *WebsocketHandler) updateHeartbeat(

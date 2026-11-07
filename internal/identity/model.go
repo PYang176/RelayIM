@@ -54,3 +54,30 @@ type userProfile struct {
 func (userProfile) TableName() string {
 	return "user_profiles"
 }
+
+type device struct {
+	// ID 是设备 Snowflake ID。
+	ID uint64 `gorm:"column:id;primaryKey;autoIncrement:false"`
+
+	// UserID 是设备所属用户 Snowflake ID。
+	UserID uint64 `gorm:"column:user_id"`
+
+	// Platform 表示设备平台：1 Web、2 Android、3 iOS、4 Desktop。
+	Platform int `gorm:"column:platform"`
+
+	// DeviceName 是客户端展示名称。
+	DeviceName string `gorm:"column:device_name"`
+
+	// LastSeenAt 是设备最近一次申请 WebSocket Ticket 的 UTC 时间。
+	LastSeenAt *time.Time `gorm:"column:last_seen_at"`
+
+	// RevokedAt 非空表示设备会话已撤销。
+	RevokedAt *time.Time `gorm:"column:revoked_at"`
+
+	// CreatedAt 是设备首次注册的 UTC 时间。
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+func (device) TableName() string {
+	return "devices"
+}

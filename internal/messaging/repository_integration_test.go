@@ -36,6 +36,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	memberID := uint64(snowflake.Generate())
 	outsiderID := uint64(snowflake.Generate())
 	conversationID := uint64(snowflake.Generate())
+	memberDeviceID := uint64(snowflake.Generate())
 	userIDs := []uint64{ownerID, memberID, outsiderID}
 
 	// 先注册清理函数，保证后续任何步骤失败时都不会把测试数据留在本地库。
@@ -44,10 +45,12 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 			query string
 			args  []any
 		}{
+			{"DELETE FROM message_deliveries WHERE device_id = ?", []any{memberDeviceID}},
 			{"DELETE FROM outbox_events WHERE aggregate_id = ?", []any{conversationID}},
 			{"DELETE FROM messages WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
+			{"DELETE FROM devices WHERE id = ?", []any{memberDeviceID}},
 			{"DELETE FROM users WHERE id IN (?, ?, ?)", []any{ownerID, memberID, outsiderID}},
 		}
 		for _, statement := range cleanupStatements {
@@ -67,6 +70,16 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		).Error; err != nil {
 			t.Fatalf("创建测试用户失败: %v", err)
 		}
+	}
+	if err := db.Exec(
+		`INSERT INTO devices
+			(id, user_id, platform, device_name, last_seen_at)
+		 VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP(3))`,
+		memberDeviceID,
+		memberID,
+		"消息回执测试设备",
+	).Error; err != nil {
+		t.Fatalf("创建测试设备失败: %v", err)
 	}
 
 	// 使用群会话测试，因为同一张 conversation_members 表也能代表发送权限。
@@ -226,6 +239,82 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		t.Fatalf("非成员查询历史错误 = %v，期望 ErrNotMember", err)
 	}
 
+	if err := service.AcknowledgeMessage(
+		context.Background(),
+		memberID,
+		memberDeviceID,
+		first.MessageID,
+	); err != nil {
+		t.Fatalf("记录消息送达失败: %v", err)
+	}
+	// 重复 ACK 必须保持幂等。
+	if err := service.AcknowledgeMessage(
+		context.Background(),
+		memberID,
+		memberDeviceID,
+		first.MessageID,
+	); err != nil {
+		t.Fatalf("重复记录消息送达失败: %v", err)
+	}
+	var deliveryCount int64
+	if err := db.Model(&messageDelivery{}).
+		Where("message_id = ? AND device_id = ?", first.MessageID, memberDeviceID).
+		Count(&deliveryCount).Error; err != nil {
+		t.Fatalf("查询送达回执失败: %v", err)
+	}
+	if deliveryCount != 1 {
+		t.Fatalf("送达回执数量 = %d，期望 1", deliveryCount)
+	}
+	deliverySummary, err := service.GetDeliverySummary(
+		context.Background(),
+		ownerID,
+		conversationID,
+		first.MessageID,
+	)
+	if err != nil {
+		t.Fatalf("查询送达汇总失败: %v", err)
+	}
+	if deliverySummary.DeliveredDevices != 1 ||
+		deliverySummary.DeliveredUsers != 1 {
+		t.Fatalf("送达汇总 = %+v，期望 1 台设备、1 个用户", deliverySummary)
+	}
+
+	if err := service.MarkConversationRead(
+		context.Background(),
+		memberID,
+		conversationID,
+		4,
+	); err != nil {
+		t.Fatalf("推进已读游标失败: %v", err)
+	}
+	if err := service.MarkConversationRead(
+		context.Background(),
+		memberID,
+		conversationID,
+		3,
+	); err != nil {
+		t.Fatalf("重复推进较小已读游标失败: %v", err)
+	}
+	readStates, err := service.ListReadStates(
+		context.Background(),
+		memberID,
+		conversationID,
+	)
+	if err != nil {
+		t.Fatalf("查询已读状态失败: %v", err)
+	}
+	if !hasReadState(readStates, memberID, 4) {
+		t.Fatalf("成员已读状态 = %+v，期望 seq=4", readStates)
+	}
+	if err := service.MarkConversationRead(
+		context.Background(),
+		memberID,
+		conversationID,
+		7,
+	); !errors.Is(err, ErrInvalidReadSequence) {
+		t.Fatalf("超范围已读错误 = %v，期望 ErrInvalidReadSequence", err)
+	}
+
 	// 最后核对 Outbox 数量：1 条首消息加 5 条并发消息，每条都必须有事件。
 	var outboxCount int64
 	if err := db.Model(&outboxEvent{}).
@@ -256,4 +345,13 @@ func equalSequences(got []uint64, want []uint64) bool {
 		}
 	}
 	return true
+}
+
+func hasReadState(states []ReadStateResult, userID uint64, seq uint64) bool {
+	for _, state := range states {
+		if state.UserID == userID && state.LastReadSeq == seq {
+			return true
+		}
+	}
+	return false
 }

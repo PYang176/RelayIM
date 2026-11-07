@@ -24,6 +24,7 @@ type MessageHandler func(ctx context.Context, message []byte) error
 // Client 表示一个 WebSocket 连接，所有写操作只能由 writePump 执行。
 type Client struct {
 	userID    uint64
+	deviceID  uint64
 	conn      *websocket.Conn
 	send      chan []byte
 	done      chan struct{}
@@ -34,21 +35,28 @@ type Client struct {
 // NewClient 创建单写协程客户端。
 func NewClient(
 	userID uint64,
+	deviceID uint64,
 	conn *websocket.Conn,
 	onPong func(context.Context),
 ) *Client {
 	return &Client{
-		userID: userID,
-		conn:   conn,
-		send:   make(chan []byte, defaultSendQueueSize),
-		done:   make(chan struct{}),
-		onPong: onPong,
+		userID:   userID,
+		deviceID: deviceID,
+		conn:     conn,
+		send:     make(chan []byte, defaultSendQueueSize),
+		done:     make(chan struct{}),
+		onPong:   onPong,
 	}
 }
 
 // UserID 返回连接对应的 Snowflake 用户 ID。
 func (c *Client) UserID() uint64 {
 	return c.userID
+}
+
+// DeviceID 返回连接绑定设备 Snowflake ID。
+func (c *Client) DeviceID() uint64 {
+	return c.deviceID
 }
 
 // Enqueue 非阻塞提交消息；队列满时关闭慢连接，避免阻塞其他用户。
