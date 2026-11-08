@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"ginChatProject/internal/config"
@@ -12,24 +13,45 @@ import (
 )
 
 const wsTicketRateLimitScript = `
-local userCount = redis.call("INCR", KEYS[1])
-if userCount == 1 then
-    redis.call("PEXPIRE", KEYS[1], ARGV[3] + 1000)
-end
-if userCount > tonumber(ARGV[1]) then
-    return {0, userCount, 0, redis.call("PTTL", KEYS[1]), 1}
+local now = tonumber(ARGV[4])
+local window = tonumber(ARGV[3])
+local cutoff = now - window
+
+redis.call("ZREMRANGEBYSCORE", KEYS[1], "-inf", cutoff)
+redis.call("ZREMRANGEBYSCORE", KEYS[2], "-inf", cutoff)
+
+local userCount = redis.call("ZCARD", KEYS[1])
+local globalCount = redis.call("ZCARD", KEYS[2])
+local userLimit = tonumber(ARGV[1])
+local globalLimit = tonumber(ARGV[2])
+
+if userCount >= userLimit then
+    local oldest = redis.call("ZRANGE", KEYS[1], 0, 0, "WITHSCORES")
+    local retryAfter = 1
+    if #oldest >= 2 then
+        retryAfter = math.max(1, tonumber(oldest[2]) + window - now)
+    end
+    return {0, userCount, globalCount, retryAfter, 1}
 end
 
-local globalCount = redis.call("INCR", KEYS[2])
-if globalCount == 1 then
-    redis.call("PEXPIRE", KEYS[2], ARGV[3] + 1000)
-end
-if globalCount > tonumber(ARGV[2]) then
-    return {0, userCount, globalCount, redis.call("PTTL", KEYS[2]), 2}
+if globalCount >= globalLimit then
+    local oldest = redis.call("ZRANGE", KEYS[2], 0, 0, "WITHSCORES")
+    local retryAfter = 1
+    if #oldest >= 2 then
+        retryAfter = math.max(1, tonumber(oldest[2]) + window - now)
+    end
+    return {0, userCount, globalCount, retryAfter, 2}
 end
 
-return {1, userCount, globalCount, 0, 0}
+redis.call("ZADD", KEYS[1], now, ARGV[5])
+redis.call("ZADD", KEYS[2], now, ARGV[5])
+redis.call("PEXPIRE", KEYS[1], window + 1000)
+redis.call("PEXPIRE", KEYS[2], window + 1000)
+
+return {1, userCount + 1, globalCount + 1, 0, 0}
 `
+
+var wsTicketRequestSequence atomic.Uint64
 
 // Decision 是一次限流检查的结果。
 type Decision struct {
@@ -43,7 +65,7 @@ type Decision struct {
 	Scope string
 }
 
-// WSTicketLimiter 使用 Redis 原子检查全局和单用户固定窗口配额。
+// WSTicketLimiter 使用 Redis ZSET 原子检查全局和单用户滑动窗口配额。
 type WSTicketLimiter struct {
 	client       redis.Scripter
 	script       *redis.Script
@@ -51,6 +73,7 @@ type WSTicketLimiter struct {
 	userLimit    int
 	globalLimit  int
 	windowMillis int
+	now          func() time.Time
 }
 
 // NewWSTicketLimiter 创建 WebSocket Ticket 限流器。
@@ -66,6 +89,7 @@ func NewWSTicketLimiter(
 		userLimit:    cfg.UserLimit,
 		globalLimit:  cfg.GlobalLimit,
 		windowMillis: cfg.WindowMilliseconds,
+		now:          time.Now,
 	}
 }
 
@@ -74,17 +98,20 @@ func (l *WSTicketLimiter) Allow(
 	ctx context.Context,
 	userID uint64,
 ) (Decision, error) {
-	window := time.Now().UnixMilli() / int64(l.windowMillis)
+	now := l.now().UnixMilli()
 	userKey := fmt.Sprintf(
-		"%s:ws_ticket:user:%d:%d",
+		"%s:ws_ticket:user:%d:sliding",
 		l.keyPrefix,
 		userID,
-		window,
 	)
 	globalKey := fmt.Sprintf(
-		"%s:ws_ticket:global:%d",
+		"%s:ws_ticket:global:sliding",
 		l.keyPrefix,
-		window,
+	)
+	member := fmt.Sprintf(
+		"%d:%d",
+		now,
+		wsTicketRequestSequence.Add(1),
 	)
 	values, err := l.script.Run(
 		ctx,
@@ -93,6 +120,8 @@ func (l *WSTicketLimiter) Allow(
 		l.userLimit,
 		l.globalLimit,
 		l.windowMillis,
+		now,
+		member,
 	).Int64Slice()
 	if err != nil {
 		return Decision{}, fmt.Errorf("执行 WebSocket Ticket 限流: %w", err)

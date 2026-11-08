@@ -3,9 +3,9 @@
     "checks": {
       "type": "rate",
       "values": {
-        "fails": 0,
         "rate": 1,
-        "passes": 4
+        "passes": 4,
+        "fails": 0
       },
       "thresholds": {
         "rate>0.99": {
@@ -16,9 +16,9 @@
     "http_req_failed": {
       "type": "rate",
       "values": {
+        "fails": 13,
         "rate": 0.43478260869565216,
-        "passes": 10,
-        "fails": 13
+        "passes": 10
       },
       "thresholds": {}
     },
@@ -26,7 +26,7 @@
       "type": "counter",
       "values": {
         "count": 10,
-        "rate": 7.235083281744959
+        "rate": 7.250049875993117
       },
       "thresholds": {}
     },
@@ -34,7 +34,7 @@
       "type": "counter",
       "values": {
         "count": 10,
-        "rate": 7.235083281744959
+        "rate": 7.250049875993117
       },
       "thresholds": {
         "count>0": {

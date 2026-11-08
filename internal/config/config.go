@@ -83,12 +83,12 @@ type ObjectStorageConfig struct {
 
 // WSTicketRateLimitConfig 控制 WebSocket Ticket 的瞬时请求速率。
 type WSTicketRateLimitConfig struct {
-	// GlobalLimit 是单个时间窗口内全进程共享的 Ticket 请求上限。
+	// GlobalLimit 是滑动时间窗口内全进程共享的 Ticket 请求上限。
 	GlobalLimit int `mapstructure:"global_limit"`
 
-	// UserLimit 是单个用户在时间窗口内的 Ticket 请求上限。
+	// UserLimit 是单个用户在滑动时间窗口内的 Ticket 请求上限。
 	UserLimit int `mapstructure:"user_limit"`
 
-	// WindowMilliseconds 是固定限流窗口长度。
+	// WindowMilliseconds 是滑动限流窗口长度。
 	WindowMilliseconds int `mapstructure:"window_ms"`
 }
