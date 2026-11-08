@@ -1,0 +1,125 @@
+{
+  "scenario": {
+    "connectionCount": 2000,
+    "connectionsPerUser": 10,
+    "userCount": 200,
+    "holdSeconds": 20
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 2000,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_connection_success": {
+      "type": "rate",
+      "values": {
+        "fails": 0,
+        "rate": 1,
+        "passes": 2000
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_connecting": {
+      "type": "trend",
+      "values": {
+        "p(95)": 8.732476749999998,
+        "p(99)": 39.01848525999999,
+        "max": 72.250995,
+        "avg": 5.974651945999991,
+        "min": 3.043435,
+        "med": 4.693313,
+        "p(90)": 7.097631900000005
+      },
+      "thresholds": {}
+    },
+    "ws_connect_duration": {
+      "type": "trend",
+      "values": {
+        "avg": 6.2255,
+        "min": 3,
+        "med": 5,
+        "p(90)": 7.100000000000136,
+        "p(95)": 9,
+        "p(99)": 39.00999999999999,
+        "max": 72
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        }
+      }
+    },
+    "ws_sessions": {
+      "type": "counter",
+      "values": {
+        "count": 2000,
+        "rate": 40.17078259699402
+      },
+      "thresholds": {}
+    },
+    "ws_unexpected_close": {
+      "type": "counter",
+      "values": {
+        "count": 0,
+        "rate": 0
+      },
+      "thresholds": {
+        "count==0": {
+          "ok": true
+        }
+      }
+    },
+    "ws_session_duration": {
+      "type": "trend",
+      "values": {
+        "min": 20003.665207,
+        "med": 20005.7582315,
+        "p(90)": 20008.2974831,
+        "p(95)": 20009.9652618,
+        "p(99)": 20039.906476239998,
+        "max": 20072.751463,
+        "avg": 20007.00827521849
+      },
+      "thresholds": {}
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 2400
+      },
+      "thresholds": {}
+    },
+    "vus_max": {
+      "type": "gauge",
+      "values": {
+        "value": 2000,
+        "min": 2000,
+        "max": 2000
+      },
+      "thresholds": {}
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 2400,
+        "rate": 48.20493911639282
+      },
+      "thresholds": {}
+    }
+  }
+}

@@ -57,7 +57,7 @@ docker run --rm `
 
 - [HTTP 消息基线：10 VU / 30 秒](./reports/http-baseline.md)
 - [WebSocket 投递基线：20 个在线连接 / 30 秒](./reports/websocket-baseline.md)
-- [WebSocket 空闲连接阶梯：100 / 500 / 1,000](./reports/websocket-connections.md)
+- [WebSocket 空闲连接阶梯：100 / 500 / 1,000 / 2,000 / 5,000](./reports/websocket-connections.md)
 
 WebSocket 连接与投递基线使用：
 
@@ -81,6 +81,7 @@ docker run --rm `
   -e BASE_URL=http://host.docker.internal:8081 `
   -e WS_CONNECTIONS=100 `
   -e HOLD_SECONDS=20 `
+  -e CONNECT_RAMP_SECONDS=5 `
   -e SUMMARY_FILE=websocket-connections-100.json `
   -v "${PWD}:/work" `
   -w /work `

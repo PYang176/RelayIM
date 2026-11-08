@@ -11,21 +11,31 @@ const connectionCount = Number(__ENV.WS_CONNECTIONS || 100)
 const connectionsPerUser = 10
 const userCount = Math.ceil(connectionCount / connectionsPerUser)
 const holdSeconds = Number(__ENV.HOLD_SECONDS || 20)
+const connectionRampSeconds = Number(__ENV.CONNECT_RAMP_SECONDS || 5)
+const scenarioTailSeconds = 5
 
 const wsConnectionSuccess = new Rate('ws_connection_success')
 const wsUnexpectedClose = new Counter('ws_unexpected_close')
 const wsConnectDuration = new Trend('ws_connect_duration')
 
 export const options = {
-    setupTimeout: '2m',
+    setupTimeout: '3m',
     scenarios: {
         connections: {
-            executor: 'per-vu-iterations',
+            executor: 'ramping-vus',
             exec: 'holdConnection',
-            vus: connectionCount,
-            iterations: 1,
-            maxDuration: `${holdSeconds + 10}s`,
-            gracefulStop: '10s',
+            startVUs: 0,
+            stages: [
+                {
+                    duration: `${connectionRampSeconds}s`,
+                    target: connectionCount,
+                },
+                {
+                    duration: `${holdSeconds + scenarioTailSeconds}s`,
+                    target: connectionCount,
+                },
+            ],
+            gracefulRampDown: '5s',
         },
     },
     thresholds: {
@@ -82,11 +92,19 @@ export function setup() {
         const session = login(username)
         users.push({token: session.token})
     }
-    return {runID, users}
+    // setup 返回后场景时间固定，所有连接持有到该绝对时间，
+    // 保证完成爬坡后至少 holdSeconds 内连接数是完整的目标值。
+    const holdUntil =
+        Date.now() +
+        (connectionRampSeconds + holdSeconds + 1) * 1000
+    return {runID, users, holdUntil}
 }
 
 export function holdConnection(data) {
-    sleep(Math.random() * 5)
+    if (Date.now() >= data.holdUntil) {
+        sleep(1)
+        return
+    }
 
     const userIndex =
         Math.floor((__VU - 1) / connectionsPerUser) % data.users.length
@@ -127,7 +145,7 @@ export function holdConnection(data) {
             socket.setTimeout(() => {
                 expectedClose = true
                 socket.close()
-            }, holdSeconds * 1000)
+            }, Math.max(100, data.holdUntil - Date.now()))
         },
     )
     check(response, {
@@ -172,6 +190,8 @@ export function handleSummary(data) {
                 connectionsPerUser,
                 userCount,
                 holdSeconds,
+                connectionRampSeconds,
+                scenarioTailSeconds,
             },
             metrics,
         }, null, 2),

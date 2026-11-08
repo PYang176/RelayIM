@@ -1,0 +1,127 @@
+{
+  "scenario": {
+    "connectionCount": 5000,
+    "connectionsPerUser": 10,
+    "userCount": 500,
+    "holdSeconds": 20,
+    "connectionRampSeconds": 45,
+    "scenarioTailSeconds": 5
+  },
+  "metrics": {
+    "ws_sessions": {
+      "type": "counter",
+      "values": {
+        "count": 5017,
+        "rate": 38.31450886626073
+      },
+      "thresholds": {}
+    },
+    "ws_unexpected_close": {
+      "type": "counter",
+      "values": {
+        "count": 0,
+        "rate": 0
+      },
+      "thresholds": {
+        "count==0": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 6017,
+        "rate": 45.951445056366184
+      },
+      "thresholds": {}
+    },
+    "vus_max": {
+      "type": "gauge",
+      "values": {
+        "min": 5000,
+        "max": 5000,
+        "value": 5000
+      },
+      "thresholds": {}
+    },
+    "ws_connecting": {
+      "type": "trend",
+      "values": {
+        "avg": 7.797802791708192,
+        "min": 3.039649,
+        "med": 4.239555,
+        "p(90)": 5.334900800000001,
+        "p(95)": 6.217551999999998,
+        "p(99)": 20.903909880000086,
+        "max": 1104.030376
+      },
+      "thresholds": {}
+    },
+    "ws_session_duration": {
+      "type": "trend",
+      "values": {
+        "med": 43504.818056,
+        "p(90)": 61151.4640176,
+        "p(95)": 63776.888197,
+        "p(99)": 65549.54044428,
+        "max": 66076.948854,
+        "avg": 43415.005639225164,
+        "min": 148.649119
+      },
+      "thresholds": {}
+    },
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 0.9990033884791708,
+        "passes": 5012,
+        "fails": 5
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 6017
+      },
+      "thresholds": {}
+    },
+    "ws_connect_duration": {
+      "type": "trend",
+      "values": {
+        "avg": 7.359537110933422,
+        "min": 3,
+        "med": 5,
+        "p(90)": 6,
+        "p(95)": 7,
+        "p(99)": 20,
+        "max": 1104
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        }
+      }
+    },
+    "ws_connection_success": {
+      "type": "rate",
+      "values": {
+        "rate": 0.9990033884791708,
+        "passes": 5012,
+        "fails": 5
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    }
+  }
+}
