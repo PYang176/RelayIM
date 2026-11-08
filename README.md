@@ -188,6 +188,9 @@ docs/              需求、协议、数据库和运维文档
 - [WebSocket 协议](docs/WebSocket协议.md)
 - [在线状态](docs/在线状态.md)
 - [雪花 ID 与时钟回拨](docs/雪花ID与时钟回拨.md)
+- [OpenAPI 接口契约](docs/OpenAPI指南.md)
+- [Swagger YAML](docs/swagger.yaml)
+- [Swagger JSON](docs/swagger.json)
 - [RabbitMQ 可靠消息](docs/RabbitMQ可靠消息.md)
 - [可观测性](docs/可观测性.md)
 - [接口限流](docs/接口限流.md)
@@ -198,5 +201,4 @@ docs/              需求、协议、数据库和运维文档
 - 当前 CI 覆盖单实例集成链路，不包含两实例故障切换和长时间稳定性测试。
 - 尚未接入 OpenTelemetry Trace、举报审核和后台管理系统。
 - 对象存储已控制普通成员访问，但孤儿附件定时清理和病毒扫描尚未实现。
-- OpenAPI 文件仍是旧版遗留内容，当前以 `docs/*.md` 中的新接口文档为准。
 

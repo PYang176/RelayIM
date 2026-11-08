@@ -3,14 +3,9 @@ go get -u gorm.io/driver/sqlite
 go get -u github.com/gin-gonic/gin
 go get github.com/spf13/viper
 
-//先下载swagger命令行工具
-go install github.com/swaggo/swag/cmd/swag@latest
-//然后下载swagger源码依赖
-go get -u github.com/swaggo/swag/cmd/swag
-//然后下载 swagger 的静态文件库，html，css，js 之类的，都被嵌到了 go 代码中。
-go get github.com/swaggo/files@latest
-//最后下载 swagger 的 gin 适配库
-go get github.com/swaggo/gin-swagger@latest
+//OpenAPI 采用契约优先，当前无需安装 Swag 注解生成器或 gin-swagger。
+//YAML 转 JSON 使用项目已有的 YAML 库：
+//go run ./scripts/openapi
 
 //校验库
 go get github.com/go-playground/validator/v10

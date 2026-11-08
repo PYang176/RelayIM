@@ -35,10 +35,6 @@ func NewUserHandler(
 }
 
 // List HTTP 接口：GET /users
-// @Tags users
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Router /users [get]
 func (h *UserHandler) List(c *gin.Context) {
 	users, err := h.svc.GetUserList(c.Request.Context())
 	if err != nil {
@@ -48,15 +44,7 @@ func (h *UserHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
-// Create
-// @Summary 创建用户
-// @Description 新增一个用户
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param user body dto.UserCreateDTO true "用户信息"
-// @Success 200 {object} map[string]string
-// @Router /users [post]
+// Create 创建旧版用户；当前主路由已下线该接口。
 func (h *UserHandler) Create(c *gin.Context) {
 	var req dto.UserCreateDTO
 
@@ -75,13 +63,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "新增用户成功"})
 }
 
-// Delete
-// @Summary 删除用户
-// @Description 根据用户ID删除用户（逻辑删除）
-// @Tags users
-// @Param id path int true "用户ID"
-// @Success 200 {object} map[string]string
-// @Router /users/{id} [delete]
+// Delete 删除旧版用户；当前主路由已下线该接口。
 func (h *UserHandler) Delete(c *gin.Context) {
 	//从 URL 中获取路径参数
 	idStr := c.Param("id")
@@ -116,13 +98,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "删除用户成功"})
 }
 
-// Update
-// @Summary 更新用户
-// @Tags users
-// @Param id path int true "用户ID"
-// @Param user body dto.UserUpdateDTO true "用户信息"
-// @Success 200 {object} map[string]string
-// @Router /users/{id} [put]
+// Update 更新旧版用户；当前主路由已下线该接口。
 func (h *UserHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -154,17 +130,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 }
 
-// Login
-// @Summary 用户登录
-// @Description 用户登录并返回 JWT Token
-// @Tags users
-// @Accept json
-// @Produce json
-// @Param user body dto.UserLoginDTO true "登录信息"
-// @Success 200 {object} map[string]string "token"
-// @Failure 400 {object} map[string]string "参数错误"
-// @Failure 401 {object} map[string]string "认证失败"
-// @Router /users/login [post]
+// Login 处理旧版登录；当前主路由已下线该接口。
 func (h *UserHandler) Login(c *gin.Context) {
 	var req dto.UserLoginDTO
 

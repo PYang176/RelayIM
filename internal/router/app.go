@@ -49,10 +49,6 @@ func Router(
 		r.GET("/metrics", gin.WrapH(metrics.Handler()))
 	}
 
-	// 调试接口文档
-	//docs.SwaggerInfo.BasePath = ""
-	//r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
 	// 新版用户认证模块
 	identityrouter.Register(
 		r,

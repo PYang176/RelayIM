@@ -1,169 +1,1625 @@
-definitions:
-  dto.UserCreateDTO:
-    properties:
-      confirm_password:
-        type: string
-      name:
-        maxLength: 20
-        minLength: 2
-        type: string
-      password:
-        minLength: 6
-        type: string
-    required:
-    - confirm_password
-    - name
-    - password
-    type: object
-  dto.UserLoginDTO:
-    properties:
-      name:
-        type: string
-      password:
-        type: string
-    required:
-    - name
-    - password
-    type: object
-  dto.UserUpdateDTO:
-    properties:
-      email:
-        type: string
-      name:
-        maxLength: 20
-        minLength: 2
-        type: string
-      phone:
-        type: string
-    type: object
+openapi: 3.0.3
 info:
-  contact: {}
+  title: GinChat API
+  version: 1.0.0
+  description: |
+    GinChat 即时通讯服务的 HTTP 接口契约。
+
+    - Snowflake ID 一律使用字符串，避免 JavaScript 数字精度丢失。
+    - 除注册、登录、刷新、健康检查和首页外，接口均使用 Bearer JWT。
+    - 限流接口可能返回 429，并携带 Retry-After 与 X-RateLimit-Scope。
+    - WebSocket 建连流程和实时事件见 docs/WebSocket协议.md。
+servers:
+  - url: http://127.0.0.1:8081
+    description: 本地开发环境
+tags:
+  - name: Auth
+    description: 注册、登录、令牌轮换、退出和个人资料
+  - name: Friendship
+    description: 用户搜索、好友申请和好友关系
+  - name: Conversation
+    description: 私聊、群聊和群成员治理
+  - name: Message
+    description: 消息、回执、撤回和附件
+  - name: Presence
+    description: 多设备在线状态
+  - name: WebSocket
+    description: 一次性 Ticket 建连
+  - name: Operations
+    description: 健康检查、指标和首页
+security:
+  - bearerAuth: []
 paths:
   /:
     get:
-      description: 返回系统欢迎语
-      produces:
-      - application/json
+      tags: [Operations]
+      summary: 首页欢迎信息
+      operationId: getIndex
+      security: []
       responses:
         "200":
-          description: OK
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+                    example: welcome
+  /health/live:
+    get:
+      tags: [Operations]
+      summary: 存活检查
+      operationId: getLiveHealth
+      security: []
+      responses:
+        "200":
+          description: 进程存活
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /health/ready:
+    get:
+      tags: [Operations]
+      summary: 就绪检查
+      operationId: getReadyHealth
+      security: []
+      responses:
+        "200":
+          description: 依赖全部可用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /metrics:
+    get:
+      tags: [Operations]
+      summary: Prometheus 指标
+      operationId: getMetrics
+      security: []
+      responses:
+        "200":
+          description: Prometheus 文本格式指标
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册用户
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录并签发令牌
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 原子轮换 Refresh Token
+      operationId: refreshAccessToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: 轮换成功，旧 Refresh Token 立即失效
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出登录
+      operationId: logoutUser
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: Access Token 和可选 Refresh Token 已撤销
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/auth/ws-ticket:
+    post:
+      tags: [Auth, WebSocket]
+      summary: 申请一次性 WebSocket Ticket
+      operationId: issueWebSocketTicket
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WSTicketRequest"
+      responses:
+        "200":
+          description: Ticket 签发成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WSTicketResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/me:
+    get:
+      tags: [Auth]
+      summary: 查询当前用户
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: 当前用户公开资料
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Auth]
+      summary: 修改当前用户资料
+      operationId: updateCurrentUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: 更新后的用户资料
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/users/search:
+    get:
+      tags: [Friendship]
+      summary: 搜索用户
+      operationId: searchUsers
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: 用户名或昵称关键字
           schema:
             type: string
-      summary: 首页欢迎信息
-      tags:
-      - index
-  /users:
-    get:
-      produces:
-      - application/json
+            maxLength: 100
       responses:
         "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      tags:
-      - users
-    post:
-      consumes:
-      - application/json
-      description: 新增一个用户
-      parameters:
-      - description: 用户信息
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UserCreateDTO'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 创建用户
-      tags:
-      - users
-  /users/{id}:
-    delete:
-      description: 根据用户ID删除用户（逻辑删除）
-      parameters:
-      - description: 用户ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 删除用户
-      tags:
-      - users
-    put:
-      parameters:
-      - description: 用户ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: 用户信息
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UserUpdateDTO'
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 更新用户
-      tags:
-      - users
-  /users/login:
-    post:
-      consumes:
-      - application/json
-      description: 用户登录并返回 JWT Token
-      parameters:
-      - description: 登录信息
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UserLoginDTO'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: token
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+          description: 最多 20 条公开用户资料
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users]
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublicUser"
         "400":
-          description: 参数错误
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: 认证失败
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/friend-requests:
+    post:
+      tags: [Friendship]
+      summary: 发送好友申请
+      operationId: sendFriendRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FriendRequestCreate"
+      responses:
+        "201":
+          description: 好友申请已发送
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/friend-requests/received:
+    get:
+      tags: [Friendship]
+      summary: 查询收到的好友申请
+      operationId: listReceivedFriendRequests
+      responses:
+        "200":
+          description: 待处理的收到申请
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequestList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/friend-requests/sent:
+    get:
+      tags: [Friendship]
+      summary: 查询发出的好友申请
+      operationId: listSentFriendRequests
+      responses:
+        "200":
+          description: 当前用户发出的申请
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequestList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/friend-requests/{request_id}/accept:
+    post:
+      tags: [Friendship]
+      summary: 同意好友申请
+      operationId: acceptFriendRequest
+      parameters:
+        - $ref: "#/components/parameters/FriendRequestID"
+      responses:
+        "200":
+          description: 申请已同意并建立好友关系
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/friend-requests/{request_id}/reject:
+    post:
+      tags: [Friendship]
+      summary: 拒绝好友申请
+      operationId: rejectFriendRequest
+      parameters:
+        - $ref: "#/components/parameters/FriendRequestID"
+      responses:
+        "200":
+          description: 申请已拒绝
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/friends:
+    get:
+      tags: [Friendship]
+      summary: 查询好友列表
+      operationId: listFriends
+      responses:
+        "200":
+          description: 当前用户的好友
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [friends]
+                properties:
+                  friends:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Friend"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/friends/{user_id}/remark:
+    put:
+      tags: [Friendship]
+      summary: 设置或清除好友备注
+      operationId: setFriendRemark
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemarkRequest"
+      responses:
+        "204":
+          description: 备注已更新；空字符串表示删除备注
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/friends/{user_id}:
+    delete:
+      tags: [Friendship]
+      summary: 删除好友
+      operationId: deleteFriend
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "204":
+          description: 好友关系已软删除
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/presence/query:
+    post:
+      tags: [Presence]
+      summary: 批量查询在线状态
+      operationId: queryPresence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresenceQuery"
+      responses:
+        "200":
+          description: 用户在线状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresenceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/conversations:
+    get:
+      tags: [Conversation]
+      summary: 查询当前用户会话列表
+      operationId: listConversations
+      responses:
+        "200":
+          description: 按最近更新时间倒序的会话
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [conversations]
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Conversation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/conversations/private:
+    post:
+      tags: [Conversation]
+      summary: 创建或获取私聊
+      operationId: createDirectConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDirectRequest"
+      responses:
+        "200":
+          description: 私聊已存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "201":
+          description: 新建私聊
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/groups:
+    post:
+      tags: [Conversation]
+      summary: 创建群聊
+      operationId: createGroupConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupRequest"
+      responses:
+        "201":
+          description: 群聊创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/conversations/{conversation_id}/members:
+    get:
+      tags: [Conversation]
+      summary: 查询群成员
+      operationId: listConversationMembers
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        "200":
+          description: 当前有效成员
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [members]
+                properties:
+                  members:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConversationMember"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Conversation]
+      summary: 邀请好友入群
+      operationId: inviteConversationMembers
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteMembersRequest"
+      responses:
+        "200":
+          description: 邀请完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [member_count]
+                properties:
+                  member_count:
+                    type: integer
+                    format: int64
+                    minimum: 1
+                    example: 4
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/conversations/{conversation_id}/members/{user_id}:
+    delete:
+      tags: [Conversation]
+      summary: 移除成员或主动退群
+      operationId: removeConversationMember
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "204":
+          description: 成员已软退出
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/conversations/{conversation_id}/members/{user_id}/role:
+    put:
+      tags: [Conversation]
+      summary: 设置或取消群管理员
+      operationId: setConversationMemberRole
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRoleRequest"
+      responses:
+        "204":
+          description: 角色已更新
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/transfer-owner:
+    post:
+      tags: [Conversation]
+      summary: 转让群主
+      operationId: transferConversationOwner
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnerRequest"
+      responses:
+        "204":
+          description: 群主和双方角色已原子更新
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/dissolve:
+    post:
+      tags: [Conversation]
+      summary: 解散群聊
+      operationId: dissolveConversation
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        "204":
+          description: 群聊已解散
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/profile:
+    put:
+      tags: [Conversation]
+      summary: 修改群名称和头像
+      operationId: updateConversationProfile
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupProfileRequest"
+      responses:
+        "200":
+          description: 更新后的群资料
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupProfileResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/conversations/{conversation_id}/read-states:
+    get:
+      tags: [Message]
+      summary: 查询成员已读游标
+      operationId: listConversationReadStates
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        "200":
+          description: 成员已读游标
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [read_states]
+                properties:
+                  read_states:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReadState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/messages:
+    get:
+      tags: [Message]
+      summary: 查询历史消息
+      operationId: listMessages
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - name: after_seq
+          in: query
+          required: false
+          description: 返回该序号之后的消息，按升序
           schema:
-            additionalProperties:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: before_seq
+          in: query
+          required: false
+          description: 返回该序号之前的最近一页消息
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 按 seq 升序返回的消息页
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Message]
+      summary: 发送文本、图片或文件消息
+      operationId: sendMessage
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: 首次接受消息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageAccepted"
+        "200":
+          description: 幂等重试返回原消息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/conversations/{conversation_id}/messages/{message_id}:
+    delete:
+      tags: [Message]
+      summary: 撤回消息
+      operationId: recallMessage
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        "204":
+          description: 消息已撤回，重复调用保持幂等
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/conversations/{conversation_id}/messages/{message_id}/delivery:
+    get:
+      tags: [Message]
+      summary: 查询消息送达汇总
+      operationId: getMessageDeliverySummary
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        "200":
+          description: 按设备和用户去重的送达数量
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliverySummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/attachments:
+    post:
+      tags: [Message]
+      summary: 上传聊天附件
+      operationId: uploadAttachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: 附件已写入对象存储和 MySQL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attachment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/attachments/{attachment_id}:
+    get:
+      tags: [Message]
+      summary: 查询附件信息和短时访问地址
+      operationId: getAttachment
+      parameters:
+        - $ref: "#/components/parameters/AttachmentID"
+      responses:
+        "200":
+          description: 附件元数据和短时预签名地址
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attachment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/attachments/{attachment_id}/content:
+    get:
+      tags: [Message]
+      summary: 下载附件内容
+      operationId: downloadAttachment
+      parameters:
+        - $ref: "#/components/parameters/AttachmentID"
+      responses:
+        "200":
+          description: 附件二进制内容
+          headers:
+            Content-Disposition:
+              description: 下载文件名或内联图片
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /ws:
+    get:
+      tags: [WebSocket]
+      summary: 使用一次性 Ticket 建立 WebSocket
+      operationId: connectWebSocket
+      security: []
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          description: 30 秒有效、单次使用的 WebSocket Ticket
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket 协议升级成功
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UserID:
+      name: user_id
+      in: path
+      required: true
+      description: Snowflake 用户 ID 字符串
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
+    ConversationID:
+      name: conversation_id
+      in: path
+      required: true
+      description: Snowflake 会话 ID 字符串
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
+    MessageID:
+      name: message_id
+      in: path
+      required: true
+      description: Snowflake 消息 ID 字符串
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
+    AttachmentID:
+      name: attachment_id
+      in: path
+      required: true
+      description: Snowflake 附件 ID 字符串
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
+    FriendRequestID:
+      name: request_id
+      in: path
+      required: true
+      description: Snowflake 好友申请 ID 字符串
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
+  headers:
+    RetryAfter:
+      description: 建议等待的秒数
+      schema:
+        type: integer
+        minimum: 1
+    RateLimitScope:
+      description: 触发限流的范围
+      schema:
+        type: string
+        enum: [user, ip, global]
+  responses:
+    BadRequest:
+      description: 请求参数或业务输入不合法
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: 缺少有效登录身份或凭证已失效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: 当前用户没有执行该操作的权限
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: 资源不存在或当前用户无权查看
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: 资源状态冲突或幂等键冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PayloadTooLarge:
+      description: 请求体或上传文件超过限制
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: 请求超过滑动窗口配额
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Scope:
+          $ref: "#/components/headers/RateLimitScope"
+        Cache-Control:
+          schema:
+            type: string
+            example: no-store
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServiceUnavailable:
+      description: Redis、认证、消息队列或对象存储暂时不可用
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    SnowflakeID:
+      type: string
+      pattern: "^[1-9][0-9]*$"
+      example: "1839281749283749120"
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: 请求参数格式错误
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    HealthResponse:
+      type: object
+      additionalProperties: true
+    PublicUser:
+      type: object
+      required: [id, username, nickname, avatar_url]
+      properties:
+        id:
+          $ref: "#/components/schemas/SnowflakeID"
+        username:
+          type: string
+          example: alice
+        nickname:
+          type: string
+          example: Alice
+        avatar_url:
+          type: string
+          example: https://example.com/avatar.png
+    UserSummary:
+      allOf:
+        - $ref: "#/components/schemas/PublicUser"
+        - type: object
+          required: [bio]
+          properties:
+            bio:
               type: string
-            type: object
-      summary: 用户登录
-      tags:
-      - users
-swagger: "2.0"
+              example: 正在完善 GinChat
+    RegisterRequest:
+      type: object
+      required: [username, password, confirm_password]
+      properties:
+        username:
+          type: string
+          minLength: 2
+          maxLength: 32
+          pattern: "^[\\p{L}\\p{N}_-]+$"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+        confirm_password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+        nickname:
+          type: string
+          maxLength: 64
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        device_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        device_name:
+          type: string
+          maxLength: 100
+          default: Web
+        platform:
+          type: integer
+          enum: [1, 2, 3, 4]
+          default: 1
+    LoginResponse:
+      type: object
+      required:
+        [token, refresh_token, refresh_expires_at, device_id, user]
+      properties:
+        token:
+          type: string
+        refresh_token:
+          type: string
+        refresh_expires_at:
+          type: string
+          format: date-time
+        device_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        user:
+          $ref: "#/components/schemas/UserSummary"
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    RefreshResponse:
+      type: object
+      required: [token, refresh_token, refresh_expires_at]
+      properties:
+        token:
+          type: string
+        refresh_token:
+          type: string
+        refresh_expires_at:
+          type: string
+          format: date-time
+    LogoutRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+    WSTicketRequest:
+      type: object
+      properties:
+        device_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        device_name:
+          type: string
+          maxLength: 100
+        platform:
+          type: integer
+          enum: [1, 2, 3, 4]
+    WSTicketResponse:
+      type: object
+      required:
+        [ticket, expires_in_seconds, device_id, device_name, platform]
+      properties:
+        ticket:
+          type: string
+        expires_in_seconds:
+          type: integer
+          format: int64
+          example: 30
+        device_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        device_name:
+          type: string
+        platform:
+          type: integer
+          enum: [1, 2, 3, 4]
+    UpdateProfileRequest:
+      type: object
+      required: [nickname]
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 64
+        avatar_url:
+          type: string
+          maxLength: 512
+          description: HTTP/HTTPS 地址；空字符串表示清除头像
+        bio:
+          type: string
+          maxLength: 500
+          description: 空字符串表示清除简介
+    FriendRequestCreate:
+      type: object
+      required: [target_user_id]
+      properties:
+        target_user_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        remark:
+          type: string
+          maxLength: 255
+    FriendRequest:
+      type: object
+      required: [id, user, status, remark, created_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/SnowflakeID"
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        status:
+          type: integer
+          enum: [1, 2, 3, 4]
+        remark:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    FriendRequestList:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/FriendRequest"
+    Friend:
+      type: object
+      required: [friendship_id, user, remark]
+      properties:
+        friendship_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        remark:
+          type: string
+    RemarkRequest:
+      type: object
+      required: [remark]
+      properties:
+        remark:
+          type: string
+          maxLength: 64
+    PresenceQuery:
+      type: object
+      required: [user_ids]
+      properties:
+        user_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SnowflakeID"
+    PresenceStatus:
+      type: object
+      required: [user_id, online]
+      properties:
+        user_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        online:
+          type: boolean
+    PresenceResponse:
+      type: object
+      required: [presence]
+      properties:
+        presence:
+          type: array
+          items:
+            $ref: "#/components/schemas/PresenceStatus"
+    Conversation:
+      type: object
+      required:
+        [
+          id,
+          conversation_type,
+          name,
+          title,
+          avatar_url,
+          last_seq,
+          last_read_seq,
+          unread_count,
+          member_count,
+        ]
+      properties:
+        id:
+          $ref: "#/components/schemas/SnowflakeID"
+        conversation_type:
+          type: integer
+          enum: [1, 2]
+          description: 1 私聊、2 群聊
+        name:
+          type: string
+        title:
+          type: string
+        peer_user_id:
+          type: string
+          pattern: "^([1-9][0-9]*)?$"
+          description: 私聊对端用户 ID；群聊为空字符串
+        avatar_url:
+          type: string
+        last_seq:
+          type: integer
+          format: int64
+          minimum: 0
+        last_read_seq:
+          type: integer
+          format: int64
+          minimum: 0
+        unread_count:
+          type: integer
+          format: int64
+          minimum: 0
+        member_count:
+          type: integer
+          format: int64
+          minimum: 1
+    CreateDirectRequest:
+      type: object
+      required: [peer_user_id]
+      properties:
+        peer_user_id:
+          $ref: "#/components/schemas/SnowflakeID"
+    CreateGroupRequest:
+      type: object
+      required: [name, member_user_ids]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        avatar_url:
+          type: string
+          maxLength: 512
+          description: HTTP/HTTPS 地址；空字符串表示清除头像
+        member_user_ids:
+          type: array
+          minItems: 1
+          maxItems: 499
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SnowflakeID"
+    ConversationMember:
+      type: object
+      required:
+        [user_id, username, nickname, avatar_url, role, joined_at]
+      properties:
+        user_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        username:
+          type: string
+        nickname:
+          type: string
+        avatar_url:
+          type: string
+        role:
+          type: integer
+          enum: [1, 2, 3]
+          description: 1 成员、2 管理员、3 群主
+        joined_at:
+          type: string
+          format: date-time
+    InviteMembersRequest:
+      type: object
+      required: [member_user_ids]
+      properties:
+        member_user_ids:
+          type: array
+          minItems: 1
+          maxItems: 499
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/SnowflakeID"
+    MemberRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: integer
+          enum: [1, 2]
+          description: 1 普通成员、2 管理员
+    TransferOwnerRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          $ref: "#/components/schemas/SnowflakeID"
+    GroupProfileRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        avatar_url:
+          type: string
+          maxLength: 512
+          description: HTTP/HTTPS 地址；空字符串表示清除头像
+    GroupProfileResponse:
+      type: object
+      required: [id, name, avatar_url]
+      properties:
+        id:
+          $ref: "#/components/schemas/SnowflakeID"
+        name:
+          type: string
+        avatar_url:
+          type: string
+    SendMessageRequest:
+      type: object
+      required: [client_message_id]
+      description: 文本消息必须提供 content；图片或文件消息必须提供 attachment_id，content 可选。
+      properties:
+        client_message_id:
+          type: string
+          maxLength: 64
+        message_type:
+          type: integer
+          enum: [1, 2, 3]
+          default: 1
+          description: 1 文本、2 图片、3 文件
+        content:
+          type: string
+          maxLength: 8000
+        reply_to_message_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        attachment_id:
+          $ref: "#/components/schemas/SnowflakeID"
+    MessageAccepted:
+      type: object
+      required: [message_id, conversation_id, seq, created_at, duplicate]
+      properties:
+        message_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        conversation_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        duplicate:
+          type: boolean
+    MessageHistory:
+      type: object
+      required:
+        [
+          message_id,
+          conversation_id,
+          sender_id,
+          seq,
+          message_type,
+          content,
+          recalled,
+          created_at,
+        ]
+      properties:
+        message_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        conversation_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        sender_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+        message_type:
+          type: integer
+          enum: [1, 2, 3]
+        content:
+          type: string
+        reply_to_message_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        attachment_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        attachment_url:
+          type: string
+          description: 短时预签名地址，不能持久化
+        attachment_name:
+          type: string
+        recalled:
+          type: boolean
+        recalled_at:
+          type: string
+          format: date-time
+        recalled_by:
+          $ref: "#/components/schemas/SnowflakeID"
+        created_at:
+          type: string
+          format: date-time
+    MessagePage:
+      type: object
+      required: [messages, has_more]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageHistory"
+        has_more:
+          type: boolean
+    ReadState:
+      type: object
+      required: [user_id, last_read_seq]
+      properties:
+        user_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        last_read_seq:
+          type: integer
+          format: int64
+          minimum: 0
+    DeliverySummary:
+      type: object
+      required: [delivered_devices, delivered_users]
+      properties:
+        delivered_devices:
+          type: integer
+          format: int64
+          minimum: 0
+        delivered_users:
+          type: integer
+          format: int64
+          minimum: 0
+    Attachment:
+      type: object
+      required:
+        [attachment_id, message_type, mime_type, size_bytes, filename, url]
+      properties:
+        attachment_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        message_type:
+          type: integer
+          enum: [2, 3]
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 26214400
+        filename:
+          type: string
+        url:
+          type: string
+          description: 短时预签名地址
