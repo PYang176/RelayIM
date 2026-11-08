@@ -111,6 +111,14 @@ npm run dev
 
 打开 `http://127.0.0.1:5173`。
 
+如需一键生成演示账号、好友、私聊、群聊、管理员和撤回消息：
+
+```powershell
+.\scripts\seed-demo.ps1
+```
+
+脚本会输出四个演示账号和统一本地密码，不会把 Token 写入磁盘。
+
 ## 质量检查
 
 ```powershell
