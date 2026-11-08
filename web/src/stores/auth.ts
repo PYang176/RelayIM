@@ -96,6 +96,19 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     }
 
+    async function updateProfile(input: {
+        nickname: string
+        avatarUrl: string
+        bio: string
+    }) {
+        user.value = await authApi.updateProfile(token.value, {
+            nickname: input.nickname,
+            avatar_url: input.avatarUrl,
+            bio: input.bio,
+        })
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+    }
+
     function clearSession() {
         token.value = ''
         refreshToken.value = ''
@@ -125,6 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
         register,
         refreshSession,
         restoreUser,
+        updateProfile,
         logout,
     }
 })

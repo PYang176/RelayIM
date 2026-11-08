@@ -101,3 +101,64 @@ func TestLoginValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateProfileValidation(t *testing.T) {
+	service := NewService(nil, nil)
+	tests := []struct {
+		name    string
+		command UpdateProfileCommand
+	}{
+		{
+			name:    "用户为空",
+			command: UpdateProfileCommand{Nickname: "新昵称"},
+		},
+		{
+			name: "昵称为空",
+			command: UpdateProfileCommand{
+				UserID: 1,
+			},
+		},
+		{
+			name: "昵称过长",
+			command: UpdateProfileCommand{
+				UserID:   1,
+				Nickname: strings.Repeat("昵", maxNicknameRunes+1),
+			},
+		},
+		{
+			name: "简介过长",
+			command: UpdateProfileCommand{
+				UserID:   1,
+				Nickname: "新昵称",
+				Bio:      strings.Repeat("简", maxBioRunes+1),
+			},
+		},
+		{
+			name: "头像地址协议不安全",
+			command: UpdateProfileCommand{
+				UserID:    1,
+				Nickname:  "新昵称",
+				AvatarURL: "javascript:alert(1)",
+			},
+		},
+		{
+			name: "头像地址缺少主机",
+			command: UpdateProfileCommand{
+				UserID:    1,
+				Nickname:  "新昵称",
+				AvatarURL: "https:///avatar.png",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.UpdateProfile(context.Background(), tt.command)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf(
+					"UpdateProfile() 错误 = %v，期望 ErrInvalidInput",
+					err,
+				)
+			}
+		})
+	}
+}

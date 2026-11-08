@@ -91,6 +91,46 @@ func (r *Repository) FindByID(ctx context.Context, userID uint64) (*user, *userP
 	return &userRecord, &profile, nil
 }
 
+// UpdateProfile 更新用户公开资料；空头像或简介会写回 NULL。
+func (r *Repository) UpdateProfile(
+	ctx context.Context,
+	userID uint64,
+	nickname string,
+	avatarURL string,
+	bio string,
+	updatedAt time.Time,
+) error {
+	result := r.db.WithContext(ctx).
+		Model(&userProfile{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]any{
+			"nickname":   nickname,
+			"avatar_url": nullableString(avatarURL),
+			"bio":        nullableString(bio),
+			"updated_at": updatedAt,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("更新用户资料: %w", result.Error)
+	}
+	if result.RowsAffected > 0 {
+		return nil
+	}
+
+	// MySQL 对“写入相同值”可能返回 0 行。再次确认资料存在，
+	// 避免把幂等编辑误报为用户不存在。
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&userProfile{}).
+		Where("user_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("确认用户资料存在: %w", err)
+	}
+	if count != 1 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
 // FindActiveDevice 查询属于指定用户且未被撤销的设备。
 func (r *Repository) FindActiveDevice(
 	ctx context.Context,
@@ -145,4 +185,11 @@ func isDuplicateKey(err error) bool {
 	// GORM 会包装事务内部错误，errors.As 用于提取底层 MySQL 错误。
 	var mysqlErr *mysql.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
+}
+
+func nullableString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }

@@ -33,6 +33,13 @@ var (
 		GlobalLimit:  300,
 		Window:       time.Minute,
 	}
+	profileUpdateRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "profile_update",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 20,
+		GlobalLimit:  200,
+		Window:       time.Minute,
+	}
 )
 
 // Register 注册新版用户认证路由。
@@ -68,6 +75,15 @@ func Register(
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
 	protected.GET("/me", handler.Me)
+	protected.PUT(
+		"/me",
+		middleware.RateLimit(
+			requestLimiter,
+			profileUpdateRateLimitPolicy,
+			metrics,
+		),
+		handler.UpdateProfile,
+	)
 	protected.POST("/auth/logout", handler.Logout)
 	protected.POST(
 		"/auth/ws-ticket",

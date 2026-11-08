@@ -13,6 +13,12 @@ interface RegisterInput {
     nickname: string
 }
 
+interface UpdateProfileInput {
+    nickname: string
+    avatar_url: string
+    bio: string
+}
+
 export function register(input: RegisterInput): Promise<UserSummary> {
     return request('/auth/register', {
         method: 'POST',
@@ -57,6 +63,20 @@ export function logout(token: string, refreshToken: string): Promise<void> {
 
 export function getMe(token: string): Promise<UserSummary> {
     return request('/me', {}, token)
+}
+
+export function updateProfile(
+    token: string,
+    input: UpdateProfileInput,
+): Promise<UserSummary> {
+    return request(
+        '/me',
+        {
+            method: 'PUT',
+            body: JSON.stringify(input),
+        },
+        token,
+    )
 }
 
 export function issueWsTicket(

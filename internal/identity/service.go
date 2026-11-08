@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -18,6 +19,8 @@ const (
 	minPasswordBytes   = 8
 	maxPasswordBytes   = 72
 	maxNicknameRunes   = 64
+	maxBioRunes        = 500
+	maxAvatarURLBytes  = 512
 	maxDeviceNameRunes = 100
 	minUsernameRunes   = 2
 	maxUsernameRunes   = 32
@@ -65,6 +68,21 @@ type RegisterCommand struct {
 	Nickname string
 }
 
+// UpdateProfileCommand 是当前用户修改公开资料的参数。
+type UpdateProfileCommand struct {
+	// UserID 是当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// Nickname 是新的公开昵称，不能为空。
+	Nickname string
+
+	// AvatarURL 是可选头像地址；空字符串表示清除头像。
+	AvatarURL string
+
+	// Bio 是可选个人简介；空字符串表示清除简介。
+	Bio string
+}
+
 // UserResult 是可安全返回给接口层的用户信息。
 type UserResult struct {
 	// ID 是 Snowflake 用户 ID。
@@ -75,6 +93,12 @@ type UserResult struct {
 
 	// Nickname 是公开昵称。
 	Nickname string
+
+	// AvatarURL 是公开头像地址。
+	AvatarURL string
+
+	// Bio 是公开个人简介。
+	Bio string
 }
 
 // LoginCommand 是用户登录参数。
@@ -231,9 +255,11 @@ func (s *Service) Register(
 	}
 
 	return UserResult{
-		ID:       userRecord.ID,
-		Username: userRecord.Username,
-		Nickname: profile.Nickname,
+		ID:        userRecord.ID,
+		Username:  userRecord.Username,
+		Nickname:  profile.Nickname,
+		AvatarURL: stringValue(profile.AvatarURL),
+		Bio:       stringValue(profile.Bio),
 	}, nil
 }
 
@@ -309,9 +335,11 @@ func (s *Service) Login(
 		RefreshExpiresAt: refreshExpiresAt,
 		DeviceID:         device.ID,
 		User: UserResult{
-			ID:       userRecord.ID,
-			Username: userRecord.Username,
-			Nickname: profile.Nickname,
+			ID:        userRecord.ID,
+			Username:  userRecord.Username,
+			Nickname:  profile.Nickname,
+			AvatarURL: stringValue(profile.AvatarURL),
+			Bio:       stringValue(profile.Bio),
 		},
 	}, nil
 }
@@ -393,9 +421,50 @@ func (s *Service) Me(ctx context.Context, userID uint64) (UserResult, error) {
 		return UserResult{}, err
 	}
 	return UserResult{
-		ID:       userRecord.ID,
-		Username: userRecord.Username,
-		Nickname: profile.Nickname,
+		ID:        userRecord.ID,
+		Username:  userRecord.Username,
+		Nickname:  profile.Nickname,
+		AvatarURL: stringValue(profile.AvatarURL),
+		Bio:       stringValue(profile.Bio),
+	}, nil
+}
+
+// UpdateProfile 校验并更新当前用户的昵称、头像和个人简介。
+func (s *Service) UpdateProfile(
+	ctx context.Context,
+	command UpdateProfileCommand,
+) (UserResult, error) {
+	command.Nickname = strings.TrimSpace(command.Nickname)
+	command.AvatarURL = strings.TrimSpace(command.AvatarURL)
+	command.Bio = strings.TrimSpace(command.Bio)
+	if command.UserID == 0 ||
+		command.Nickname == "" ||
+		utf8.RuneCountInString(command.Nickname) > maxNicknameRunes ||
+		utf8.RuneCountInString(command.Bio) > maxBioRunes ||
+		!validAvatarURL(command.AvatarURL) {
+		return UserResult{}, ErrInvalidInput
+	}
+
+	if err := s.repo.UpdateProfile(
+		ctx,
+		command.UserID,
+		command.Nickname,
+		command.AvatarURL,
+		command.Bio,
+		time.Now().UTC(),
+	); err != nil {
+		return UserResult{}, err
+	}
+	userRecord, profile, err := s.repo.FindByID(ctx, command.UserID)
+	if err != nil {
+		return UserResult{}, err
+	}
+	return UserResult{
+		ID:        userRecord.ID,
+		Username:  userRecord.Username,
+		Nickname:  profile.Nickname,
+		AvatarURL: stringValue(profile.AvatarURL),
+		Bio:       stringValue(profile.Bio),
 	}, nil
 }
 
@@ -464,4 +533,25 @@ func validUsername(username string) bool {
 	return length >= minUsernameRunes &&
 		length <= maxUsernameRunes &&
 		usernamePattern.MatchString(username)
+}
+
+func validAvatarURL(value string) bool {
+	if value == "" {
+		return true
+	}
+	if len(value) > maxAvatarURLBytes {
+		return false
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

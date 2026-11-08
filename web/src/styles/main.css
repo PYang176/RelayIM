@@ -385,6 +385,17 @@ a:focus-visible {
     gap: 0.125rem;
 }
 
+.current-user-avatar {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    color: var(--signal-strong);
+    background: var(--signal-soft);
+    font-weight: 800;
+}
+
 .global-error {
     display: flex;
     align-items: center;
@@ -1450,6 +1461,10 @@ a:focus-visible {
 
 @media (max-width: 26rem) {
     .app-brand div strong {
+        display: none;
+    }
+
+    .current-user-copy {
         display: none;
     }
 

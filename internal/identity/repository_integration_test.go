@@ -129,6 +129,32 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	if currentUser.Nickname != "集成测试用户" {
 		t.Fatalf("当前用户昵称 = %q，期望集成测试用户", currentUser.Nickname)
 	}
+	updated, err := service.UpdateProfile(
+		context.Background(),
+		UpdateProfileCommand{
+			UserID:    registered.ID,
+			Nickname:  "更新后的昵称",
+			AvatarURL: "https://example.com/avatar.png",
+			Bio:       "正在完善 GinChat",
+		},
+	)
+	if err != nil {
+		t.Fatalf("更新用户资料失败: %v", err)
+	}
+	if updated.Nickname != "更新后的昵称" ||
+		updated.AvatarURL != "https://example.com/avatar.png" ||
+		updated.Bio != "正在完善 GinChat" {
+		t.Fatalf("更新后用户资料 = %+v", updated)
+	}
+	reloaded, err := service.Me(context.Background(), registered.ID)
+	if err != nil {
+		t.Fatalf("重新读取更新后资料失败: %v", err)
+	}
+	if reloaded.Nickname != updated.Nickname ||
+		reloaded.AvatarURL != updated.AvatarURL ||
+		reloaded.Bio != updated.Bio {
+		t.Fatalf("重新读取资料 = %+v，期望 %+v", reloaded, updated)
+	}
 
 	refreshed, err := service.Refresh(
 		context.Background(),

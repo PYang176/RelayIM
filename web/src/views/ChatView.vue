@@ -14,6 +14,7 @@ import FriendsDrawer from '@/components/FriendsDrawer.vue'
 import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageList from '@/components/MessageList.vue'
+import ProfileDialog from '@/components/ProfileDialog.vue'
 import {useAuthStore} from '@/stores/auth'
 import {useChatStore} from '@/stores/chat'
 import {useFriendshipStore} from '@/stores/friendships'
@@ -29,6 +30,9 @@ const creatingGroup = shallowRef(false)
 const groupMembersOpen = shallowRef(false)
 const managingMembers = shallowRef(false)
 const memberActionError = shallowRef('')
+const profileDialogOpen = shallowRef(false)
+const savingProfile = shallowRef(false)
+const profileError = shallowRef('')
 
 const connectionLabel = computed(() => {
     const labels = {
@@ -182,6 +186,33 @@ async function recallMessage(messageId: string) {
     }
 }
 
+function openProfile() {
+    profileError.value = ''
+    profileDialogOpen.value = true
+}
+
+async function saveProfile(payload: {
+    nickname: string
+    avatarUrl: string
+    bio: string
+}) {
+    savingProfile.value = true
+    profileError.value = ''
+    try {
+        await auth.updateProfile(payload)
+        profileDialogOpen.value = false
+        const conversationId = chat.activeConversationId
+        if (chat.activeConversation?.conversation_type === 2 && conversationId) {
+            await chat.loadMembers(conversationId, true)
+        }
+    } catch (cause) {
+        profileError.value =
+            cause instanceof Error ? cause.message : '保存个人资料失败'
+    } finally {
+        savingProfile.value = false
+    }
+}
+
 async function sendFile(file: File) {
     try {
         await chat.sendAttachment(file)
@@ -246,9 +277,18 @@ onBeforeUnmount(() => {
                 </div>
             </div>
             <div class="current-user">
-        <span class="current-user-copy">
-          <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
-        </span>
+                <span class="current-user-avatar" aria-hidden="true">
+                    {{
+                        (auth.user?.nickname || auth.user?.username || '我')
+                            .slice(0, 1)
+                    }}
+                </span>
+                <span class="current-user-copy">
+                    <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
+                </span>
+                <button class="ghost-button" type="button" @click="openProfile">
+                    资料
+                </button>
                 <button class="ghost-button" type="button" @click="friendsOpen = true">
                     好友
                 </button>
@@ -400,6 +440,15 @@ onBeforeUnmount(() => {
                 @remove="removeMember"
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"
+        />
+
+        <ProfileDialog
+                :busy="savingProfile"
+                :error="profileError"
+                :open="profileDialogOpen"
+                :user="auth.user"
+                @close="profileDialogOpen = false"
+                @save="saveProfile"
         />
     </main>
 </template>

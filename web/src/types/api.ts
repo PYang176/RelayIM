@@ -2,6 +2,8 @@ export interface UserSummary {
     id: string
     username: string
     nickname: string
+    avatar_url?: string
+    bio?: string
 }
 
 export interface LoginResponse {

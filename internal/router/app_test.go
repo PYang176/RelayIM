@@ -32,6 +32,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		"POST /api/v1/auth/refresh",
 		"POST /api/v1/auth/logout",
 		"POST /api/v1/auth/ws-ticket",
+		"PUT /api/v1/me",
 		"GET /api/v1/users/search",
 		"POST /api/v1/friend-requests",
 		"GET /api/v1/friend-requests/received",

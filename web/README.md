@@ -27,6 +27,7 @@ src/
 - 收到消息后发送 ACK；阅读后发送 Read。
 - 断线重连后使用 `after_seq` 补拉。
 - 登录后保存 Access Token、Refresh Token 和设备 ID；启动时 Access Token 失效会尝试刷新。
+- 用户可以编辑昵称、头像地址和个人简介，保存后立即更新当前登录状态。
 - 退出登录会调用服务端撤销 Access Token 和 Refresh Token，而不只是清理 localStorage。
 - 好友抽屉支持搜索、申请、同意、拒绝、备注和打开私聊。
 - 创建群聊时可以从好友列表多选成员，群主和受邀成员在同一事务中加入。

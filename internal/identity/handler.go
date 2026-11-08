@@ -13,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxProfileBodyBytes = 16 << 10
+
 // Handler 处理用户认证 HTTP 请求。
 type Handler struct {
 	service   *Service
@@ -77,6 +79,17 @@ type logoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type updateProfileRequest struct {
+	// Nickname 是新的公开昵称。
+	Nickname string `json:"nickname"`
+
+	// AvatarURL 是可选头像地址，空字符串表示清除头像。
+	AvatarURL string `json:"avatar_url"`
+
+	// Bio 是可选个人简介，空字符串表示清除简介。
+	Bio string `json:"bio"`
+}
+
 type wsTicketRequest struct {
 	// DeviceID 是客户端已保存的设备 Snowflake ID 字符串。
 	DeviceID string `json:"device_id"`
@@ -107,11 +120,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"id":       strconv.FormatUint(result.ID, 10),
-		"username": result.Username,
-		"nickname": result.Nickname,
-	})
+	c.JSON(http.StatusCreated, userResponse(result))
 }
 
 // Login 处理 POST /api/v1/auth/login。
@@ -148,11 +157,7 @@ func (h *Handler) Login(c *gin.Context) {
 		"refresh_token":      result.RefreshToken,
 		"refresh_expires_at": result.RefreshExpiresAt,
 		"device_id":          strconv.FormatUint(result.DeviceID, 10),
-		"user": gin.H{
-			"id":       strconv.FormatUint(result.User.ID, 10),
-			"username": result.User.Username,
-			"nickname": result.User.Nickname,
-		},
+		"user":               userResponse(result.User),
 	})
 }
 
@@ -228,11 +233,45 @@ func (h *Handler) Me(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"id":       strconv.FormatUint(result.ID, 10),
-		"username": result.Username,
-		"nickname": result.Nickname,
-	})
+	c.JSON(http.StatusOK, userResponse(result))
+}
+
+// UpdateProfile 处理 PUT /api/v1/me。
+func (h *Handler) UpdateProfile(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(
+		c.Writer,
+		c.Request.Body,
+		maxProfileBodyBytes,
+	)
+	var request updateProfileRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "请求体过大"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	result, err := h.service.UpdateProfile(
+		c.Request.Context(),
+		UpdateProfileCommand{
+			UserID:    userID,
+			Nickname:  request.Nickname,
+			AvatarURL: request.AvatarURL,
+			Bio:       request.Bio,
+		},
+	)
+	if err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, userResponse(result))
 }
 
 // WSTicket 处理 POST /api/v1/auth/ws-ticket。
@@ -310,5 +349,15 @@ func writeIdentityError(c *gin.Context, err error) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": ErrInvalidRefreshToken.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器内部错误"})
+	}
+}
+
+func userResponse(result UserResult) gin.H {
+	return gin.H{
+		"id":         strconv.FormatUint(result.ID, 10),
+		"username":   result.Username,
+		"nickname":   result.Nickname,
+		"avatar_url": result.AvatarURL,
+		"bio":        result.Bio,
 	}
 }
