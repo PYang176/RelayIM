@@ -70,7 +70,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 	}
 	for _, route := range required {
 		if !routes[route] {
-			t.Fatalf("缺少新版路由 %s", route)
+			t.Fatalf("缺少应用路由 %s", route)
 		}
 	}
 
@@ -86,7 +86,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 	}
 	for _, route := range forbidden {
 		if routes[route] {
-			t.Fatalf("旧版路由仍被注册 %s", route)
+			t.Fatalf("已下线路由仍被注册 %s", route)
 		}
 	}
 }

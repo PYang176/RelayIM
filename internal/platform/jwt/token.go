@@ -34,8 +34,6 @@ func GenerateToken(userID uint64, expireHours int) (string, error) {
 	}
 	jti := base64.StdEncoding.EncodeToString(b)
 
-	//fmt.Println("生成token的过期时间为------", expireHours)
-	//fmt.Println("配置生成token的过期时间为------", JwtCfg.ExpireHours)
 	claims := Claims{
 		UserID: userID,
 		JTI:    jti,
@@ -47,7 +45,6 @@ func GenerateToken(userID uint64, expireHours int) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	//fmt.Println("token密钥--------", JwtCfg.Secret)
 	return token.SignedString([]byte(JwtCfg.Secret))
 }
 
@@ -65,7 +62,6 @@ func ParseToken(tokenStr string) (*Claims, error) {
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
 		jwt.WithExpirationRequired(),
 	)
-	//fmt.Println("解析时候出错啦----", err)
 	if err != nil {
 		return nil, err
 	}

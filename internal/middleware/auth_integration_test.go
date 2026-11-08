@@ -121,7 +121,7 @@ func performAuthRequest(router http.Handler, authorization string) *httptest.Res
 	return response
 }
 
-func ExampleAuthMiddleware_bearerHeader() {
+func Example_authorizationToken() {
 	fmt.Println(authorizationToken("Bearer example-token"))
 	// Output: example-token
 }

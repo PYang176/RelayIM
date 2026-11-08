@@ -66,7 +66,7 @@ type MetricsRecorder interface {
 	RecordAttachmentUpload(success bool)
 }
 
-// Handler 处理新版消息 HTTP 请求。
+// Handler 处理消息 HTTP 请求。
 type Handler struct {
 	service     MessageSender
 	reader      MessageReader

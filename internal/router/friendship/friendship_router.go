@@ -18,7 +18,7 @@ var friendRequestRateLimitPolicy = middleware.RateLimitPolicy{
 	Window:       time.Minute,
 }
 
-// Register 注册新版好友路由。
+// Register 注册好友路由。
 func Register(
 	r *gin.Engine,
 	db *gorm.DB,

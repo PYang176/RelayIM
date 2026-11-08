@@ -12,9 +12,6 @@ const (
 	// ContextUserIDKey 保存不会因 32 位平台而降窄的 Snowflake 用户 ID。
 	ContextUserIDKey = "user_id_u64"
 
-	// ContextLegacyUserIDKey 保存旧 Handler 仍使用的 uint 用户 ID。
-	ContextLegacyUserIDKey = "user_id"
-
 	// ContextTokenKey 保存当前请求已验证的原始 Token。
 	ContextTokenKey = "auth_token"
 
@@ -55,8 +52,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 旧 Handler 仍使用 uint；新链路使用不会在 32 位平台降窄的 uint64。
-		context.Set(ContextLegacyUserIDKey, uint(session.UserID))
 		context.Set(ContextUserIDKey, session.UserID)
 		context.Set(ContextTokenKey, tokenStr)
 		context.Set(ContextJTIKey, session.JTI)
@@ -85,5 +80,5 @@ func authorizationToken(header string) string {
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
 		return parts[1]
 	}
-	return header
+	return ""
 }

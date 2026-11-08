@@ -34,7 +34,7 @@ var (
 	}
 )
 
-// Register 注册新版消息路由。
+// Register 注册消息路由。
 func Register(
 	r *gin.Engine,
 	db *gorm.DB,

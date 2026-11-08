@@ -18,7 +18,7 @@ var groupProfileRateLimitPolicy = middleware.RateLimitPolicy{
 	Window:       time.Minute,
 }
 
-// Register 注册新版会话路由。
+// Register 注册会话路由。
 func Register(
 	r *gin.Engine,
 	db *gorm.DB,

@@ -42,7 +42,7 @@ type RouteTracker interface {
 	Remove(ctx context.Context, userID uint64, deviceID uint64) error
 }
 
-// ReceiptService 处理新版送达和已读回执。
+// ReceiptService 处理送达和已读回执。
 type ReceiptService interface {
 	AcknowledgeMessage(
 		ctx context.Context,

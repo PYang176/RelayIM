@@ -42,7 +42,7 @@ var (
 	}
 )
 
-// Register 注册新版用户认证路由。
+// Register 注册用户认证路由。
 func Register(
 	r *gin.Engine,
 	db *gorm.DB,
@@ -50,7 +50,7 @@ func Register(
 	requestLimiter middleware.RateLimitChecker,
 	metrics *observability.Metrics,
 ) {
-	// 新认证链路只依赖新 ginchat_v2 用户表，不与旧 user_basic 混用。
+	// 认证模块只依赖 users 和 user_profiles 表。
 	repo := identityapp.NewRepository(db)
 	identityService := identityapp.NewService(repo, authn.DefaultManager)
 	handler := identityapp.NewHandler(identityService, authn.DefaultManager)

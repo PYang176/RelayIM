@@ -17,12 +17,6 @@ import (
 	"gorm.io/gorm"
 )
 
-//func Router() *gin.Engine {
-//	r := gin.Default()
-//	r.GET("/index", service.GetIndex)
-//	return r
-//}
-
 func Router(
 	db *gorm.DB,
 	storage messagingapp.AttachmentStorage,
@@ -51,7 +45,7 @@ func Router(
 		r.GET("/metrics", gin.WrapH(metrics.Handler()))
 	}
 
-	// 新版用户认证模块
+	// 用户认证路由
 	identityrouter.Register(
 		r,
 		db,
@@ -60,13 +54,13 @@ func Router(
 		metrics,
 	)
 
-	// 新版会话模块
+	// 会话路由
 	conversationrouter.Register(r, db, requestLimiter, metrics)
 
-	// 新版好友模块
+	// 好友路由
 	friendshiprouter.Register(r, db, requestLimiter, metrics)
 
-	// 新版消息模块
+	// 消息路由
 	messagingrouter.Register(r, db, storage, requestLimiter, metrics)
 
 	// websocket

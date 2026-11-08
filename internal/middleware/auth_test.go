@@ -14,9 +14,9 @@ func TestAuthorizationToken(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "兼容旧原始 Token",
-			header: "legacy-token",
-			want:   "legacy-token",
+			name:   "拒绝缺少 Bearer 的 Token",
+			header: "raw-token",
+			want:   "",
 		},
 		{
 			name:   "标准 Bearer Token",

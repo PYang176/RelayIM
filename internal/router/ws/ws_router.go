@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Register 注册新版 WebSocket 路由。
+// Register 注册 WebSocket 路由。
 func Register(
 	r *gin.Engine,
 	db *gorm.DB,
