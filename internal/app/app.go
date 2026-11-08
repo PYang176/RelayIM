@@ -132,10 +132,10 @@ func Run() error {
 			outboxWorker.Run(ctx)
 		}()
 
-		messageConsumer := messaging.NewMessageCreatedConsumer(
-			messaging.NewMessageCreatedProcessor(db, ws.Manager),
+		messageConsumer := messaging.NewMessageEventConsumer(
+			messaging.NewMessageEventProcessor(db, ws.Manager),
 			rabbitCfg,
-			instanceID()+"-message-created",
+			instanceID()+"-message-events",
 		)
 		backgroundWorkers.Add(1)
 		go func() {

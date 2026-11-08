@@ -18,7 +18,7 @@ const (
 	// DeadLetterExchange 接收无法正常处理的事件。
 	DeadLetterExchange = "im.dlx"
 
-	// MessageFanoutQueue 消费消息创建事件并执行后续投递扇出。
+	// MessageFanoutQueue 消费消息领域事件并执行后续投递扇出。
 	MessageFanoutQueue = "im.message.fanout.v1"
 
 	// MessageDeadLetterQueue 保存最终无法处理的事件。
@@ -35,6 +35,9 @@ const (
 
 	// MessageCreatedRoutingKey 是文本消息创建完成后的领域事件路由键。
 	MessageCreatedRoutingKey = "message.created.v1"
+
+	// MessageRecalledRoutingKey 是消息撤回完成后的领域事件路由键。
+	MessageRecalledRoutingKey = "message.recalled.v1"
 
 	// MessageDeadLetterRoutingKey 是消息事件进入死信队列时使用的路由键。
 	MessageDeadLetterRoutingKey = "im.message.dlq.v1"
@@ -149,7 +152,17 @@ func DeclareTopology(channel *amqp.Channel) error {
 		false,
 		nil,
 	); err != nil {
-		return fmt.Errorf("绑定消息扇出队列: %w", err)
+		return fmt.Errorf("绑定消息创建事件: %w", err)
+	}
+
+	if err := channel.QueueBind(
+		MessageFanoutQueue,
+		MessageRecalledRoutingKey,
+		EventsExchange,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("绑定消息撤回事件: %w", err)
 	}
 
 	if err := channel.QueueBind(

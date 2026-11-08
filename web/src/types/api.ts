@@ -50,6 +50,9 @@ export interface Message {
     attachment_id?: string
     attachment_url?: string
     attachment_name?: string
+    recalled: boolean
+    recalled_at?: string
+    recalled_by?: string
     created_at: string
 }
 
@@ -79,11 +82,13 @@ export interface WsMessage {
     message_id: string
     conversation_id?: string
     sender_id?: string
+    recalled_by?: string
     seq?: number
     msg_type?: number
     content?: string
     url?: string
     file_name?: string
+    recalled_at?: string
 }
 
 export interface ReadState {

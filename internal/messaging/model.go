@@ -4,6 +4,9 @@ import "time"
 
 const (
 	conversationStatusActive = 1
+	conversationTypeGroup    = 2
+	groupRoleAdmin           = 2
+	groupRoleOwner           = 3
 	messageTypeText          = 1
 	messageTypeImage         = 2
 	messageTypeFile          = 3
@@ -20,6 +23,9 @@ const (
 type conversation struct {
 	// ID 是会话 Snowflake ID，也是会话内消息的外键目标。
 	ID uint64 `gorm:"column:id;primaryKey"`
+
+	// ConversationType 表示私聊或群聊，2 为群聊。
+	ConversationType int `gorm:"column:conversation_type"`
 
 	// Status 表示会话状态，1 为正常，非 1 时当前发送流程会拒绝写入。
 	Status int `gorm:"column:status"`
@@ -41,6 +47,9 @@ type conversationMember struct {
 
 	// UserID 是成员用户的 Snowflake ID。
 	UserID uint64 `gorm:"column:user_id"`
+
+	// Role 表示群内角色，1 成员、2 管理员、3 群主。
+	Role int `gorm:"column:role"`
 
 	// LastReadSeq 是成员最后已读的会话消息序号。
 	LastReadSeq uint64 `gorm:"column:last_read_seq"`
@@ -104,6 +113,12 @@ type message struct {
 
 	// CreatedAt 是服务端接受消息的 UTC 时间。
 	CreatedAt time.Time `gorm:"column:created_at"`
+
+	// RecalledAt 是消息撤回的 UTC 时间，为空表示未撤回。
+	RecalledAt *time.Time `gorm:"column:recalled_at"`
+
+	// RecalledBy 是执行撤回的用户 Snowflake ID。
+	RecalledBy *uint64 `gorm:"column:recalled_by"`
 }
 
 func (message) TableName() string {
@@ -242,4 +257,24 @@ type messageCreatedPayload struct {
 
 	// AttachmentName 是可选附件原始文件名。
 	AttachmentName string `json:"attachment_name,omitempty"`
+}
+
+type messageRecalledPayload struct {
+	// MessageID 是消息 Snowflake ID 的字符串形式。
+	MessageID string `json:"message_id"`
+
+	// ConversationID 是会话 Snowflake ID 的字符串形式。
+	ConversationID string `json:"conversation_id"`
+
+	// SenderID 是原消息发送者 Snowflake ID 字符串。
+	SenderID string `json:"sender_id"`
+
+	// RecalledBy 是执行撤回的用户 Snowflake ID 字符串。
+	RecalledBy string `json:"recalled_by"`
+
+	// Seq 是被撤回消息的会话内序号。
+	Seq uint64 `json:"seq"`
+
+	// RecalledAt 是撤回发生的 UTC 时间。
+	RecalledAt time.Time `json:"recalled_at"`
 }

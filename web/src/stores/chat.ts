@@ -81,11 +81,46 @@ export const useChatStore = defineStore('chat', () => {
         const index = current.findIndex((item) => item.message_id === message.message_id)
         const next = [...current]
         if (index >= 0) {
-            next[index] = {...next[index], ...message}
+            next[index] = message.recalled
+                ? {
+                    ...next[index],
+                    ...message,
+                    content: '',
+                    attachment_id: undefined,
+                    attachment_url: undefined,
+                    attachment_name: undefined,
+                }
+                : {...next[index], ...message}
         } else {
             next.push(message)
         }
         next.sort((left, right) => left.seq - right.seq)
+        messagesByConversation.value = {
+            ...messagesByConversation.value,
+            [conversationId]: next,
+        }
+    }
+
+    function markMessageRecalled(
+        conversationId: string,
+        messageId: string,
+        recalledBy = '',
+        recalledAt = new Date().toISOString(),
+    ) {
+        const current = messagesByConversation.value[conversationId] ?? []
+        const index = current.findIndex((item) => item.message_id === messageId)
+        if (index < 0) return
+        const next = [...current]
+        next[index] = {
+            ...next[index],
+            content: '',
+            attachment_id: undefined,
+            attachment_url: undefined,
+            attachment_name: undefined,
+            recalled: true,
+            recalled_at: recalledAt,
+            recalled_by: recalledBy || next[index].recalled_by,
+        }
         messagesByConversation.value = {
             ...messagesByConversation.value,
             [conversationId]: next,
@@ -367,6 +402,7 @@ export const useChatStore = defineStore('chat', () => {
             message_type: 1,
             content: trimmed,
             created_at: response.created_at,
+            recalled: false,
             outgoing: true,
         })
         const conversation = conversations.value.find((item) => item.id === conversationId)
@@ -417,6 +453,7 @@ export const useChatStore = defineStore('chat', () => {
                 attachment_url: uploaded.url,
                 attachment_name: uploaded.filename,
                 created_at: response.created_at,
+                recalled: false,
                 outgoing: true,
             })
             const conversation = conversations.value.find(
@@ -458,6 +495,18 @@ export const useChatStore = defineStore('chat', () => {
         } catch {
             // 送达状态刷新失败不回滚已经成功发送的消息。
         }
+    }
+
+    async function recallMessage(messageId: string) {
+        const conversationId = activeConversationId.value
+        if (!conversationId) return
+        clearError()
+        await messageApi.recallMessage(auth.token, conversationId, messageId)
+        markMessageRecalled(
+            conversationId,
+            messageId,
+            auth.user?.id,
+        )
     }
 
     async function resolveRealtimeAttachment(
@@ -528,6 +577,19 @@ export const useChatStore = defineStore('chat', () => {
 
     function handleSocketMessage(payload: WsMessage) {
         if (
+            payload.action === 'message_recalled' &&
+            payload.message_id &&
+            payload.conversation_id
+        ) {
+            markMessageRecalled(
+                payload.conversation_id,
+                payload.message_id,
+                payload.recalled_by,
+                payload.recalled_at,
+            )
+            return
+        }
+        if (
             payload.action !== 'message' ||
             !payload.message_id ||
             !payload.conversation_id ||
@@ -550,6 +612,7 @@ export const useChatStore = defineStore('chat', () => {
                 ? undefined
                 : payload.url,
             attachment_name: payload.file_name,
+            recalled: false,
             created_at: new Date().toISOString(),
         }
         upsertMessage(payload.conversation_id, message)
@@ -625,6 +688,7 @@ export const useChatStore = defineStore('chat', () => {
         loadOlderMessages,
         sendMessage,
         sendAttachment,
+        recallMessage,
         connectWebSocket,
         disconnectWebSocket,
         markRead,

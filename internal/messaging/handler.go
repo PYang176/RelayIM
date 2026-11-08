@@ -23,6 +23,7 @@ type MessageSender interface {
 		ctx context.Context,
 		command SendAttachmentCommand,
 	) (SendTextResult, error)
+	RecallMessage(ctx context.Context, command RecallMessageCommand) error
 }
 
 // MessageReader 是 Handler 查询历史消息所需的最小业务能力。
@@ -161,6 +162,15 @@ type messageHistoryResponse struct {
 
 	// AttachmentName 是附件原始文件名。
 	AttachmentName string `json:"attachment_name,omitempty"`
+
+	// Recalled 表示正文和附件已从普通历史响应中隐藏。
+	Recalled bool `json:"recalled"`
+
+	// RecalledAt 是撤回发生的 UTC 时间。
+	RecalledAt *time.Time `json:"recalled_at,omitempty"`
+
+	// RecalledBy 是执行撤回的用户 Snowflake ID 字符串。
+	RecalledBy string `json:"recalled_by,omitempty"`
 
 	// CreatedAt 是消息创建的 UTC 时间。
 	CreatedAt time.Time `json:"created_at"`
@@ -327,6 +337,10 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			attachmentID = strconv.FormatUint(*message.AttachmentID, 10)
 			attachmentURL = message.AttachmentURL
 		}
+		recalledBy := ""
+		if message.RecalledBy != nil {
+			recalledBy = strconv.FormatUint(*message.RecalledBy, 10)
+		}
 		response = append(response, messageHistoryResponse{
 			MessageID:        strconv.FormatUint(message.ID, 10),
 			ConversationID:   strconv.FormatUint(message.ConversationID, 10),
@@ -338,6 +352,9 @@ func (h *Handler) ListMessages(c *gin.Context) {
 			AttachmentID:     attachmentID,
 			AttachmentURL:    attachmentURL,
 			AttachmentName:   message.AttachmentName,
+			Recalled:         message.Recalled,
+			RecalledAt:       message.RecalledAt,
+			RecalledBy:       recalledBy,
 			CreatedAt:        message.CreatedAt,
 		})
 	}
@@ -345,6 +362,41 @@ func (h *Handler) ListMessages(c *gin.Context) {
 		"messages": response,
 		"has_more": page.HasMore,
 	})
+}
+
+// RecallMessage 处理 DELETE /api/v1/conversations/:conversation_id/messages/:message_id。
+func (h *Handler) RecallMessage(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	conversationID, err := strconv.ParseUint(
+		c.Param("conversation_id"),
+		10,
+		64,
+	)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return
+	}
+	messageID, err := strconv.ParseUint(c.Param("message_id"), 10, 64)
+	if err != nil || messageID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "message_id 格式错误"})
+		return
+	}
+	if err := h.service.RecallMessage(
+		c.Request.Context(),
+		RecallMessageCommand{
+			ConversationID: conversationID,
+			UserID:         userID,
+			MessageID:      messageID,
+		},
+	); err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // ListReadStates 处理 GET /api/v1/conversations/:conversation_id/read-states。
@@ -659,6 +711,10 @@ func writeMessagingError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrConversationNotFound.Error()})
 	case errors.Is(err, ErrMessageNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrMessageNotFound.Error()})
+	case errors.Is(err, ErrRecallForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrRecallForbidden.Error()})
+	case errors.Is(err, ErrRecallExpired):
+		c.JSON(http.StatusConflict, gin.H{"error": ErrRecallExpired.Error()})
 	case errors.Is(err, ErrConversationClosed):
 		c.JSON(http.StatusConflict, gin.H{"error": ErrConversationClosed.Error()})
 	case errors.Is(err, ErrClientMessageConflict):

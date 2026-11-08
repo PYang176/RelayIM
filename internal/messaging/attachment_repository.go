@@ -75,7 +75,8 @@ func (r *Repository) findAccessibleAttachment(
 				"ON cm.conversation_id = m.conversation_id",
 		).
 		Where(
-			"m.attachment_id = ? AND cm.user_id = ? AND cm.left_at IS NULL",
+			"m.attachment_id = ? AND cm.user_id = ? AND cm.left_at IS NULL "+
+				"AND m.recalled_at IS NULL",
 			attachmentID,
 			userID,
 		).

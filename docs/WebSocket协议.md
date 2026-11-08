@@ -75,7 +75,25 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 客户端收到该事件后调用 `GET /api/v1/attachments/:id` 换取新的短时预签名地址。WebSocket 不广播永久对象地址，预签名 URL 也不能写入数据库。
 
-## 4. 客户端回执
+## 4. 在线撤回
+
+消息撤回事务提交后，服务端向会话内全部在线成员广播：
+
+```json
+{
+  "action": "message_recalled",
+  "message_id": "1839281749283749121",
+  "conversation_id": "1839281749283749120",
+  "sender_id": "1839281749283749001",
+  "recalled_by": "1839281749283749002",
+  "seq": 7,
+  "recalled_at": "2026-11-07T08:31:00Z"
+}
+```
+
+客户端收到后按 `message_id` 原地替换消息：清空正文和附件字段，显示“该消息已撤回”。如果事件乱序或重连，历史接口中的 `recalled=true` 是最终事实来源。
+
+## 5. 客户端回执
 
 收到消息后，客户端按设备发送送达回执：
 
@@ -100,14 +118,14 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 服务端单调推进 `conversation_members.last_read_seq`，较小序号不会覆盖较大序号。
 
-## 5. Origin 与安全边界
+## 6. Origin 与安全边界
 
 - 允许同 Host Origin。
 - 允许 `localhost` 和回环 IP，支持本地前端开发。
 - 其他第三方 Origin 默认拒绝。
 - 服务端不打印 Token、完整消息正文或密码。
 
-## 6. 当前限制
+## 7. 当前限制
 
 连接注册表仅存在单个 Go 进程内。多实例部署时，消费者需要先通过 Redis 查询用户连接所在实例，再经 `im.delivery.node.<instance_id>` 队列转发投递命令。当前阶段只支持单实例实时扇出。
 

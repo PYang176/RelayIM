@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	"ginChatProject/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
@@ -120,7 +121,8 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		t.Fatalf("创建测试会话成员失败: %v", err)
 	}
 
-	service := NewService(NewRepository(db))
+	repository := NewRepository(db)
+	service := NewService(repository)
 	// 场景 1：正常发送首条消息，验证 seq 从 1 开始且首次请求不标记重复。
 	first, err := service.SendText(context.Background(), SendTextCommand{
 		ConversationID:  conversationID,
@@ -403,6 +405,110 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	)
 	if !errors.Is(err, ErrAttachmentAlreadyUsed) {
 		t.Fatalf("重复绑定附件错误 = %v，期望 %v", err, ErrAttachmentAlreadyUsed)
+	}
+
+	if _, err := repository.findAccessibleAttachment(
+		context.Background(),
+		memberID,
+		attachmentID,
+	); err != nil {
+		t.Fatalf("撤回前成员访问附件失败: %v", err)
+	}
+	if err := service.RecallMessage(
+		context.Background(),
+		RecallMessageCommand{
+			ConversationID: conversationID,
+			UserID:         memberID,
+			MessageID:      mediaMessage.MessageID,
+		},
+	); !errors.Is(err, ErrRecallForbidden) {
+		t.Fatalf("普通成员撤回他人消息错误 = %v，期望 ErrRecallForbidden", err)
+	}
+	if err := service.RecallMessage(
+		context.Background(),
+		RecallMessageCommand{
+			ConversationID: conversationID,
+			UserID:         ownerID,
+			MessageID:      mediaMessage.MessageID,
+		},
+	); err != nil {
+		t.Fatalf("群主撤回图片消息失败: %v", err)
+	}
+	// 重复撤回保持幂等，不重复写 Outbox。
+	if err := service.RecallMessage(
+		context.Background(),
+		RecallMessageCommand{
+			ConversationID: conversationID,
+			UserID:         ownerID,
+			MessageID:      mediaMessage.MessageID,
+		},
+	); err != nil {
+		t.Fatalf("重复撤回图片消息失败: %v", err)
+	}
+	var recalledHistory MessagePage
+	recalledHistory, err = service.ListMessages(
+		context.Background(),
+		ListMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         memberID,
+			AfterSeq:       mediaMessage.Seq - 1,
+			Limit:          1,
+		},
+	)
+	if err != nil ||
+		len(recalledHistory.Messages) != 1 ||
+		!recalledHistory.Messages[0].Recalled ||
+		recalledHistory.Messages[0].Content != "" ||
+		recalledHistory.Messages[0].AttachmentID != nil ||
+		recalledHistory.Messages[0].AttachmentName != "" {
+		t.Fatalf("撤回后历史消息 = %+v, err=%v", recalledHistory, err)
+	}
+	if _, err := repository.findAccessibleAttachment(
+		context.Background(),
+		memberID,
+		attachmentID,
+	); !errors.Is(err, ErrAttachmentNotFound) {
+		t.Fatalf("撤回后成员访问附件错误 = %v，期望 ErrAttachmentNotFound", err)
+	}
+	var recallOutboxCount int64
+	if err := db.Model(&outboxEvent{}).
+		Where(
+			"aggregate_id = ? AND event_type = ?",
+			conversationID,
+			"message.recalled.v1",
+		).
+		Count(&recallOutboxCount).Error; err != nil {
+		t.Fatalf("查询撤回 Outbox 数量失败: %v", err)
+	}
+	if recallOutboxCount != 1 {
+		t.Fatalf("撤回 Outbox 数量 = %d，期望 1", recallOutboxCount)
+	}
+
+	var memberMessage message
+	if err := db.Where(
+		"conversation_id = ? AND sender_id = ?",
+		conversationID,
+		memberID,
+	).Order("seq ASC").First(&memberMessage).Error; err != nil {
+		t.Fatalf("查询成员消息失败: %v", err)
+	}
+	if err := repository.recallMessage(
+		context.Background(),
+		conversationID,
+		memberID,
+		memberMessage.ID,
+		memberMessage.CreatedAt.Add(3*time.Minute),
+	); !errors.Is(err, ErrRecallExpired) {
+		t.Fatalf("普通成员超时撤回错误 = %v，期望 ErrRecallExpired", err)
+	}
+	if err := repository.recallMessage(
+		context.Background(),
+		conversationID,
+		ownerID,
+		memberMessage.ID,
+		memberMessage.CreatedAt.Add(25*time.Hour),
+	); !errors.Is(err, ErrRecallExpired) {
+		t.Fatalf("群主超时撤回错误 = %v，期望 ErrRecallExpired", err)
 	}
 }
 

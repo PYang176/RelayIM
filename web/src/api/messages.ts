@@ -61,6 +61,18 @@ export function sendAttachmentMessage(
     )
 }
 
+export function recallMessage(
+    token: string,
+    conversationId: string,
+    messageId: string,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationId}/messages/${messageId}`,
+        {method: 'DELETE'},
+        token,
+    )
+}
+
 export function uploadAttachment(
     token: string,
     file: File,

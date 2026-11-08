@@ -682,11 +682,27 @@ a:focus-visible {
     background: var(--signal);
 }
 
+.message-row.recalled .message-bubble {
+    border-style: dashed;
+    border-color: var(--line-strong);
+    color: var(--muted);
+    background: var(--surface-muted);
+}
+
+.message-row.outgoing.recalled .message-bubble {
+    color: var(--muted);
+    background: var(--surface-muted);
+}
+
 .message-bubble p {
     margin: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     line-height: 1.65;
+}
+
+.message-recalled {
+    font-style: italic;
 }
 
 .message-image {
@@ -777,6 +793,10 @@ a:focus-visible {
 
 .delivery-state {
     white-space: nowrap;
+}
+
+.message-recall-button {
+    font-size: 0.625rem;
 }
 
 .composer {

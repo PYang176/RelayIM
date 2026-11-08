@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func TestMessageCreatedProcessorIntegration(t *testing.T) {
+func TestMessageEventProcessorIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
 		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
@@ -34,12 +34,13 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 	conversationID := baseID + 2
 	messageID := baseID + 3
 	eventID := baseID + 4
+	recallEventID := baseID + 5
 	t.Cleanup(func() {
 		statements := []struct {
 			query string
 			args  []any
 		}{
-			{"DELETE FROM processed_events WHERE event_id = ?", []any{eventID}},
+			{"DELETE FROM processed_events WHERE event_id IN (?, ?)", []any{eventID, recallEventID}},
 			{"DELETE FROM messages WHERE id = ?", []any{messageID}},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
@@ -115,7 +116,7 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 	}
 
 	realtime := &stubRealtimeSender{}
-	processor := NewMessageCreatedProcessor(db, realtime)
+	processor := NewMessageEventProcessor(db, realtime)
 	if err := processor.Process(context.Background(), envelope); err != nil {
 		t.Fatalf("首次处理消息事件失败: %v", err)
 	}
@@ -126,7 +127,7 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 
 	var processedCount int64
 	if err := db.Model(&processedEvent{}).
-		Where("event_id = ? AND consumer_name = ?", eventID, messageCreatedConsumerName).
+		Where("event_id = ? AND consumer_name = ?", eventID, messageEventsConsumerName).
 		Count(&processedCount).Error; err != nil {
 		t.Fatalf("查询消费幂等记录失败: %v", err)
 	}
@@ -149,6 +150,55 @@ func TestMessageCreatedProcessorIntegration(t *testing.T) {
 		pushed.Seq != 1 ||
 		pushed.Content != "消费测试消息" {
 		t.Fatalf("实时消息 = %+v", pushed)
+	}
+
+	recalledAt := time.Now().UTC().Truncate(time.Millisecond)
+	if err := db.Model(&message{}).
+		Where("id = ?", messageID).
+		Updates(map[string]any{
+			"recalled_at": recalledAt,
+			"recalled_by": userA,
+		}).Error; err != nil {
+		t.Fatalf("准备撤回状态失败: %v", err)
+	}
+	recallPayload, err := json.Marshal(messageRecalledPayload{
+		MessageID:      fmt.Sprintf("%d", messageID),
+		ConversationID: fmt.Sprintf("%d", conversationID),
+		SenderID:       fmt.Sprintf("%d", userA),
+		RecalledBy:     fmt.Sprintf("%d", userA),
+		Seq:            1,
+		RecalledAt:     recalledAt,
+	})
+	if err != nil {
+		t.Fatalf("序列化撤回测试载荷失败: %v", err)
+	}
+	recallEnvelope := rabbitmq.EventEnvelope{
+		EventID:     fmt.Sprintf("%d", recallEventID),
+		EventType:   rabbitmq.MessageRecalledRoutingKey,
+		OccurredAt:  recalledAt,
+		AggregateID: fmt.Sprintf("%d", conversationID),
+		Payload:     recallPayload,
+	}
+	if err := processor.Process(context.Background(), recallEnvelope); err != nil {
+		t.Fatalf("处理消息撤回事件失败: %v", err)
+	}
+	if len(realtime.messages) != 2 {
+		t.Fatalf("实时投递次数 = %d，期望创建和撤回共 2 次", len(realtime.messages))
+	}
+	if len(realtime.userIDs) != 2 ||
+		realtime.userIDs[0] != userA ||
+		realtime.userIDs[1] != userB {
+		t.Fatalf("撤回实时接收者 = %v，期望群内两名成员", realtime.userIDs)
+	}
+	var recalledPush ws.WsMessage
+	if err := json.Unmarshal(realtime.messages[1], &recalledPush); err != nil {
+		t.Fatalf("解析实时撤回消息失败: %v", err)
+	}
+	if recalledPush.Action != ws.ActionMessageRecalled ||
+		recalledPush.MessageID != fmt.Sprintf("%d", messageID) ||
+		recalledPush.RecalledBy != fmt.Sprintf("%d", userA) ||
+		recalledPush.RecalledAt == "" {
+		t.Fatalf("实时撤回消息 = %+v", recalledPush)
 	}
 }
 

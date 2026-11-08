@@ -11,6 +11,8 @@ const (
 	maxTextContentRunes = 8000
 	defaultHistoryLimit = 20
 	maxHistoryLimit     = 100
+	senderRecallWindow  = 2 * time.Minute
+	managerRecallWindow = 24 * time.Hour
 )
 
 // Service 提供消息业务用例。
@@ -50,6 +52,18 @@ type SendAttachmentCommand struct {
 	MessageType     int
 	AttachmentID    uint64
 	Content         string
+}
+
+// RecallMessageCommand 是撤回一条会话消息的参数。
+type RecallMessageCommand struct {
+	// ConversationID 是消息所属会话 Snowflake ID。
+	ConversationID uint64
+
+	// UserID 是执行撤回的当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// MessageID 是待撤回消息 Snowflake ID。
+	MessageID uint64
 }
 
 // ListMessagesCommand 是历史消息分页参数。
@@ -101,6 +115,15 @@ type MessageResult struct {
 
 	// AttachmentURL 是短时附件下载地址。
 	AttachmentURL string
+
+	// Recalled 表示消息已被撤回，内容和附件不再返回。
+	Recalled bool
+
+	// RecalledAt 是撤回发生的 UTC 时间。
+	RecalledAt *time.Time
+
+	// RecalledBy 是执行撤回的用户 Snowflake ID。
+	RecalledBy *uint64
 
 	// CreatedAt 是消息创建的 UTC 时间。
 	CreatedAt time.Time
@@ -253,6 +276,21 @@ func (s *Service) ListMessages(
 
 	results := make([]MessageResult, 0, len(records))
 	for _, record := range records {
+		if record.RecalledAt != nil {
+			results = append(results, MessageResult{
+				ID:             record.ID,
+				ConversationID: record.ConversationID,
+				SenderID:       record.SenderID,
+				Seq:            record.Seq,
+				MessageType:    record.MessageType,
+				Recalled:       true,
+				RecalledAt:     record.RecalledAt,
+				RecalledBy:     record.RecalledBy,
+				CreatedAt:      record.CreatedAt,
+			})
+			continue
+		}
+
 		attachmentURL := ""
 		if record.AttachmentObjectKey != nil && s.storage != nil {
 			attachmentURL, _ = s.storage.PresignedGetURL(
@@ -272,6 +310,8 @@ func (s *Service) ListMessages(
 			AttachmentID:     record.AttachmentID,
 			AttachmentName:   stringValue(record.AttachmentName),
 			AttachmentURL:    attachmentURL,
+			RecalledAt:       record.RecalledAt,
+			RecalledBy:       record.RecalledBy,
 			CreatedAt:        record.CreatedAt,
 		})
 	}
@@ -279,6 +319,25 @@ func (s *Service) ListMessages(
 		Messages: results,
 		HasMore:  hasMore,
 	}, nil
+}
+
+// RecallMessage 校验撤回时间窗和群权限后写入撤回状态与可靠事件。
+func (s *Service) RecallMessage(
+	ctx context.Context,
+	command RecallMessageCommand,
+) error {
+	if command.ConversationID == 0 ||
+		command.UserID == 0 ||
+		command.MessageID == 0 {
+		return ErrInvalidMessage
+	}
+	return s.repo.recallMessage(
+		ctx,
+		command.ConversationID,
+		command.UserID,
+		command.MessageID,
+		time.Now().UTC(),
+	)
 }
 
 // AcknowledgeMessage 记录指定设备已收到消息。

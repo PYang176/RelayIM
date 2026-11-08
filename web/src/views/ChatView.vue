@@ -57,6 +57,11 @@ const activeConversationTitle = computed(() =>
         ? chat.conversationTitle(chat.activeConversation)
         : '',
 )
+const currentMemberRole = computed(
+    () =>
+        chat.activeMembers.find((member) => member.user_id === auth.user?.id)
+            ?.role ?? 1,
+)
 
 async function selectConversation(conversationId: string) {
     await chat.selectConversation(conversationId)
@@ -166,6 +171,14 @@ async function sendMessage(content: string) {
         messageList.value?.scrollToBottom()
     } catch (cause) {
         chat.reportError(cause instanceof Error ? cause.message : '发送消息失败')
+    }
+}
+
+async function recallMessage(messageId: string) {
+    try {
+        await chat.recallMessage(messageId)
+    } catch (cause) {
+        chat.reportError(cause instanceof Error ? cause.message : '撤回消息失败')
     }
 }
 
@@ -328,11 +341,16 @@ onBeforeUnmount(() => {
 
                     <MessageList
                             ref="messageList"
+                            :conversation-type="
+                                chat.activeConversation?.conversation_type ?? 1
+                            "
                             :current-user-id="auth.user?.id ?? ''"
+                            :current-user-role="currentMemberRole"
                             :has-more="Boolean(chat.hasMoreByConversation[chat.activeConversationId])"
                             :loading="chat.loadingMessages"
                             :messages="chat.activeMessages"
                             @load-older="chat.loadOlderMessages"
+                            @recall="recallMessage"
                     />
                     <MessageComposer
                             :disabled="chat.connectionState !== 'connected'"

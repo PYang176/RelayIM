@@ -8,8 +8,8 @@ import (
 	"ginChatProject/internal/platform/rabbitmq"
 )
 
-func TestMessageCreatedProcessorRejectsInvalidEvent(t *testing.T) {
-	processor := NewMessageCreatedProcessor(nil, nil)
+func TestMessageEventProcessorRejectsInvalidEvent(t *testing.T) {
+	processor := NewMessageEventProcessor(nil, nil)
 	tests := []struct {
 		name     string
 		envelope rabbitmq.EventEnvelope

@@ -345,6 +345,109 @@ func (r *Repository) listMessages(
 	return records, hasMore, nil
 }
 
+// recallMessage 在事务中校验权限和撤回时间窗，并写入可靠实时事件。
+func (r *Repository) recallMessage(
+	ctx context.Context,
+	conversationID uint64,
+	userID uint64,
+	messageID uint64,
+	now time.Time,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conversationRecord conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", conversationID).
+			First(&conversationRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("锁定撤回消息会话: %w", err)
+		}
+		if conversationRecord.Status != conversationStatusActive {
+			return ErrConversationClosed
+		}
+
+		var member conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			userID,
+		).First(&member).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotMember
+			}
+			return fmt.Errorf("校验撤回操作人: %w", err)
+		}
+
+		var record message
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND conversation_id = ?",
+				messageID,
+				conversationID,
+			).
+			First(&record).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrMessageNotFound
+			}
+			return fmt.Errorf("锁定待撤回消息: %w", err)
+		}
+		if record.RecalledAt != nil {
+			return nil
+		}
+
+		// 普通发送者只能撤回自己两分钟内的消息；群主和管理员可以治理
+		// 群内一天内的消息。会话行锁保证并发撤回和发送不会读到半状态。
+		isSender := record.SenderID == userID
+		isGroupManager := conversationRecord.ConversationType == conversationTypeGroup &&
+			member.Role >= groupRoleAdmin
+		canRecallAsSender := isSender &&
+			!now.After(record.CreatedAt.Add(senderRecallWindow))
+		canRecallAsManager := isGroupManager &&
+			!now.After(record.CreatedAt.Add(managerRecallWindow))
+		if !canRecallAsSender && !canRecallAsManager {
+			if !isSender && !isGroupManager {
+				return ErrRecallForbidden
+			}
+			return ErrRecallExpired
+		}
+
+		if err := tx.Model(&message{}).
+			Where("id = ?", messageID).
+			Updates(map[string]any{
+				"recalled_at": now,
+				"recalled_by": userID,
+			}).Error; err != nil {
+			return fmt.Errorf("更新消息撤回状态: %w", err)
+		}
+
+		payload, err := json.Marshal(messageRecalledPayload{
+			MessageID:      strconv.FormatUint(record.ID, 10),
+			ConversationID: strconv.FormatUint(conversationID, 10),
+			SenderID:       strconv.FormatUint(record.SenderID, 10),
+			RecalledBy:     strconv.FormatUint(userID, 10),
+			Seq:            record.Seq,
+			RecalledAt:     now,
+		})
+		if err != nil {
+			return fmt.Errorf("序列化消息撤回事件: %w", err)
+		}
+		if err := tx.Create(&outboxEvent{
+			EventID:       uint64(snowflake.Generate()),
+			AggregateType: "conversation",
+			AggregateID:   conversationID,
+			EventType:     "message.recalled.v1",
+			Payload:       string(payload),
+			Status:        outboxStatusPending,
+			AvailableAt:   now,
+			CreatedAt:     now,
+		}).Error; err != nil {
+			return fmt.Errorf("保存消息撤回事件: %w", err)
+		}
+		return nil
+	})
+}
+
 // acknowledgeMessage 记录消息到具体设备的幂等送达回执。
 func (r *Repository) acknowledgeMessage(
 	ctx context.Context,

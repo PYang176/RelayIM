@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const messageCreatedConsumerName = "message-created-v1"
+const messageEventsConsumerName = "message-events-v1"
 
 type permanentEventError struct {
 	err error
@@ -31,8 +31,8 @@ func (e permanentEventError) Permanent() bool {
 	return true
 }
 
-// MessageCreatedProcessor 校验消息事件并记录消费幂等状态。
-type MessageCreatedProcessor struct {
+// MessageEventProcessor 校验消息领域事件、记录幂等状态并推送到在线连接。
+type MessageEventProcessor struct {
 	db           *gorm.DB
 	consumerName string
 	realtime     RealtimeSender
@@ -43,31 +43,41 @@ type RealtimeSender interface {
 	SendToUsers(userIDs []uint64, message []byte) int
 }
 
-// NewMessageCreatedProcessor 创建消息创建事件处理器。
-func NewMessageCreatedProcessor(
+// NewMessageEventProcessor 创建消息领域事件处理器。
+func NewMessageEventProcessor(
 	db *gorm.DB,
 	realtime RealtimeSender,
-) *MessageCreatedProcessor {
-	return &MessageCreatedProcessor{
+) *MessageEventProcessor {
+	return &MessageEventProcessor{
 		db:           db,
-		consumerName: messageCreatedConsumerName,
+		consumerName: messageEventsConsumerName,
 		realtime:     realtime,
 	}
 }
 
-// Process 校验事件引用的消息事实，并在同一事务中记录 Consumer 幂等结果。
-func (p *MessageCreatedProcessor) Process(
+// Process 按事件类型分发消息创建和撤回处理。
+func (p *MessageEventProcessor) Process(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
 ) error {
-	if envelope.EventType != rabbitmq.MessageCreatedRoutingKey {
+	switch envelope.EventType {
+	case rabbitmq.MessageCreatedRoutingKey:
+		return p.processMessageCreated(ctx, envelope)
+	case rabbitmq.MessageRecalledRoutingKey:
+		return p.processMessageRecalled(ctx, envelope)
+	default:
 		return permanentEventError{err: fmt.Errorf(
 			"%w: 不支持的事件类型 %s",
 			ErrInvalidEvent,
 			envelope.EventType,
 		)}
 	}
+}
 
+func (p *MessageEventProcessor) processMessageCreated(
+	ctx context.Context,
+	envelope rabbitmq.EventEnvelope,
+) error {
 	eventID, err := strconv.ParseUint(envelope.EventID, 10, 64)
 	if err != nil || eventID == 0 {
 		return permanentEventError{err: fmt.Errorf(
@@ -173,6 +183,12 @@ func (p *MessageCreatedProcessor) Process(
 			)}
 		}
 
+		// 撤回事件可能先于滞后的创建事件被处理。撤回状态已经提交时，
+		// 不再把旧正文和附件推送到在线客户端。
+		if messageRecord.RecalledAt != nil {
+			return nil
+		}
+
 		var recipientIDs []uint64
 		if err := tx.Table("conversation_members").
 			Where(
@@ -214,6 +230,128 @@ func (p *MessageCreatedProcessor) Process(
 		return err
 	}
 	return nil
+}
+
+func (p *MessageEventProcessor) processMessageRecalled(
+	ctx context.Context,
+	envelope rabbitmq.EventEnvelope,
+) error {
+	eventID, err := strconv.ParseUint(envelope.EventID, 10, 64)
+	if err != nil || eventID == 0 {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: event_id 格式错误",
+			ErrInvalidEvent,
+		)}
+	}
+	aggregateID, err := strconv.ParseUint(envelope.AggregateID, 10, 64)
+	if err != nil || aggregateID == 0 {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: aggregate_id 格式错误",
+			ErrInvalidEvent,
+		)}
+	}
+
+	var payload messageRecalledPayload
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: 解析撤回载荷: %v",
+			ErrInvalidEvent,
+			err,
+		)}
+	}
+	messageID, err := strconv.ParseUint(payload.MessageID, 10, 64)
+	if err != nil || messageID == 0 {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: message_id 格式错误",
+			ErrInvalidEvent,
+		)}
+	}
+	conversationID, err := strconv.ParseUint(payload.ConversationID, 10, 64)
+	if err != nil || conversationID == 0 || conversationID != aggregateID {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: conversation_id 格式错误或与聚合 ID 不一致",
+			ErrInvalidEvent,
+		)}
+	}
+	senderID, err := strconv.ParseUint(payload.SenderID, 10, 64)
+	if err != nil || senderID == 0 {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: sender_id 格式错误",
+			ErrInvalidEvent,
+		)}
+	}
+	recalledBy, err := strconv.ParseUint(payload.RecalledBy, 10, 64)
+	if err != nil || recalledBy == 0 || payload.Seq == 0 {
+		return permanentEventError{err: fmt.Errorf(
+			"%w: 撤回人或消息序号错误",
+			ErrInvalidEvent,
+		)}
+	}
+
+	return p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(
+			"INSERT IGNORE INTO processed_events (event_id, consumer_name, processed_at) "+
+				"VALUES (?, ?, ?)",
+			eventID,
+			p.consumerName,
+			time.Now().UTC(),
+		)
+		if result.Error != nil {
+			return fmt.Errorf("记录撤回 Consumer 幂等事件: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+
+		var messageRecord message
+		err := tx.Where(
+			"id = ? AND conversation_id = ? AND sender_id = ? AND seq = ? "+
+				"AND recalled_by = ? AND recalled_at IS NOT NULL",
+			messageID,
+			conversationID,
+			senderID,
+			payload.Seq,
+			recalledBy,
+		).First(&messageRecord).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return permanentEventError{err: fmt.Errorf(
+				"%w: message_id=%d",
+				ErrMessageEventNotFound,
+				messageID,
+			)}
+		}
+		if err != nil {
+			return fmt.Errorf("校验消息撤回事实: %w", err)
+		}
+
+		var recipientIDs []uint64
+		if err := tx.Table("conversation_members").
+			Where(
+				"conversation_id = ? AND left_at IS NULL",
+				conversationID,
+			).
+			Pluck("user_id", &recipientIDs).Error; err != nil {
+			return fmt.Errorf("查询撤回事件在线接收者: %w", err)
+		}
+		if p.realtime == nil || len(recipientIDs) == 0 {
+			return nil
+		}
+
+		realtimePayload, err := json.Marshal(ws.WsMessage{
+			MessageID:      strconv.FormatUint(messageID, 10),
+			ConversationID: strconv.FormatUint(conversationID, 10),
+			SenderID:       strconv.FormatUint(senderID, 10),
+			RecalledBy:     strconv.FormatUint(recalledBy, 10),
+			Seq:            payload.Seq,
+			Action:         ws.ActionMessageRecalled,
+			RecalledAt:     payload.RecalledAt.UTC().Format(time.RFC3339Nano),
+		})
+		if err != nil {
+			return fmt.Errorf("序列化在线撤回事件: %w", err)
+		}
+		p.realtime.SendToUsers(recipientIDs, realtimePayload)
+		return nil
+	})
 }
 
 func parseMessageCreatedPayload(

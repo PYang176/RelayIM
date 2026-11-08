@@ -25,21 +25,21 @@ type deliveryConsumer interface {
 
 type consumerFactory func() (deliveryConsumer, error)
 
-// MessageCreatedConsumer 负责连接重建、事件解码和幂等业务处理。
-type MessageCreatedConsumer struct {
-	processor   *MessageCreatedProcessor
+// MessageEventConsumer 负责连接重建、事件解码和幂等业务处理。
+type MessageEventConsumer struct {
+	processor   *MessageEventProcessor
 	config      config.RabbitMQConfig
 	consumerTag string
 	newConsumer consumerFactory
 }
 
-// NewMessageCreatedConsumer 创建消息创建事件消费者。
-func NewMessageCreatedConsumer(
-	processor *MessageCreatedProcessor,
+// NewMessageEventConsumer 创建消息领域事件消费者。
+func NewMessageEventConsumer(
+	processor *MessageEventProcessor,
 	cfg config.RabbitMQConfig,
 	consumerTag string,
-) *MessageCreatedConsumer {
-	return &MessageCreatedConsumer{
+) *MessageEventConsumer {
+	return &MessageEventConsumer{
 		processor:   processor,
 		config:      cfg,
 		consumerTag: consumerTag,
@@ -49,8 +49,8 @@ func NewMessageCreatedConsumer(
 	}
 }
 
-// Run 持续消费消息创建事件，直到 Context 被取消。
-func (c *MessageCreatedConsumer) Run(ctx context.Context) {
+// Run 持续消费消息领域事件，直到 Context 被取消。
+func (c *MessageEventConsumer) Run(ctx context.Context) {
 	for {
 		if ctx.Err() != nil {
 			return
@@ -84,7 +84,7 @@ func (c *MessageCreatedConsumer) Run(ctx context.Context) {
 	}
 }
 
-func (c *MessageCreatedConsumer) processDelivery(
+func (c *MessageEventConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
 ) error {

@@ -141,3 +141,24 @@ func TestServiceReceiptValidation(t *testing.T) {
 		t.Fatalf("已读参数错误 = %v，期望 ErrInvalidMessage", err)
 	}
 }
+
+func TestServiceRecallValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []RecallMessageCommand{
+		{UserID: 1, MessageID: 2},
+		{ConversationID: 1, MessageID: 2},
+		{ConversationID: 1, UserID: 1},
+	}
+	for index, command := range tests {
+		if err := service.RecallMessage(
+			context.Background(),
+			command,
+		); !errors.Is(err, ErrInvalidMessage) {
+			t.Fatalf(
+				"第 %d 个撤回参数错误 = %v，期望 ErrInvalidMessage",
+				index,
+				err,
+			)
+		}
+	}
+}

@@ -15,10 +15,13 @@ import (
 )
 
 type stubTextMessageSender struct {
-	result  SendTextResult
-	err     error
-	calls   int
-	command SendTextCommand
+	result      SendTextResult
+	err         error
+	recallErr   error
+	calls       int
+	recallCalls int
+	command     SendTextCommand
+	recallCmd   RecallMessageCommand
 }
 
 type stubMessageReader struct {
@@ -77,6 +80,15 @@ func (s *stubTextMessageSender) SendAttachment(
 		Content:         command.Content,
 	}
 	return s.result, s.err
+}
+
+func (s *stubTextMessageSender) RecallMessage(
+	_ context.Context,
+	command RecallMessageCommand,
+) error {
+	s.recallCalls++
+	s.recallCmd = command
+	return s.recallErr
 }
 
 func TestHandlerSendText(t *testing.T) {
@@ -335,6 +347,87 @@ func TestHandlerSendTextErrorMapping(t *testing.T) {
 	}
 }
 
+func TestHandlerRecallMessage(t *testing.T) {
+	tests := []struct {
+		name       string
+		userID     uint64
+		messageID  string
+		err        error
+		wantStatus int
+		wantCalls  int
+	}{
+		{
+			name:       "撤回成功",
+			userID:     42,
+			messageID:  "300",
+			wantStatus: http.StatusNoContent,
+			wantCalls:  1,
+		},
+		{
+			name:       "缺少认证用户",
+			messageID:  "300",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "消息 ID 非法",
+			userID:     42,
+			messageID:  "invalid",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "无权撤回",
+			userID:     42,
+			messageID:  "300",
+			err:        ErrRecallForbidden,
+			wantStatus: http.StatusForbidden,
+			wantCalls:  1,
+		},
+		{
+			name:       "超过撤回时间",
+			userID:     42,
+			messageID:  "300",
+			err:        ErrRecallExpired,
+			wantStatus: http.StatusConflict,
+			wantCalls:  1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &stubTextMessageSender{recallErr: tt.err}
+			router := newMessagingHandlerRouter(sender, tt.userID)
+			request := httptest.NewRequest(
+				http.MethodDelete,
+				"/api/v1/conversations/200/messages/"+tt.messageID,
+				nil,
+			)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			if response.Code != tt.wantStatus {
+				t.Fatalf(
+					"状态码 = %d，期望 %d，响应 = %s",
+					response.Code,
+					tt.wantStatus,
+					response.Body.String(),
+				)
+			}
+			if sender.recallCalls != tt.wantCalls {
+				t.Fatalf(
+					"RecallMessage 调用次数 = %d，期望 %d",
+					sender.recallCalls,
+					tt.wantCalls,
+				)
+			}
+			if tt.wantCalls == 1 &&
+				(sender.recallCmd.ConversationID != 200 ||
+					sender.recallCmd.UserID != tt.userID ||
+					sender.recallCmd.MessageID != 300) {
+				t.Fatalf("撤回命令 = %+v", sender.recallCmd)
+			}
+		})
+	}
+}
+
 func TestHandlerListMessages(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 7, 10, 0, 0, 0, time.UTC)
 	replyTo := uint64(300)
@@ -525,6 +618,10 @@ func newMessagingHandlerRouter(
 	router.POST(
 		"/api/v1/conversations/:conversation_id/messages",
 		handler.SendMessage,
+	)
+	router.DELETE(
+		"/api/v1/conversations/:conversation_id/messages/:message_id",
+		handler.RecallMessage,
 	)
 	return router
 }

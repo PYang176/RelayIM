@@ -5,6 +5,9 @@ const (
 	ActionMessage = "message" // 普通消息
 	ActionAck     = "ack"     // 送达回执
 	ActionRead    = "read"    // 已读回执
+
+	// ActionMessageRecalled 表示一条已发送消息被撤回。
+	ActionMessageRecalled = "message_recalled"
 )
 
 // WsMessage WebSocket 消息结构
@@ -17,6 +20,9 @@ type WsMessage struct {
 
 	// SenderID 是发送者 Snowflake 用户 ID 字符串，避免 JavaScript 精度丢失。
 	SenderID string `json:"sender_id"`
+
+	// RecalledBy 是撤回操作人 Snowflake 用户 ID 字符串。
+	RecalledBy string `json:"recalled_by,omitempty"`
 
 	// ReceiverID 是旧版接收者或群 ID 字符串，新版消息可留空。
 	ReceiverID string `json:"receiver_id,omitempty"`
@@ -38,4 +44,7 @@ type WsMessage struct {
 
 	// Action 是 WebSocket 信令类型。
 	Action string `json:"action"`
+
+	// RecalledAt 是撤回发生的 UTC 时间。
+	RecalledAt string `json:"recalled_at,omitempty"`
 }

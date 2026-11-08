@@ -28,6 +28,12 @@ var (
 	// ErrMessageNotFound 表示指定消息不存在或不属于当前会话。
 	ErrMessageNotFound = errors.New("消息不存在")
 
+	// ErrRecallForbidden 表示当前用户无权撤回指定消息。
+	ErrRecallForbidden = errors.New("没有权限撤回该消息")
+
+	// ErrRecallExpired 表示消息已超过允许撤回的时间窗口。
+	ErrRecallExpired = errors.New("消息已超过可撤回时间")
+
 	// ErrDeviceUnavailable 表示设备不存在、已撤销或不属于当前用户。
 	ErrDeviceUnavailable = errors.New("设备不存在或已失效")
 

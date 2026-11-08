@@ -25,6 +25,13 @@ var (
 		GlobalLimit:  100,
 		Window:       time.Minute,
 	}
+	messageRecallRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "message_recall",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 20,
+		GlobalLimit:  200,
+		Window:       time.Minute,
+	}
 )
 
 // Register 注册新版消息路由。
@@ -56,6 +63,11 @@ func Register(
 		"/:conversation_id/messages",
 		middleware.RateLimit(requestLimiter, messageRateLimitPolicy, metrics),
 		handler.SendMessage,
+	)
+	group.DELETE(
+		"/:conversation_id/messages/:message_id",
+		middleware.RateLimit(requestLimiter, messageRecallRateLimitPolicy, metrics),
+		handler.RecallMessage,
 	)
 
 	attachments := r.Group("/api/v1/attachments")
