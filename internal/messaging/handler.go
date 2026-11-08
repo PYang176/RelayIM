@@ -59,11 +59,18 @@ type AttachmentManager interface {
 	) (AttachmentResult, error)
 }
 
+// MetricsRecorder 接收消息和附件主链路的业务指标。
+type MetricsRecorder interface {
+	RecordMessageAccepted(messageType string, duplicate bool)
+	RecordAttachmentUpload(success bool)
+}
+
 // Handler 处理新版消息 HTTP 请求。
 type Handler struct {
 	service     MessageSender
 	reader      MessageReader
 	attachments AttachmentManager
+	metrics     MetricsRecorder
 }
 
 // NewHandler 创建消息 Handler。
@@ -72,10 +79,21 @@ func NewHandler(
 	reader MessageReader,
 	attachments AttachmentManager,
 ) *Handler {
+	return NewHandlerWithMetrics(service, reader, attachments, nil)
+}
+
+// NewHandlerWithMetrics 创建带业务指标的消息 Handler。
+func NewHandlerWithMetrics(
+	service MessageSender,
+	reader MessageReader,
+	attachments AttachmentManager,
+	metrics MetricsRecorder,
+) *Handler {
 	return &Handler{
 		service:     service,
 		reader:      reader,
 		attachments: attachments,
+		metrics:     metrics,
 	}
 }
 
@@ -232,6 +250,12 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	if err != nil {
 		writeMessagingError(c, err)
 		return
+	}
+	if h.metrics != nil {
+		h.metrics.RecordMessageAccepted(
+			messageTypeMetricLabel(messageType),
+			result.Duplicate,
+		)
 	}
 
 	status := http.StatusCreated
@@ -406,6 +430,12 @@ func (h *Handler) UploadAttachment(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
 		return
 	}
+	uploadSucceeded := false
+	defer func() {
+		if h.metrics != nil {
+			h.metrics.RecordAttachmentUpload(uploadSucceeded)
+		}
+	}()
 	c.Request.Body = http.MaxBytesReader(
 		c.Writer,
 		c.Request.Body,
@@ -453,6 +483,7 @@ func (h *Handler) UploadAttachment(c *gin.Context) {
 		writeMessagingError(c, err)
 		return
 	}
+	uploadSucceeded = true
 	c.JSON(http.StatusCreated, gin.H{
 		"attachment_id": strconv.FormatUint(result.ID, 10),
 		"message_type":  result.MessageType,
@@ -461,6 +492,17 @@ func (h *Handler) UploadAttachment(c *gin.Context) {
 		"filename":      result.Filename,
 		"url":           result.URL,
 	})
+}
+
+func messageTypeMetricLabel(messageType int) string {
+	switch messageType {
+	case messageTypeImage:
+		return "image"
+	case messageTypeFile:
+		return "file"
+	default:
+		return "text"
+	}
 }
 
 // DownloadAttachment 处理 GET /api/v1/attachments/:id/content。

@@ -54,7 +54,7 @@ func Router(
 	friendshiprouter.Register(r, db)
 
 	// 新版消息模块
-	messagingrouter.Register(r, db, storage)
+	messagingrouter.Register(r, db, storage, metrics)
 
 	// websocket
 	ws.Register(r, db)

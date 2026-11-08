@@ -21,6 +21,7 @@ import (
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/ws"
+	"gorm.io/gorm"
 )
 
 const (
@@ -71,6 +72,9 @@ func Run() error {
 	metrics := observability.NewMetrics()
 	metrics.RegisterDatabaseStats(sqlDB.Stats)
 	metrics.RegisterWebSocketConnections(ws.Manager.ConnectionCount)
+	metrics.RegisterOutboxStats(func(ctx context.Context) (observability.OutboxStats, error) {
+		return loadOutboxStats(ctx, db)
+	})
 	health := observability.NewHealth(
 		observability.DependencyCheck{
 			Name:  "mysql",
@@ -157,6 +161,39 @@ func setupLogging() {
 		&slog.HandlerOptions{Level: slog.LevelInfo},
 	)
 	slog.SetDefault(slog.New(handler))
+}
+
+type outboxStatusCount struct {
+	Status int   `gorm:"column:status"`
+	Count  int64 `gorm:"column:count"`
+}
+
+func loadOutboxStats(
+	ctx context.Context,
+	db *gorm.DB,
+) (observability.OutboxStats, error) {
+	var records []outboxStatusCount
+	if err := db.WithContext(ctx).
+		Table("outbox_events").
+		Select("status, COUNT(*) AS count").
+		Group("status").
+		Scan(&records).Error; err != nil {
+		return observability.OutboxStats{}, fmt.Errorf("查询 Outbox 指标: %w", err)
+	}
+	var result observability.OutboxStats
+	for _, record := range records {
+		switch record.Status {
+		case 0:
+			result.Pending = record.Count
+		case 1:
+			result.Processing = record.Count
+		case 2:
+			result.Published = record.Count
+		case 3:
+			result.Dead = record.Count
+		}
+	}
+	return result, nil
 }
 
 func serverAddr() string {

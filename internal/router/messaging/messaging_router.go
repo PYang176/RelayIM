@@ -3,6 +3,7 @@ package messaging
 import (
 	messagingapp "ginChatProject/internal/messaging"
 	"ginChatProject/internal/middleware"
+	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -12,10 +13,16 @@ func Register(
 	r *gin.Engine,
 	db *gorm.DB,
 	storage messagingapp.AttachmentStorage,
+	metrics *observability.Metrics,
 ) {
 	repository := messagingapp.NewRepository(db)
 	service := messagingapp.NewServiceWithStorage(repository, storage)
-	handler := messagingapp.NewHandler(service, service, service)
+	handler := messagingapp.NewHandlerWithMetrics(
+		service,
+		service,
+		service,
+		metrics,
+	)
 
 	group := r.Group("/api/v1/conversations")
 	group.Use(middleware.AuthMiddleware())

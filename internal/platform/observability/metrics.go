@@ -2,6 +2,7 @@
 package observability
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
@@ -17,6 +18,8 @@ type Metrics struct {
 	requests       *prometheus.CounterVec
 	requestLatency *prometheus.HistogramVec
 	inFlight       prometheus.Gauge
+	messages       *prometheus.CounterVec
+	attachments    *prometheus.CounterVec
 }
 
 // NewMetrics 创建指标注册表和 HTTP、运行时基础指标。
@@ -67,13 +70,57 @@ func NewMetrics() *Metrics {
 			Name:      "requests_in_flight",
 			Help:      "当前正在处理的 HTTP 请求数",
 		}),
+		messages: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "ginchat",
+				Subsystem: "message",
+				Name:      "accepted_total",
+				Help:      "服务端成功接受并持久化的消息数",
+			},
+			[]string{"type", "duplicate"},
+		),
+		attachments: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "ginchat",
+				Subsystem: "attachment",
+				Name:      "uploads_total",
+				Help:      "附件上传统计",
+			},
+			[]string{"result"},
+		),
 	}
 	registry.MustRegister(
 		metrics.requests,
 		metrics.requestLatency,
 		metrics.inFlight,
+		metrics.messages,
+		metrics.attachments,
 	)
 	return metrics
+}
+
+// RecordMessageAccepted 记录服务端成功接受的消息。
+func (m *Metrics) RecordMessageAccepted(
+	messageType string,
+	duplicate bool,
+) {
+	duplicateLabel := "false"
+	if duplicate {
+		duplicateLabel = "true"
+	}
+	m.messages.With(prometheus.Labels{
+		"type":      messageType,
+		"duplicate": duplicateLabel,
+	}).Inc()
+}
+
+// RecordAttachmentUpload 记录附件上传成功或失败。
+func (m *Metrics) RecordAttachmentUpload(success bool) {
+	result := "failure"
+	if success {
+		result = "success"
+	}
+	m.attachments.WithLabelValues(result).Inc()
 }
 
 // Handler 返回 Prometheus 标准抓取端点。
@@ -156,6 +203,21 @@ func (m *Metrics) RegisterDatabaseStats(stats func() sql.DBStats) {
 	}
 }
 
+// OutboxStats 是 Outbox 各状态的当前数量。
+type OutboxStats struct {
+	Pending    int64
+	Processing int64
+	Published  int64
+	Dead       int64
+}
+
+// RegisterOutboxStats 注册 Outbox 状态采集器。
+func (m *Metrics) RegisterOutboxStats(
+	load func(ctx context.Context) (OutboxStats, error),
+) {
+	m.registry.MustRegister(&outboxCollector{load: load})
+}
+
 // Registry 返回只读注册表，供测试或自定义 Exporter 使用。
 func (m *Metrics) Registry() *prometheus.Registry {
 	return m.registry
@@ -171,5 +233,68 @@ func httpStatusLabel(status int) string {
 		return "3xx"
 	default:
 		return "2xx"
+	}
+}
+
+type outboxCollector struct {
+	load func(ctx context.Context) (OutboxStats, error)
+}
+
+var (
+	outboxEventsDesc = prometheus.NewDesc(
+		"ginchat_outbox_events",
+		"Outbox 各状态事件数量",
+		[]string{"status"},
+		nil,
+	)
+	outboxQuerySuccessDesc = prometheus.NewDesc(
+		"ginchat_outbox_query_success",
+		"最近一次 Outbox 状态查询是否成功",
+		nil,
+		nil,
+	)
+)
+
+// Describe 描述 Outbox 采集器产生的指标。
+func (c *outboxCollector) Describe(channel chan<- *prometheus.Desc) {
+	channel <- outboxEventsDesc
+	channel <- outboxQuerySuccessDesc
+}
+
+// Collect 每次抓取只执行一次数据库聚合查询。
+func (c *outboxCollector) Collect(channel chan<- prometheus.Metric) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stats, err := c.load(ctx)
+	if err != nil {
+		channel <- prometheus.MustNewConstMetric(
+			outboxQuerySuccessDesc,
+			prometheus.GaugeValue,
+			0,
+		)
+		return
+	}
+	channel <- prometheus.MustNewConstMetric(
+		outboxQuerySuccessDesc,
+		prometheus.GaugeValue,
+		1,
+	)
+	values := []struct {
+		status string
+		value  int64
+	}{
+		{status: "pending", value: stats.Pending},
+		{status: "processing", value: stats.Processing},
+		{status: "published", value: stats.Published},
+		{status: "dead", value: stats.Dead},
+	}
+	for _, value := range values {
+		channel <- prometheus.MustNewConstMetric(
+			outboxEventsDesc,
+			prometheus.GaugeValue,
+			float64(value.value),
+			value.status,
+		)
 	}
 }
