@@ -416,6 +416,171 @@ func (r *Repository) RemoveMember(
 	})
 }
 
+// SetMemberRole 由群主设置管理员或取消管理员。
+func (r *Repository) SetMemberRole(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	targetUserID uint64,
+	role int,
+) error {
+	if role != groupMemberRole && role != groupAdminRole {
+		return ErrInvalidInput
+	}
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockOwnedGroup(
+			ctx,
+			tx,
+			actorID,
+			conversationID,
+		); err != nil {
+			return err
+		}
+
+		// 群主自己的角色由 owner_id 约束，只能通过转让群主改变。
+		// 这里拒绝误把群主降为普通成员，避免出现没有群主的群。
+		if targetUserID == actorID {
+			return ErrPermissionDenied
+		}
+		var target conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			targetUserID,
+		).First(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrMemberNotFound
+			}
+			return fmt.Errorf("查询待调整角色成员: %w", err)
+		}
+		if target.Role == groupOwnerRole {
+			return ErrPermissionDenied
+		}
+		if target.Role == role {
+			return nil
+		}
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+				conversationID,
+				targetUserID,
+			).
+			Updates(map[string]any{
+				"role":       role,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("更新群成员角色: %w", err)
+		}
+		return nil
+	})
+}
+
+// TransferOwner 在同一事务内迁移会话所有者并交换双方角色。
+func (r *Repository) TransferOwner(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	targetUserID uint64,
+) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockOwnedGroup(
+			ctx,
+			tx,
+			actorID,
+			conversationID,
+		); err != nil {
+			return err
+		}
+		if targetUserID == actorID {
+			return ErrInvalidInput
+		}
+
+		var target conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			targetUserID,
+		).First(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrMemberNotFound
+			}
+			return fmt.Errorf("查询群主受让人: %w", err)
+		}
+		if target.Role == groupOwnerRole {
+			return ErrPermissionDenied
+		}
+
+		// conversations.owner_id 与两名成员的角色必须一起提交。
+		// 否则失败会留下“会话所有者”和成员角色互相矛盾的群。
+		if err := tx.Model(&conversation{}).
+			Where("id = ? AND status = ?", conversationID, conversationStatusOpen).
+			Updates(map[string]any{
+				"owner_id":   targetUserID,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("更新群主字段: %w", err)
+		}
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+				conversationID,
+				actorID,
+			).
+			Updates(map[string]any{
+				"role":       groupMemberRole,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("降级原群主: %w", err)
+		}
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+				conversationID,
+				targetUserID,
+			).
+			Updates(map[string]any{
+				"role":       groupOwnerRole,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("升级新群主: %w", err)
+		}
+		return nil
+	})
+}
+
+// DissolveGroup 将群会话标记为已解散，成员和消息记录保留用于审计。
+func (r *Repository) DissolveGroup(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockOwnedGroup(
+			ctx,
+			tx,
+			actorID,
+			conversationID,
+		); err != nil {
+			return err
+		}
+
+		// 消息发送同样先锁定会话行并检查 status。只要解散事务先提交，
+		// 后续发送就会得到“会话已关闭”，不会在已解散群继续产生新消息。
+		if err := tx.Model(&conversation{}).
+			Where("id = ? AND status = ?", conversationID, conversationStatusOpen).
+			Updates(map[string]any{
+				"status":     conversationStatusDissolved,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("解散群会话: %w", err)
+		}
+		return nil
+	})
+}
+
 // ListMembers 返回当前有效成员可查看的会话成员资料。
 func (r *Repository) ListMembers(
 	ctx context.Context,
@@ -424,11 +589,14 @@ func (r *Repository) ListMembers(
 ) ([]memberRecord, error) {
 	var membershipCount int64
 	if err := r.db.WithContext(ctx).
-		Table("conversation_members").
+		Table("conversation_members AS cm").
+		Joins("JOIN conversations AS c ON c.id = cm.conversation_id").
 		Where(
-			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			"cm.conversation_id = ? AND cm.user_id = ? "+
+				"AND cm.left_at IS NULL AND c.status = ?",
 			conversationID,
 			userID,
+			conversationStatusOpen,
 		).
 		Count(&membershipCount).Error; err != nil {
 		return nil, fmt.Errorf("校验会话成员权限: %w", err)
@@ -460,6 +628,51 @@ func (r *Repository) ListMembers(
 		return nil, fmt.Errorf("查询会话成员: %w", err)
 	}
 	return records, nil
+}
+
+func lockOwnedGroup(
+	ctx context.Context,
+	tx *gorm.DB,
+	actorID uint64,
+	conversationID uint64,
+) (*conversation, error) {
+	var conversationRecord conversation
+	if err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where(
+			"id = ? AND status = ?",
+			conversationID,
+			conversationStatusOpen,
+		).
+		First(&conversationRecord).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrConversationNotFound
+		}
+		return nil, fmt.Errorf("锁定群会话: %w", err)
+	}
+	if conversationRecord.ConversationType != conversationTypeGroup {
+		return nil, ErrNotGroup
+	}
+
+	var actor conversationMember
+	if err := tx.Where(
+		"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+		conversationID,
+		actorID,
+	).First(&actor).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrConversationNotFound
+		}
+		return nil, fmt.Errorf("校验群管理操作人: %w", err)
+	}
+
+	// owner_id 与成员角色必须同时匹配，不能只信任其中一个来源。
+	if actor.Role != groupOwnerRole ||
+		conversationRecord.OwnerID == nil ||
+		*conversationRecord.OwnerID != actorID {
+		return nil, ErrPermissionDenied
+	}
+	return &conversationRecord, nil
 }
 
 func (r *Repository) findDirect(

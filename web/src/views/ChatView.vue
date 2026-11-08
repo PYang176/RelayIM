@@ -74,30 +74,59 @@ function openGroupMembers() {
 }
 
 async function inviteMembers(userIds: string[]) {
-    managingMembers.value = true
-    memberActionError.value = ''
-    try {
-        await chat.inviteGroupMembers(userIds)
-    } catch (cause) {
-        memberActionError.value =
-            cause instanceof Error ? cause.message : '邀请群成员失败'
-    } finally {
-        managingMembers.value = false
-    }
+    await runMemberAction(
+        () => chat.inviteGroupMembers(userIds),
+        '邀请群成员失败',
+    )
 }
 
 async function removeMember(userID: string) {
-    managingMembers.value = true
-    memberActionError.value = ''
-    try {
+    await runMemberAction(async () => {
         await chat.removeGroupMember(userID)
         if (userID === auth.user?.id) {
             groupMembersOpen.value = false
         }
+    }, '移除群成员失败')
+}
+
+async function setMemberRole(userID: string, role: 1 | 2) {
+    await runMemberAction(
+        () => chat.setGroupMemberRole(userID, role),
+        '调整成员角色失败',
+    )
+}
+
+async function transferOwner(userID: string) {
+    await runMemberAction(
+        () => chat.transferGroupOwner(userID),
+        '转让群主失败',
+    )
+}
+
+async function dissolveGroup() {
+    const dissolved = await runMemberAction(
+        () => chat.dissolveActiveGroup(),
+        '解散群聊失败',
+    )
+    if (dissolved) {
+        groupMembersOpen.value = false
+    }
+}
+
+async function runMemberAction(
+    action: () => Promise<void>,
+    fallback: string,
+) {
+    managingMembers.value = true
+    memberActionError.value = ''
+    try {
+        await action()
         messageList.value?.scrollToBottom()
+        return true
     } catch (cause) {
         memberActionError.value =
-            cause instanceof Error ? cause.message : '移除群成员失败'
+            cause instanceof Error ? cause.message : fallback
+        return false
     } finally {
         managingMembers.value = false
     }
@@ -348,8 +377,11 @@ onBeforeUnmount(() => {
                 :members="chat.activeMembers"
                 :open="groupMembersOpen"
                 @close="groupMembersOpen = false"
+                @dissolve="dissolveGroup"
                 @invite="inviteMembers"
                 @remove="removeMember"
+                @set-role="setMemberRole"
+                @transfer-owner="transferOwner"
         />
     </main>
 </template>

@@ -210,6 +210,102 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("普通成员移除群主错误 = %v，期望 ErrPermissionDenied", err)
 	}
+
+	if err := service.SetMemberRole(
+		context.Background(),
+		SetMemberRoleCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+			TargetUserID:   userB,
+			Role:           groupAdminRole,
+		},
+	); err != nil {
+		t.Fatalf("设置群管理员失败: %v", err)
+	}
+	members, err = service.ListMembers(context.Background(), userA, group.ID)
+	if err != nil {
+		t.Fatalf("设置管理员后查询成员失败: %v", err)
+	}
+	if members[1].UserID != userB || members[1].Role != groupAdminRole {
+		t.Fatalf("管理员角色未生效: %+v", members)
+	}
+	if err := service.SetMemberRole(
+		context.Background(),
+		SetMemberRoleCommand{
+			ActorID:        userB,
+			ConversationID: group.ID,
+			TargetUserID:   userA,
+			Role:           groupMemberRole,
+		},
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("管理员修改群主角色错误 = %v，期望 ErrPermissionDenied", err)
+	}
+
+	if err := service.TransferOwner(
+		context.Background(),
+		TransferOwnerCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+			TargetUserID:   userB,
+		},
+	); err != nil {
+		t.Fatalf("转让群主失败: %v", err)
+	}
+	members, err = service.ListMembers(context.Background(), userB, group.ID)
+	if err != nil {
+		t.Fatalf("转让群主后查询成员失败: %v", err)
+	}
+	if members[0].UserID != userB || members[0].Role != groupOwnerRole {
+		t.Fatalf("新群主未排在首位: %+v", members)
+	}
+	if members[1].UserID != userA || members[1].Role != groupMemberRole {
+		t.Fatalf("原群主未降级为普通成员: %+v", members)
+	}
+	var ownerID uint64
+	if err := db.Table("conversations").
+		Select("owner_id").
+		Where("id = ?", group.ID).
+		Scan(&ownerID).Error; err != nil {
+		t.Fatalf("查询群主字段失败: %v", err)
+	}
+	if ownerID != userB {
+		t.Fatalf("会话群主 = %d，期望 %d", ownerID, userB)
+	}
+	if err := service.DissolveGroup(
+		context.Background(),
+		DissolveGroupCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+		},
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("原群主解散群错误 = %v，期望 ErrPermissionDenied", err)
+	}
+	if err := service.DissolveGroup(
+		context.Background(),
+		DissolveGroupCommand{
+			ActorID:        userB,
+			ConversationID: group.ID,
+		},
+	); err != nil {
+		t.Fatalf("新群主解散群失败: %v", err)
+	}
+	if _, err := service.ListMembers(
+		context.Background(),
+		userA,
+		group.ID,
+	); !errors.Is(err, ErrConversationNotFound) {
+		t.Fatalf("解散后查询成员错误 = %v，期望 ErrConversationNotFound", err)
+	}
+	if _, err := service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        userB,
+			ConversationID: group.ID,
+			MemberUserIDs:  []uint64{userA},
+		},
+	); !errors.Is(err, ErrConversationNotFound) {
+		t.Fatalf("解散后邀请成员错误 = %v，期望 ErrConversationNotFound", err)
+	}
 }
 
 func TestCreateDirectConcurrentIntegration(t *testing.T) {

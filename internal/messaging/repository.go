@@ -371,10 +371,15 @@ func (r *Repository) acknowledgeMessage(
 				"JOIN conversation_members AS cm "+
 					"ON cm.conversation_id = m.conversation_id",
 			).
+			Joins(
+				"JOIN conversations AS c ON c.id = m.conversation_id",
+			).
 			Where(
-				"m.id = ? AND cm.user_id = ? AND cm.left_at IS NULL",
+				"m.id = ? AND cm.user_id = ? AND cm.left_at IS NULL "+
+					"AND c.status = ?",
 				messageID,
 				userID,
+				conversationStatusActive,
 			).
 			Count(&memberCount).Error; err != nil {
 			return fmt.Errorf("校验 ACK 消息权限: %w", err)
@@ -452,11 +457,15 @@ func (r *Repository) listReadStates(
 	conversationID uint64,
 ) ([]ReadStateResult, error) {
 	var memberCount int64
-	if err := r.db.WithContext(ctx).Model(&conversationMember{}).
+	if err := r.db.WithContext(ctx).
+		Table("conversation_members AS cm").
+		Joins("JOIN conversations AS c ON c.id = cm.conversation_id").
 		Where(
-			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			"cm.conversation_id = ? AND cm.user_id = ? "+
+				"AND cm.left_at IS NULL AND c.status = ?",
 			conversationID,
 			userID,
+			conversationStatusActive,
 		).
 		Count(&memberCount).Error; err != nil {
 		return nil, fmt.Errorf("校验已读状态查询权限: %w", err)
@@ -493,11 +502,15 @@ func (r *Repository) getDeliverySummary(
 	messageID uint64,
 ) (DeliverySummary, error) {
 	var memberCount int64
-	if err := r.db.WithContext(ctx).Model(&conversationMember{}).
+	if err := r.db.WithContext(ctx).
+		Table("conversation_members AS cm").
+		Joins("JOIN conversations AS c ON c.id = cm.conversation_id").
 		Where(
-			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			"cm.conversation_id = ? AND cm.user_id = ? "+
+				"AND cm.left_at IS NULL AND c.status = ?",
 			conversationID,
 			userID,
+			conversationStatusActive,
 		).
 		Count(&memberCount).Error; err != nil {
 		return DeliverySummary{}, fmt.Errorf("校验送达状态查询权限: %w", err)

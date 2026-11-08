@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, nextTick, shallowRef, useTemplateRef, watch} from 'vue'
 
+import GroupGovernancePanel from '@/components/GroupGovernancePanel.vue'
 import type {ConversationMember, Friend} from '@/types/api'
 
 const props = defineProps<{
@@ -18,6 +19,9 @@ const emit = defineEmits<{
     close: []
     invite: [userIds: string[]]
     remove: [userId: string]
+    setRole: [userId: string, role: 1 | 2]
+    transferOwner: [userId: string]
+    dissolve: []
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
@@ -75,6 +79,17 @@ function canRemove(member: ConversationMember) {
     if (!canManage.value || member.user_id === props.currentUserId) return false
     if (member.role === 3) return false
     return currentMember.value?.role === 3 || member.role === 1
+}
+
+function canAdjustRole(member: ConversationMember) {
+    return isOwner.value &&
+        member.user_id !== props.currentUserId &&
+        member.role !== 3
+}
+
+function toggleRole(member: ConversationMember) {
+    if (props.busy) return
+    emit('setRole', member.user_id, member.role === 2 ? 1 : 2)
 }
 
 function close() {
@@ -162,19 +177,37 @@ function leave() {
                     >
                         {{ roleLabel(member.role) }}
                     </span>
-                    <button
-                            v-if="canRemove(member)"
-                            :disabled="busy"
-                            class="text-button danger-text member-remove"
-                            type="button"
-                            @click="remove(member)"
+                    <div
+                            v-if="canAdjustRole(member) || canRemove(member)"
+                            class="member-controls"
                     >
-                        {{
-                            pendingRemovalID === member.user_id
-                                ? '确认移除'
-                                : '移除'
-                        }}
-                    </button>
+                        <button
+                                v-if="canAdjustRole(member)"
+                                :disabled="busy"
+                                class="text-button member-role-action"
+                                type="button"
+                                @click="toggleRole(member)"
+                        >
+                            {{
+                                member.role === 2
+                                    ? '取消管理员'
+                                    : '设为管理员'
+                            }}
+                        </button>
+                        <button
+                                v-if="canRemove(member)"
+                                :disabled="busy"
+                                class="text-button danger-text member-remove"
+                                type="button"
+                                @click="remove(member)"
+                        >
+                            {{
+                                pendingRemovalID === member.user_id
+                                    ? '确认移除'
+                                    : '移除'
+                            }}
+                        </button>
+                    </div>
                 </article>
             </div>
 
@@ -220,8 +253,17 @@ function leave() {
                 </button>
             </fieldset>
 
+            <GroupGovernancePanel
+                    v-if="isOwner"
+                    :busy="busy"
+                    :current-user-id="currentUserId"
+                    :members="members"
+                    @dissolve="emit('dissolve')"
+                    @transfer-owner="emit('transferOwner', $event)"
+            />
+
             <footer class="group-members-footer">
-                <span v-if="isOwner">群主可继续邀请好友或移除普通成员。</span>
+                <span v-if="isOwner">群主可邀请成员、调整角色或完成群主治理。</span>
                 <span v-else>退出后将从会话列表移除，重新受邀后可再次加入。</span>
                 <button
                         v-if="!isOwner && currentMember"

@@ -163,3 +163,118 @@ func TestRemoveMemberValidation(t *testing.T) {
 		t.Fatalf("RemoveMember() 错误 = %v，期望 ErrInvalidInput", err)
 	}
 }
+
+func TestSetMemberRoleValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command SetMemberRoleCommand
+	}{
+		{
+			name: "操作人为空",
+			command: SetMemberRoleCommand{
+				ConversationID: 1,
+				TargetUserID:   2,
+				Role:           groupAdminRole,
+			},
+		},
+		{
+			name: "会话为空",
+			command: SetMemberRoleCommand{
+				ActorID:      1,
+				TargetUserID: 2,
+				Role:         groupAdminRole,
+			},
+		},
+		{
+			name: "目标成员为空",
+			command: SetMemberRoleCommand{
+				ActorID:        1,
+				ConversationID: 1,
+				Role:           groupAdminRole,
+			},
+		},
+		{
+			name: "不能直接设置群主角色",
+			command: SetMemberRoleCommand{
+				ActorID:        1,
+				ConversationID: 1,
+				TargetUserID:   2,
+				Role:           groupOwnerRole,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := service.SetMemberRole(context.Background(), tt.command)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("SetMemberRole() 错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
+func TestTransferOwnerValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command TransferOwnerCommand
+	}{
+		{
+			name:    "群主为空",
+			command: TransferOwnerCommand{ConversationID: 1, TargetUserID: 2},
+		},
+		{
+			name:    "会话为空",
+			command: TransferOwnerCommand{ActorID: 1, TargetUserID: 2},
+		},
+		{
+			name: "受让人为空",
+			command: TransferOwnerCommand{
+				ActorID:        1,
+				ConversationID: 1,
+			},
+		},
+		{
+			name: "不能转让给自己",
+			command: TransferOwnerCommand{
+				ActorID:        1,
+				ConversationID: 1,
+				TargetUserID:   1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := service.TransferOwner(context.Background(), tt.command)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("TransferOwner() 错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
+func TestDissolveGroupValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command DissolveGroupCommand
+	}{
+		{
+			name:    "群主为空",
+			command: DissolveGroupCommand{ConversationID: 1},
+		},
+		{
+			name:    "会话为空",
+			command: DissolveGroupCommand{ActorID: 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := service.DissolveGroup(context.Background(), tt.command)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("DissolveGroup() 错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}

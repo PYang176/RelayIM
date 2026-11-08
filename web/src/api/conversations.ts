@@ -81,3 +81,45 @@ export function removeGroupMember(
         token,
     )
 }
+
+export function setGroupMemberRole(
+    token: string,
+    conversationId: string,
+    userId: string,
+    role: 1 | 2,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationId}/members/${userId}/role`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({role}),
+        },
+        token,
+    )
+}
+
+export function transferGroupOwner(
+    token: string,
+    conversationId: string,
+    userId: string,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationId}/transfer-owner`,
+        {
+            method: 'POST',
+            body: JSON.stringify({user_id: userId}),
+        },
+        token,
+    )
+}
+
+export function dissolveGroup(
+    token: string,
+    conversationId: string,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationId}/dissolve`,
+        {method: 'POST'},
+        token,
+    )
+}

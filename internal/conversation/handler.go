@@ -40,6 +40,16 @@ type inviteMembersRequest struct {
 	MemberUserIDs []string `json:"member_user_ids"`
 }
 
+type setMemberRoleRequest struct {
+	// Role 是目标角色，1 为普通成员、2 为管理员。
+	Role int `json:"role"`
+}
+
+type transferOwnerRequest struct {
+	// UserID 是接管群主身份的有效成员 Snowflake ID 字符串。
+	UserID string `json:"user_id"`
+}
+
 // CreateDirect 处理 POST /api/v1/conversations/private。
 func (h *Handler) CreateDirect(c *gin.Context) {
 	userID, ok := currentUserID(c)
@@ -228,6 +238,97 @@ func (h *Handler) RemoveMember(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// SetMemberRole 处理 PUT /api/v1/conversations/:conversation_id/members/:user_id/role。
+func (h *Handler) SetMemberRole(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	targetUserID, ok := parsePathUserID(c, "user_id")
+	if !ok {
+		return
+	}
+	var request setMemberRoleRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	if err := h.service.SetMemberRole(
+		c.Request.Context(),
+		SetMemberRoleCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			TargetUserID:   targetUserID,
+			Role:           request.Role,
+		},
+	); err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// TransferOwner 处理 POST /api/v1/conversations/:conversation_id/transfer-owner。
+func (h *Handler) TransferOwner(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	var request transferOwnerRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	targetUserID, err := strconv.ParseUint(request.UserID, 10, 64)
+	if err != nil || targetUserID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 格式错误"})
+		return
+	}
+	if err := h.service.TransferOwner(
+		c.Request.Context(),
+		TransferOwnerCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			TargetUserID:   targetUserID,
+		},
+	); err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// DissolveGroup 处理 POST /api/v1/conversations/:conversation_id/dissolve。
+func (h *Handler) DissolveGroup(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	if err := h.service.DissolveGroup(
+		c.Request.Context(),
+		DissolveGroupCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+		},
+	); err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func currentUserID(c *gin.Context) (uint64, bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -262,6 +363,15 @@ func parseConversationID(c *gin.Context) (uint64, bool) {
 		return 0, false
 	}
 	return conversationID, true
+}
+
+func parsePathUserID(c *gin.Context, parameter string) (uint64, bool) {
+	userID, err := strconv.ParseUint(c.Param(parameter), 10, 64)
+	if err != nil || userID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": parameter + " 格式错误"})
+		return 0, false
+	}
+	return userID, true
 }
 
 func parseGroupMemberIDs(

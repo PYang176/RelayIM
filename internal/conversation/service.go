@@ -70,6 +70,42 @@ type RemoveMemberCommand struct {
 	TargetUserID uint64
 }
 
+// SetMemberRoleCommand 是群主设置或取消群管理员的参数。
+type SetMemberRoleCommand struct {
+	// ActorID 是执行操作的群主 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// TargetUserID 是目标成员 Snowflake ID。
+	TargetUserID uint64
+
+	// Role 是目标角色，1 为普通成员、2 为管理员。
+	Role int
+}
+
+// TransferOwnerCommand 是群主转让群聊所有权参数。
+type TransferOwnerCommand struct {
+	// ActorID 是当前群主 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// TargetUserID 是接管群主身份的有效成员 Snowflake ID。
+	TargetUserID uint64
+}
+
+// DissolveGroupCommand 是群主解散群的参数。
+type DissolveGroupCommand struct {
+	// ActorID 是执行解散操作的群主 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+}
+
 // Result 是接口层可安全使用的会话信息。
 type Result struct {
 	// ID 是会话 Snowflake ID。
@@ -237,6 +273,61 @@ func (s *Service) RemoveMember(
 		command.ActorID,
 		command.ConversationID,
 		command.TargetUserID,
+	)
+}
+
+// SetMemberRole 由群主设置管理员或取消管理员。
+func (s *Service) SetMemberRole(
+	ctx context.Context,
+	command SetMemberRoleCommand,
+) error {
+	if command.ActorID == 0 ||
+		command.ConversationID == 0 ||
+		command.TargetUserID == 0 ||
+		(command.Role != groupMemberRole &&
+			command.Role != groupAdminRole) {
+		return ErrInvalidInput
+	}
+	return s.repo.SetMemberRole(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
+		command.TargetUserID,
+		command.Role,
+	)
+}
+
+// TransferOwner 将群主身份转让给另一位有效成员。
+func (s *Service) TransferOwner(
+	ctx context.Context,
+	command TransferOwnerCommand,
+) error {
+	if command.ActorID == 0 ||
+		command.ConversationID == 0 ||
+		command.TargetUserID == 0 ||
+		command.ActorID == command.TargetUserID {
+		return ErrInvalidInput
+	}
+	return s.repo.TransferOwner(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
+		command.TargetUserID,
+	)
+}
+
+// DissolveGroup 由群主关闭群会话，历史成员和消息保留用于审计。
+func (s *Service) DissolveGroup(
+	ctx context.Context,
+	command DissolveGroupCommand,
+) error {
+	if command.ActorID == 0 || command.ConversationID == 0 {
+		return ErrInvalidInput
+	}
+	return s.repo.DissolveGroup(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
 	)
 }
 

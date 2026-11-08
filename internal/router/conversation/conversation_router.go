@@ -21,4 +21,10 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	group.GET("/:conversation_id/members", handler.ListMembers)
 	group.POST("/:conversation_id/members", handler.InviteMembers)
 	group.DELETE("/:conversation_id/members/:user_id", handler.RemoveMember)
+	group.PUT(
+		"/:conversation_id/members/:user_id/role",
+		handler.SetMemberRole,
+	)
+	group.POST("/:conversation_id/transfer-owner", handler.TransferOwner)
+	group.POST("/:conversation_id/dissolve", handler.DissolveGroup)
 }

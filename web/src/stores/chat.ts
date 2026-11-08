@@ -209,22 +209,65 @@ export const useChatStore = defineStore('chat', () => {
             targetUserID,
         )
         if (targetUserID === auth.user?.id) {
-            conversations.value = conversations.value.filter(
-                (item) => item.id !== conversationId,
-            )
-            delete messagesByConversation.value[conversationId]
-            delete membersByConversation.value[conversationId]
-            activeConversationId.value = ''
-            readStates.value = []
-            if (conversations.value.length > 0) {
-                await selectConversation(conversations.value[0].id)
-            }
+            await removeConversationFromState(conversationId)
             return
         }
         await loadMembers(conversationId, true)
         conversation.member_count = (
             membersByConversation.value[conversationId] ?? []
         ).length
+    }
+
+    async function setGroupMemberRole(
+        targetUserID: string,
+        role: 1 | 2,
+    ) {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        await conversationApi.setGroupMemberRole(
+            auth.token,
+            conversationId,
+            targetUserID,
+            role,
+        )
+        await loadMembers(conversationId, true)
+    }
+
+    async function transferGroupOwner(targetUserID: string) {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        await conversationApi.transferGroupOwner(
+            auth.token,
+            conversationId,
+            targetUserID,
+        )
+        await loadMembers(conversationId, true)
+    }
+
+    async function dissolveActiveGroup() {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        await conversationApi.dissolveGroup(auth.token, conversationId)
+        await removeConversationFromState(conversationId)
+    }
+
+    async function removeConversationFromState(conversationId: string) {
+        conversations.value = conversations.value.filter(
+            (item) => item.id !== conversationId,
+        )
+        delete messagesByConversation.value[conversationId]
+        delete membersByConversation.value[conversationId]
+        activeConversationId.value = ''
+        readStates.value = []
+        if (conversations.value.length > 0) {
+            await selectConversation(conversations.value[0].id)
+        }
     }
 
     async function loadLatestMessages(conversationId: string) {
@@ -576,6 +619,9 @@ export const useChatStore = defineStore('chat', () => {
         loadMembers,
         inviteGroupMembers,
         removeGroupMember,
+        setGroupMemberRole,
+        transferGroupOwner,
+        dissolveActiveGroup,
         loadOlderMessages,
         sendMessage,
         sendAttachment,

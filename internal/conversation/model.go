@@ -3,10 +3,13 @@ package conversation
 import "time"
 
 const (
-	conversationTypeDirect = 1
-	conversationTypeGroup  = 2
-	conversationStatusOpen = 1
-	groupOwnerRole         = 3
+	conversationTypeDirect      = 1
+	conversationTypeGroup       = 2
+	conversationStatusOpen      = 1
+	conversationStatusDissolved = 3
+	groupMemberRole             = 1
+	groupAdminRole              = 2
+	groupOwnerRole              = 3
 )
 
 type conversation struct {
