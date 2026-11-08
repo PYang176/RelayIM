@@ -581,6 +581,37 @@ func (r *Repository) DissolveGroup(
 	})
 }
 
+// UpdateGroupProfile 由群主更新群名称和头像。
+func (r *Repository) UpdateGroupProfile(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	name string,
+	avatarURL string,
+) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockOwnedGroup(
+			ctx,
+			tx,
+			actorID,
+			conversationID,
+		); err != nil {
+			return err
+		}
+		if err := tx.Model(&conversation{}).
+			Where("id = ? AND status = ?", conversationID, conversationStatusOpen).
+			Updates(map[string]any{
+				"name":       name,
+				"avatar_url": nullableString(avatarURL),
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("更新群资料: %w", err)
+		}
+		return nil
+	})
+}
+
 // ListMembers 返回当前有效成员可查看的会话成员资料。
 func (r *Repository) ListMembers(
 	ctx context.Context,
@@ -760,4 +791,11 @@ func isDuplicateKey(err error) bool {
 func isForeignKeyError(err error) bool {
 	var mysqlErr *mysql.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1452
+}
+
+func nullableString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }

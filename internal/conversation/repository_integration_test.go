@@ -122,6 +122,32 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	if group.Title != "集成测试群" {
 		t.Fatalf("群会话标题 = %q，期望群名称", group.Title)
 	}
+	updatedGroup, err := service.UpdateGroupProfile(
+		context.Background(),
+		UpdateGroupProfileCommand{
+			ActorID:        userA,
+			ConversationID: group.ID,
+			Name:           "更新后的群名",
+			AvatarURL:      "https://example.com/group.png",
+		},
+	)
+	if err != nil {
+		t.Fatalf("更新群资料失败: %v", err)
+	}
+	if updatedGroup.Name != "更新后的群名" ||
+		updatedGroup.AvatarURL != "https://example.com/group.png" {
+		t.Fatalf("更新后的群资料 = %+v", updatedGroup)
+	}
+	if _, err := service.UpdateGroupProfile(
+		context.Background(),
+		UpdateGroupProfileCommand{
+			ActorID:        userB,
+			ConversationID: group.ID,
+			Name:           "越权群名",
+		},
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("普通成员修改群资料错误 = %v，期望 ErrPermissionDenied", err)
+	}
 
 	members, err := service.ListMembers(
 		context.Background(),

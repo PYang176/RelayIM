@@ -50,6 +50,14 @@ type transferOwnerRequest struct {
 	UserID string `json:"user_id"`
 }
 
+type updateGroupProfileRequest struct {
+	// Name 是新的群名称。
+	Name string `json:"name"`
+
+	// AvatarURL 是可选群头像地址，空字符串表示清除头像。
+	AvatarURL string `json:"avatar_url"`
+}
+
 // CreateDirect 处理 POST /api/v1/conversations/private。
 func (h *Handler) CreateDirect(c *gin.Context) {
 	userID, ok := currentUserID(c)
@@ -327,6 +335,41 @@ func (h *Handler) DissolveGroup(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// UpdateGroupProfile 处理 PUT /api/v1/conversations/:conversation_id/profile。
+func (h *Handler) UpdateGroupProfile(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	var request updateGroupProfileRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	result, err := h.service.UpdateGroupProfile(
+		c.Request.Context(),
+		UpdateGroupProfileCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			Name:           request.Name,
+			AvatarURL:      request.AvatarURL,
+		},
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":         strconv.FormatUint(result.ConversationID, 10),
+		"name":       result.Name,
+		"avatar_url": result.AvatarURL,
+	})
 }
 
 func currentUserID(c *gin.Context) (uint64, bool) {

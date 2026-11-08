@@ -60,7 +60,7 @@ func Router(
 	)
 
 	// 新版会话模块
-	conversationrouter.Register(r, db)
+	conversationrouter.Register(r, db, requestLimiter, metrics)
 
 	// 新版好友模块
 	friendshiprouter.Register(r, db, requestLimiter, metrics)

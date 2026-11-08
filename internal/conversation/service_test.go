@@ -278,3 +278,61 @@ func TestDissolveGroupValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateGroupProfileValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command UpdateGroupProfileCommand
+	}{
+		{
+			name: "群主为空",
+			command: UpdateGroupProfileCommand{
+				ConversationID: 1,
+				Name:           "新群名",
+			},
+		},
+		{
+			name: "会话为空",
+			command: UpdateGroupProfileCommand{
+				ActorID: 1,
+				Name:    "新群名",
+			},
+		},
+		{
+			name: "群名称为空",
+			command: UpdateGroupProfileCommand{
+				ActorID:        1,
+				ConversationID: 1,
+			},
+		},
+		{
+			name: "群名称过长",
+			command: UpdateGroupProfileCommand{
+				ActorID:        1,
+				ConversationID: 1,
+				Name:           strings.Repeat("群", maxGroupNameRunes+1),
+			},
+		},
+		{
+			name: "群头像协议不安全",
+			command: UpdateGroupProfileCommand{
+				ActorID:        1,
+				ConversationID: 1,
+				Name:           "新群名",
+				AvatarURL:      "javascript:alert(1)",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.UpdateGroupProfile(context.Background(), tt.command)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf(
+					"UpdateGroupProfile() 错误 = %v，期望 ErrInvalidInput",
+					err,
+				)
+			}
+		})
+	}
+}

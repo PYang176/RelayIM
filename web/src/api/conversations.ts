@@ -123,3 +123,22 @@ export function dissolveGroup(
         token,
     )
 }
+
+export function updateGroupProfile(
+    token: string,
+    conversationId: string,
+    name: string,
+    avatarUrl: string,
+): Promise<{id: string; name: string; avatar_url: string}> {
+    return request(
+        `/conversations/${conversationId}/profile`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({
+                name,
+                avatar_url: avatarUrl,
+            }),
+        },
+        token,
+    )
+}

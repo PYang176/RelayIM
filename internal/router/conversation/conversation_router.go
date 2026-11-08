@@ -3,12 +3,28 @@ package conversation
 import (
 	conversationapp "ginChatProject/internal/conversation"
 	"ginChatProject/internal/middleware"
+	"ginChatProject/internal/platform/observability"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+var groupProfileRateLimitPolicy = middleware.RateLimitPolicy{
+	Namespace:    "group_profile_update",
+	Subject:      middleware.RateLimitByUser,
+	SubjectLimit: 20,
+	GlobalLimit:  200,
+	Window:       time.Minute,
+}
+
 // Register 注册新版会话路由。
-func Register(r *gin.Engine, db *gorm.DB) {
+func Register(
+	r *gin.Engine,
+	db *gorm.DB,
+	requestLimiter middleware.RateLimitChecker,
+	metrics *observability.Metrics,
+) {
 	repo := conversationapp.NewRepository(db)
 	service := conversationapp.NewService(repo)
 	handler := conversationapp.NewHandler(service)
@@ -27,4 +43,13 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	)
 	group.POST("/:conversation_id/transfer-owner", handler.TransferOwner)
 	group.POST("/:conversation_id/dissolve", handler.DissolveGroup)
+	group.PUT(
+		"/:conversation_id/profile",
+		middleware.RateLimit(
+			requestLimiter,
+			groupProfileRateLimitPolicy,
+			metrics,
+		),
+		handler.UpdateGroupProfile,
+	)
 }

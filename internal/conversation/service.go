@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -10,6 +11,7 @@ import (
 const (
 	maxGroupNameRunes   = 64
 	maxGroupMemberCount = 500
+	maxGroupAvatarBytes = 512
 )
 
 // Service 提供会话创建与列表查询。
@@ -104,6 +106,33 @@ type DissolveGroupCommand struct {
 
 	// ConversationID 是群会话 Snowflake ID。
 	ConversationID uint64
+}
+
+// UpdateGroupProfileCommand 是群主修改群名称和头像的参数。
+type UpdateGroupProfileCommand struct {
+	// ActorID 是执行修改的群主 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// Name 是新的群名称。
+	Name string
+
+	// AvatarURL 是可选群头像地址，空字符串表示清除头像。
+	AvatarURL string
+}
+
+// GroupProfileResult 是群资料修改后的公开摘要。
+type GroupProfileResult struct {
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// Name 是更新后的群名称。
+	Name string
+
+	// AvatarURL 是更新后的群头像地址。
+	AvatarURL string
 }
 
 // Result 是接口层可安全使用的会话信息。
@@ -331,6 +360,36 @@ func (s *Service) DissolveGroup(
 	)
 }
 
+// UpdateGroupProfile 校验群主权限和公开字段后更新群名称与头像。
+func (s *Service) UpdateGroupProfile(
+	ctx context.Context,
+	command UpdateGroupProfileCommand,
+) (GroupProfileResult, error) {
+	command.Name = strings.TrimSpace(command.Name)
+	command.AvatarURL = strings.TrimSpace(command.AvatarURL)
+	if command.ActorID == 0 ||
+		command.ConversationID == 0 ||
+		command.Name == "" ||
+		utf8.RuneCountInString(command.Name) > maxGroupNameRunes ||
+		!validGroupAvatarURL(command.AvatarURL) {
+		return GroupProfileResult{}, ErrInvalidInput
+	}
+	if err := s.repo.UpdateGroupProfile(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
+		command.Name,
+		command.AvatarURL,
+	); err != nil {
+		return GroupProfileResult{}, err
+	}
+	return GroupProfileResult{
+		ConversationID: command.ConversationID,
+		Name:           command.Name,
+		AvatarURL:      command.AvatarURL,
+	}, nil
+}
+
 // ListMembers 返回当前用户有权查看的会话有效成员。
 func (s *Service) ListMembers(
 	ctx context.Context,
@@ -417,4 +476,18 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func validGroupAvatarURL(value string) bool {
+	if value == "" {
+		return true
+	}
+	if len(value) > maxGroupAvatarBytes {
+		return false
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }

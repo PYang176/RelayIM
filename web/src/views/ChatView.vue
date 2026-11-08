@@ -122,6 +122,16 @@ async function dissolveGroup() {
     }
 }
 
+async function updateGroupProfile(payload: {
+    name: string
+    avatarUrl: string
+}) {
+    await runMemberAction(
+        () => chat.updateGroupProfile(payload.name, payload.avatarUrl),
+        '更新群资料失败',
+    )
+}
+
 async function runMemberAction(
     action: () => Promise<void>,
     fallback: string,
@@ -430,6 +440,7 @@ onBeforeUnmount(() => {
                 :current-user-id="auth.user?.id ?? ''"
                 :error="memberActionError"
                 :friends="friendships.friends"
+                :group-avatar-url="chat.activeConversation?.avatar_url ?? ''"
                 :group-name="activeConversationTitle"
                 :loading="chat.loadingMembers"
                 :members="chat.activeMembers"
@@ -440,6 +451,7 @@ onBeforeUnmount(() => {
                 @remove="removeMember"
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"
+                @update-profile="updateGroupProfile"
         />
 
         <ProfileDialog

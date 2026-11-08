@@ -2,11 +2,13 @@
 import {computed, nextTick, shallowRef, useTemplateRef, watch} from 'vue'
 
 import GroupGovernancePanel from '@/components/GroupGovernancePanel.vue'
+import GroupProfileForm from '@/components/GroupProfileForm.vue'
 import type {ConversationMember, Friend} from '@/types/api'
 
 const props = defineProps<{
     open: boolean
     groupName: string
+    groupAvatarUrl: string
     members: ConversationMember[]
     friends: Friend[]
     currentUserId: string
@@ -22,6 +24,7 @@ const emit = defineEmits<{
     setRole: [userId: string, role: 1 | 2]
     transferOwner: [userId: string]
     dissolve: []
+    updateProfile: [payload: {name: string; avatarUrl: string}]
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
@@ -252,6 +255,14 @@ function leave() {
                     }}
                 </button>
             </fieldset>
+
+            <GroupProfileForm
+                    v-if="isOwner"
+                    :avatar-url="groupAvatarUrl"
+                    :busy="busy"
+                    :group-name="groupName"
+                    @save="emit('updateProfile', $event)"
+            />
 
             <GroupGovernancePanel
                     v-if="isOwner"

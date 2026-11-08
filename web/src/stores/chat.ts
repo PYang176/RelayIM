@@ -292,6 +292,22 @@ export const useChatStore = defineStore('chat', () => {
         await removeConversationFromState(conversationId)
     }
 
+    async function updateGroupProfile(name: string, avatarUrl: string) {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        const response = await conversationApi.updateGroupProfile(
+            auth.token,
+            conversationId,
+            name,
+            avatarUrl,
+        )
+        conversation.name = response.name
+        conversation.title = response.name
+        conversation.avatar_url = response.avatar_url
+    }
+
     async function removeConversationFromState(conversationId: string) {
         conversations.value = conversations.value.filter(
             (item) => item.id !== conversationId,
@@ -685,6 +701,7 @@ export const useChatStore = defineStore('chat', () => {
         setGroupMemberRole,
         transferGroupOwner,
         dissolveActiveGroup,
+        updateGroupProfile,
         loadOlderMessages,
         sendMessage,
         sendAttachment,
