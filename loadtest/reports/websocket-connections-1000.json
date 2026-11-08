@@ -1,0 +1,125 @@
+{
+  "scenario": {
+    "connectionCount": 1000,
+    "connectionsPerUser": 10,
+    "userCount": 100,
+    "holdSeconds": 20
+  },
+  "metrics": {
+    "ws_connect_duration": {
+      "type": "trend",
+      "values": {
+        "p(90)": 12,
+        "p(95)": 22.049999999999955,
+        "p(99)": 53.02999999999997,
+        "max": 75,
+        "avg": 7.657,
+        "min": 3,
+        "med": 5
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 1200,
+        "rate": 32.38285640604076
+      },
+      "thresholds": {}
+    },
+    "ws_unexpected_close": {
+      "type": "counter",
+      "values": {
+        "rate": 0,
+        "count": 0
+      },
+      "thresholds": {
+        "count==0": {
+          "ok": true
+        }
+      }
+    },
+    "ws_sessions": {
+      "type": "counter",
+      "values": {
+        "count": 1000,
+        "rate": 26.98571367170063
+      },
+      "thresholds": {}
+    },
+    "ws_connecting": {
+      "type": "trend",
+      "values": {
+        "min": 3.143419,
+        "med": 4.898521,
+        "p(90)": 11.6071722,
+        "p(95)": 21.8295921,
+        "p(99)": 52.91154968999997,
+        "max": 75.067498,
+        "avg": 7.377978414000001
+      },
+      "thresholds": {}
+    },
+    "checks": {
+      "type": "rate",
+      "values": {
+        "passes": 1000,
+        "fails": 0,
+        "rate": 1
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 1200
+      },
+      "thresholds": {}
+    },
+    "vus_max": {
+      "type": "gauge",
+      "values": {
+        "value": 1000,
+        "min": 1000,
+        "max": 1000
+      },
+      "thresholds": {}
+    },
+    "ws_session_duration": {
+      "type": "trend",
+      "values": {
+        "p(99)": 20054.422591759998,
+        "max": 20076.075137,
+        "avg": 20008.423523559963,
+        "min": 20003.622592,
+        "med": 20006.01371,
+        "p(90)": 20012.856601800002,
+        "p(95)": 20022.62823395
+      },
+      "thresholds": {}
+    },
+    "ws_connection_success": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 1000,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    }
+  }
+}
