@@ -1,11 +1,101 @@
 package bootstrap
 
 import (
+	"context"
+	"os"
 	"testing"
+	"time"
 
 	"ginChatProject/internal/config"
 	"github.com/spf13/viper"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
+
+func TestEnsureSnowflakeClockAhead(t *testing.T) {
+	base := time.Date(2026, time.November, 9, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		latest  time.Time
+		now     func() time.Time
+		maxWait time.Duration
+		wantErr bool
+	}{
+		{
+			name: "数据库没有雪花 ID",
+			now:  func() time.Time { return base },
+		},
+		{
+			name:   "当前时钟领先数据库",
+			latest: base.Add(-time.Second),
+			now:    func() time.Time { return base },
+		},
+		{
+			name:    "小幅回拨可等待追平",
+			latest:  time.Now().Add(5 * time.Millisecond),
+			now:     time.Now,
+			maxWait: 100 * time.Millisecond,
+		},
+		{
+			name:    "大幅回拨拒绝启动",
+			latest:  base,
+			now:     func() time.Time { return base.Add(-time.Minute) },
+			maxWait: 5 * time.Second,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ensureSnowflakeClockAhead(
+				context.Background(),
+				tt.latest,
+				tt.now,
+				tt.maxWait,
+			)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ensureSnowflakeClockAhead() 错误 = %v", err)
+			}
+		})
+	}
+}
+
+func TestEnsureSnowflakeClockAheadCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := ensureSnowflakeClockAhead(
+		ctx,
+		time.Now().Add(20*time.Millisecond),
+		time.Now,
+		100*time.Millisecond,
+	)
+	if err == nil {
+		t.Fatal("取消等待应返回错误")
+	}
+}
+
+func TestLatestSnowflakeTimeIntegration(t *testing.T) {
+	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 雪花时间水位测试")
+	}
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("连接测试数据库失败: %v", err)
+	}
+	latest, err := latestSnowflakeTime(context.Background(), db)
+	if err != nil {
+		t.Fatalf("查询雪花时间水位失败: %v", err)
+	}
+	if latest.IsZero() {
+		t.Fatal("已有数据库应返回非零雪花时间水位")
+	}
+	if latest.After(time.Now().Add(5 * time.Second)) {
+		t.Fatalf("雪花时间水位异常超前: %v", latest)
+	}
+}
 
 func TestBindConfigEnv(t *testing.T) {
 	tests := []struct {

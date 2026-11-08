@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"ginChatProject/internal/config"
 	"ginChatProject/internal/platform/jwt"
@@ -15,6 +17,8 @@ import (
 	"strings"
 	"time"
 )
+
+const maxSnowflakeClockRollbackWait = 5 * time.Second
 
 func InitConfig() error {
 	v := viper.GetViper()
@@ -265,11 +269,87 @@ func InitRedis() error {
 	return nil
 }
 
-// InitSnowFlake 从配置文件初始化雪花算法
-func InitSnowFlake() error {
+// InitSnowFlake 校验数据库时间水位后初始化雪花算法。
+func InitSnowFlake(ctx context.Context, db *gorm.DB) error {
 	workID := viper.GetInt64("snowflake.workID")
+	latest, err := latestSnowflakeTime(ctx, db)
+	if err != nil {
+		return err
+	}
+	if err := ensureSnowflakeClockAhead(
+		ctx,
+		latest,
+		time.Now,
+		maxSnowflakeClockRollbackWait,
+	); err != nil {
+		return err
+	}
 	if err := snowflake.Init(workID); err != nil {
 		return fmt.Errorf("初始化 Snowflake 失败: %w", err)
+	}
+	return nil
+}
+
+func latestSnowflakeTime(
+	ctx context.Context,
+	db *gorm.DB,
+) (time.Time, error) {
+	query := `
+SELECT MAX(snowflake_value)
+FROM (
+    SELECT MAX(id) AS snowflake_value FROM users
+    UNION ALL SELECT MAX(id) FROM devices
+    UNION ALL SELECT MAX(id) FROM refresh_tokens
+    UNION ALL SELECT MAX(id) FROM friend_requests
+    UNION ALL SELECT MAX(id) FROM friendships
+    UNION ALL SELECT MAX(id) FROM conversations
+    UNION ALL SELECT MAX(id) FROM group_invitations
+    UNION ALL SELECT MAX(id) FROM messages
+    UNION ALL SELECT MAX(id) FROM attachments
+    UNION ALL SELECT MAX(event_id) FROM outbox_events
+    UNION ALL SELECT MAX(event_id) FROM processed_events
+) AS generated_ids`
+	var maxID sql.NullInt64
+	if err := db.WithContext(ctx).Raw(query).Scan(&maxID).Error; err != nil {
+		return time.Time{}, fmt.Errorf("查询雪花 ID 时间水位: %w", err)
+	}
+	if !maxID.Valid || maxID.Int64 <= 0 {
+		return time.Time{}, nil
+	}
+	return snowflake.Timestamp(maxID.Int64), nil
+}
+
+func ensureSnowflakeClockAhead(
+	ctx context.Context,
+	latest time.Time,
+	now func() time.Time,
+	maxWait time.Duration,
+) error {
+	if latest.IsZero() {
+		return nil
+	}
+	target := latest.Add(time.Millisecond)
+	wait := target.Sub(now())
+	if wait <= 0 {
+		return nil
+	}
+	if wait > maxWait {
+		return fmt.Errorf(
+			"系统时钟落后数据库雪花时间水位 %s，拒绝启动；请先校准 NTP/chrony",
+			wait.Round(time.Millisecond),
+		)
+	}
+
+	log.Printf("检测到雪花时钟小幅回拨，等待 %s 追平", wait.Round(time.Millisecond))
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("等待雪花时钟追平被取消: %w", ctx.Err())
+	case <-timer.C:
+	}
+	if now().Before(target) {
+		return fmt.Errorf("系统时钟未在等待后追平雪花时间水位，拒绝启动")
 	}
 	return nil
 }

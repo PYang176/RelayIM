@@ -17,6 +17,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - Redis 多设备在线状态、批量查询和前端在线人数展示。
 - 消息撤回、群主转让和群解散。
 - Outbox + RabbitMQ Publisher Confirm + 手动 ACK + TTL 重试 + DLQ。
+- Snowflake 启动时间水位校验，小幅时钟回拨等待、大幅回拨拒绝启动。
 - 注册、登录、好友申请、消息发送、消息撤回和附件上传滑动窗口限流。
 - SeaweedFS S3 兼容附件存储、短时预签名访问和附件归属校验。
 - Prometheus 指标、健康检查、请求 ID、结构化日志和 Grafana 面板。
@@ -186,6 +187,7 @@ docs/              需求、协议、数据库和运维文档
 - [消息接口](docs/消息接口.md)
 - [WebSocket 协议](docs/WebSocket协议.md)
 - [在线状态](docs/在线状态.md)
+- [雪花 ID 与时钟回拨](docs/雪花ID与时钟回拨.md)
 - [RabbitMQ 可靠消息](docs/RabbitMQ可靠消息.md)
 - [可观测性](docs/可观测性.md)
 - [接口限流](docs/接口限流.md)

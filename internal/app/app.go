@@ -54,10 +54,6 @@ func Run() error {
 	if err := bootstrap.InitRedis(); err != nil {
 		return err
 	}
-	if err := bootstrap.InitSnowFlake(); err != nil {
-		return err
-	}
-
 	mysqlCfg := bootstrap.LoadMySQLConfig()
 	db, err := bootstrap.InitMySQL(mysqlCfg)
 	if err != nil {
@@ -70,6 +66,9 @@ func Run() error {
 		return fmt.Errorf("获取 MySQL 连接池失败: %w", err)
 	}
 	defer sqlDB.Close()
+	if err := bootstrap.InitSnowFlake(ctx, db); err != nil {
+		return err
+	}
 
 	metrics := observability.NewMetrics()
 	metrics.RegisterDatabaseStats(sqlDB.Stats)
