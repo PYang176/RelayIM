@@ -56,3 +56,18 @@ docker run --rm `
 ## 已有报告
 
 - [HTTP 消息基线：10 VU / 30 秒](./reports/http-baseline.md)
+- [WebSocket 投递基线：20 个在线连接 / 30 秒](./reports/websocket-baseline.md)
+
+WebSocket 连接与投递基线使用：
+
+```powershell
+docker run --rm `
+  --add-host=host.docker.internal:host-gateway `
+  -e BASE_URL=http://host.docker.internal:8081 `
+  -e WS_RECEIVERS=20 `
+  -e DURATION_SECONDS=30 `
+  -e SUMMARY_FILE=websocket-baseline.json `
+  -v "${PWD}:/work" `
+  -w /work `
+  grafana/k6:0.57.0 run loadtest/k6/websocket-delivery.js
+```

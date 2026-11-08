@@ -1,0 +1,124 @@
+{
+  "scenario": {
+    "receiverVUs": 20,
+    "durationSeconds": 30,
+    "senderStartSeconds": 3,
+    "senderDurationSeconds": 24,
+    "sendIntervalSeconds": 0.2
+  },
+  "metrics": {
+    "ws_connection_success": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 20,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_messages_received": {
+      "type": "counter",
+      "values": {
+        "count": 2280,
+        "rate": 69.18155109667808
+      },
+      "thresholds": {
+        "count>0": {
+          "ok": true
+        }
+      }
+    },
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 134,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "passes": 0,
+        "fails": 237,
+        "rate": 0
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "ws_delivery_latency": {
+      "type": "trend",
+      "values": {
+        "p(99)": 500,
+        "max": 521,
+        "avg": 267.975,
+        "min": 30,
+        "med": 263.5,
+        "p(90)": 464,
+        "p(95)": 482
+      },
+      "thresholds": {
+        "p(95)<500": {
+          "ok": true
+        },
+        "p(99)<1000": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "values": {
+        "p(95)": 60.0584392,
+        "p(99)": 63.47747691999998,
+        "max": 66.947302,
+        "avg": 18.228603654008445,
+        "min": 3.6795,
+        "med": 9.143464,
+        "p(90)": 59.2899538
+      },
+      "thresholds": {}
+    },
+    "ws_sessions": {
+      "type": "counter",
+      "values": {
+        "count": 20,
+        "rate": 0.6068557113743691
+      },
+      "thresholds": {}
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 237,
+        "rate": 7.1912401797862735
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "p(90)": 59.2899538,
+        "p(95)": 60.0584392,
+        "p(99)": 63.47747691999998,
+        "max": 66.947302,
+        "avg": 18.228603654008445,
+        "min": 3.6795,
+        "med": 9.143464
+      },
+      "thresholds": {}
+    }
+  }
+}
