@@ -14,6 +14,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - 文本、图片和普通文件消息。
 - 消息幂等、会话内连续 `seq`、历史分页和断线 `after_seq` 补拉。
 - WebSocket 单写协程、有界队列、送达 ACK、已读游标和慢连接隔离。
+- Redis 多设备在线状态、批量查询和前端在线人数展示。
 - 消息撤回、群主转让和群解散。
 - Outbox + RabbitMQ Publisher Confirm + 手动 ACK + TTL 重试 + DLQ。
 - 注册、登录、好友申请、消息发送、消息撤回和附件上传滑动窗口限流。
@@ -184,6 +185,7 @@ docs/              需求、协议、数据库和运维文档
 - [会话接口](docs/会话接口.md)
 - [消息接口](docs/消息接口.md)
 - [WebSocket 协议](docs/WebSocket协议.md)
+- [在线状态](docs/在线状态.md)
 - [RabbitMQ 可靠消息](docs/RabbitMQ可靠消息.md)
 - [可观测性](docs/可观测性.md)
 - [接口限流](docs/接口限流.md)

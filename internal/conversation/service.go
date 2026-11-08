@@ -149,6 +149,9 @@ type Result struct {
 	// Title 是可直接展示的会话标题，私聊使用对方昵称。
 	Title string
 
+	// PeerUserID 是私聊对方 Snowflake ID，群聊为零。
+	PeerUserID uint64
+
 	// AvatarURL 是群头像。
 	AvatarURL string
 
@@ -211,6 +214,7 @@ func (s *Service) CreateDirect(
 		ConversationType: record.ConversationType,
 		Name:             stringValue(record.Name),
 		Title:            record.Title,
+		PeerUserID:       command.PeerUserID,
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
 		MemberCount:      2,
@@ -439,6 +443,7 @@ func (s *Service) List(ctx context.Context, userID uint64) ([]Result, error) {
 			ConversationType: record.ConversationType,
 			Name:             stringValue(record.Name),
 			Title:            record.Title,
+			PeerUserID:       uint64Value(record.PeerUserID),
 			AvatarURL:        stringValue(record.AvatarURL),
 			LastSeq:          record.LastSeq,
 			LastReadSeq:      record.LastReadSeq,
@@ -474,6 +479,13 @@ func normalizeGroupMemberIDs(
 func stringValue(value *string) string {
 	if value == nil {
 		return ""
+	}
+	return *value
+}
+
+func uint64Value(value *uint64) uint64 {
+	if value == nil {
+		return 0
 	}
 	return *value
 }

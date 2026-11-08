@@ -382,11 +382,16 @@ func currentUserID(c *gin.Context) (uint64, bool) {
 }
 
 func conversationResponse(result Result) gin.H {
+	peerUserID := ""
+	if result.PeerUserID > 0 {
+		peerUserID = strconv.FormatUint(result.PeerUserID, 10)
+	}
 	return gin.H{
 		"id":                strconv.FormatUint(result.ID, 10),
 		"conversation_type": result.ConversationType,
 		"name":              result.Name,
 		"title":             result.Title,
+		"peer_user_id":      peerUserID,
 		"avatar_url":        result.AvatarURL,
 		"last_seq":          result.LastSeq,
 		"last_read_seq":     result.LastReadSeq,

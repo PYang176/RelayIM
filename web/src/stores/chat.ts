@@ -3,6 +3,7 @@ import {computed, ref, shallowRef} from 'vue'
 
 import * as conversationApi from '@/api/conversations'
 import * as messageApi from '@/api/messages'
+import * as presenceApi from '@/api/presence'
 import {useChatSocket} from '@/composables/useChatSocket'
 import {useAuthStore} from '@/stores/auth'
 import type {
@@ -26,6 +27,7 @@ export const useChatStore = defineStore('chat', () => {
     const membersByConversation = ref<Record<string, ConversationMember[]>>({})
     const activeConversationId = shallowRef('')
     const readStates = ref<ReadState[]>([])
+    const presenceByUser = ref<Record<string, boolean>>({})
     const loadingConversations = shallowRef(false)
     const loadingMessages = shallowRef(false)
     const loadingMembers = shallowRef(false)
@@ -198,6 +200,7 @@ export const useChatStore = defineStore('chat', () => {
         await Promise.all(tasks)
         await markRead()
         await refreshReadStates()
+        await refreshPresence()
     }
 
     async function loadMembers(conversationId: string, force = false) {
@@ -213,6 +216,7 @@ export const useChatStore = defineStore('chat', () => {
                     conversationId,
                 ),
             }
+            await refreshPresence()
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : '加载群成员失败')
         } finally {
@@ -558,6 +562,32 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    async function refreshPresence() {
+        const conversation = activeConversation.value
+        if (!conversation) {
+            presenceByUser.value = {}
+            return
+        }
+        let userIds: string[] = []
+        if (conversation.conversation_type === 2) {
+            userIds = (
+                membersByConversation.value[conversation.id] ?? []
+            ).map((member) => member.user_id)
+        } else if (conversation.peer_user_id) {
+            userIds = [conversation.peer_user_id]
+        }
+        userIds = userIds.filter((userID) => userID !== auth.user?.id)
+        try {
+            presenceByUser.value = await presenceApi.queryPresence(
+                auth.token,
+                userIds,
+            )
+        } catch {
+            // 在线状态是辅助信息，查询失败不阻塞聊天主链路。
+            presenceByUser.value = {}
+        }
+    }
+
     function sendSocket(payload: WsMessage) {
         return realtime.send(payload)
     }
@@ -670,6 +700,7 @@ export const useChatStore = defineStore('chat', () => {
         membersByConversation.value = {}
         activeConversationId.value = ''
         readStates.value = []
+        presenceByUser.value = {}
         error.value = ''
     }
 
@@ -682,6 +713,7 @@ export const useChatStore = defineStore('chat', () => {
         activeMessages,
         activeMembers,
         activeReadStates,
+        presenceByUser,
         connectionState,
         loadingConversations,
         loadingMessages,
@@ -709,6 +741,7 @@ export const useChatStore = defineStore('chat', () => {
         connectWebSocket,
         disconnectWebSocket,
         markRead,
+        refreshPresence,
         reportError: setError,
         clearError,
         reset,

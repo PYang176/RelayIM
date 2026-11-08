@@ -16,6 +16,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		observability.NewHealth(),
 		nil,
 		nil,
+		nil,
 	)
 	if engine.ForwardedByClientIP {
 		t.Fatal("默认配置不应信任客户端伪造的代理 IP 请求头")
@@ -33,6 +34,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		"POST /api/v1/auth/logout",
 		"POST /api/v1/auth/ws-ticket",
 		"PUT /api/v1/me",
+		"POST /api/v1/presence/query",
 		"GET /api/v1/users/search",
 		"POST /api/v1/friend-requests",
 		"GET /api/v1/friend-requests/received",

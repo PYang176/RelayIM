@@ -20,6 +20,7 @@ import (
 	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/ratelimit"
 	"ginChatProject/internal/platform/redisstore"
+	"ginChatProject/internal/presence"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/ws"
 	"gorm.io/gorm"
@@ -97,6 +98,7 @@ func Run() error {
 		slidingWindowLimiter,
 		rateLimitConfig,
 	)
+	presenceService := presence.NewService(redisstore.RDB, "ginchat")
 
 	storageCfg := bootstrap.LoadObjectStorageConfig()
 	var attachmentStorage messaging.AttachmentStorage
@@ -158,6 +160,7 @@ func Run() error {
 			health,
 			slidingWindowLimiter,
 			wsTicketLimiter,
+			presenceService,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

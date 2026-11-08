@@ -97,6 +97,9 @@ type conversationSummary struct {
 	// Title 是对当前用户可直接展示的会话标题。
 	Title string `gorm:"column:title"`
 
+	// PeerUserID 是私聊对方 Snowflake ID，群聊时为空。
+	PeerUserID *uint64 `gorm:"column:peer_user_id"`
+
 	// AvatarURL 是群头像。
 	AvatarURL *string `gorm:"column:avatar_url"`
 

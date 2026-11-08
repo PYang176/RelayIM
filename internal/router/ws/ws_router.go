@@ -8,9 +8,13 @@ import (
 )
 
 // Register 注册新版 WebSocket 路由。
-func Register(r *gin.Engine, db *gorm.DB) {
+func Register(
+	r *gin.Engine,
+	db *gorm.DB,
+	presence ws.PresenceTracker,
+) {
 	repository := messagingapp.NewRepository(db)
 	service := messagingapp.NewService(repository)
-	wsHandler := ws.NewWebsocketHandler(service)
+	wsHandler := ws.NewWebsocketHandler(service, presence)
 	r.GET("/ws", wsHandler.Connect)
 }

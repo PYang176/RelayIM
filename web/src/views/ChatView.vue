@@ -33,6 +33,7 @@ const memberActionError = shallowRef('')
 const profileDialogOpen = shallowRef(false)
 const savingProfile = shallowRef(false)
 const profileError = shallowRef('')
+let presenceTimer = 0
 
 const connectionLabel = computed(() => {
     const labels = {
@@ -61,6 +62,27 @@ const activeConversationTitle = computed(() =>
         ? chat.conversationTitle(chat.activeConversation)
         : '',
 )
+const activePresenceLabel = computed(() => {
+    const conversation = chat.activeConversation
+    if (!conversation) return ''
+    if (conversation.conversation_type === 1) {
+        const peerUserID = conversation.peer_user_id
+        if (!peerUserID) return ''
+        if (!(peerUserID in chat.presenceByUser)) return '状态查询中'
+        return chat.presenceByUser[peerUserID] ? '在线' : '离线'
+    }
+    const otherMembers = chat.activeMembers.filter(
+        (member) => member.user_id !== auth.user?.id,
+    )
+    if (otherMembers.length === 0) return ''
+    if (otherMembers.some((member) => !(member.user_id in chat.presenceByUser))) {
+        return '状态查询中'
+    }
+    const onlineCount = otherMembers.filter(
+        (member) => chat.presenceByUser[member.user_id],
+    ).length
+    return `${onlineCount}/${otherMembers.length} 人在线`
+})
 const currentMemberRole = computed(
     () =>
         chat.activeMembers.find((member) => member.user_id === auth.user?.id)
@@ -265,9 +287,13 @@ onMounted(async () => {
         return
     }
     await chat.connectWebSocket()
+    presenceTimer = window.setInterval(() => {
+        void chat.refreshPresence()
+    }, 30_000)
 })
 
 onBeforeUnmount(() => {
+    window.clearInterval(presenceTimer)
     document.removeEventListener('visibilitychange', markVisibleConversationRead)
     chat.disconnectWebSocket()
 })
@@ -352,6 +378,9 @@ onBeforeUnmount(() => {
                                         "
                                 >
                   · 对方已读 {{ chat.activeReadStates[0].last_read_seq }}
+                                </span>
+                                <span v-if="activePresenceLabel">
+                                    · {{ activePresenceLabel }}
                                 </span>
                             </p>
                         </div>

@@ -25,6 +25,7 @@ export interface Conversation {
     conversation_type: number
     name: string
     title: string
+    peer_user_id?: string
     avatar_url: string
     last_seq: number
     last_read_seq: number

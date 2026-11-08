@@ -4,11 +4,13 @@ import (
 	messagingapp "ginChatProject/internal/messaging"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/platform/observability"
+	presenceapp "ginChatProject/internal/presence"
 	conversationrouter "ginChatProject/internal/router/conversation"
 	friendshiprouter "ginChatProject/internal/router/friendship"
 	identityrouter "ginChatProject/internal/router/identity"
 	"ginChatProject/internal/router/index"
 	messagingrouter "ginChatProject/internal/router/messaging"
+	presencerouter "ginChatProject/internal/router/presence"
 	"ginChatProject/internal/router/ws"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -27,6 +29,7 @@ func Router(
 	health *observability.Health,
 	requestLimiter middleware.RateLimitChecker,
 	wsTicketLimiter middleware.WSTicketRateLimiter,
+	presenceService *presenceapp.Service,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -69,7 +72,10 @@ func Router(
 	messagingrouter.Register(r, db, storage, requestLimiter, metrics)
 
 	// websocket
-	ws.Register(r, db)
+	ws.Register(r, db, presenceService)
+
+	// 在线状态
+	presencerouter.Register(r, presenceService, requestLimiter, metrics)
 
 	// index
 	index.Register(r)

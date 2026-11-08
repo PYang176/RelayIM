@@ -177,6 +177,11 @@ func (r *Repository) ListForUser(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
 				"c.last_seq, m.last_read_seq, c.updated_at, "+
 				"CASE WHEN c.conversation_type = 1 "+
+				"AND c.direct_low_user_id = m.user_id "+
+				"THEN c.direct_high_user_id "+
+				"WHEN c.conversation_type = 1 "+
+				"THEN c.direct_low_user_id ELSE NULL END AS peer_user_id, "+
+				"CASE WHEN c.conversation_type = 1 "+
 				"THEN COALESCE(dp.nickname, direct_user.username, '私聊') "+
 				"ELSE COALESCE(c.name, '群聊') END AS title, "+
 				"(SELECT COUNT(*) FROM conversation_members AS active_member "+

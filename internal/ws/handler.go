@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"ginChatProject/internal/platform/authn"
-	"ginChatProject/internal/platform/redisstore"
 	"log/slog"
 	"net"
 	"net/http"
@@ -18,8 +17,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const heartbeatTTL = 70 * time.Second
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -29,6 +26,13 @@ var upgrader = websocket.Upgrader{
 // WebsocketHandler 处理 WebSocket 鉴权、连接交付和客户端回执。
 type WebsocketHandler struct {
 	receipts ReceiptService
+	presence PresenceTracker
+}
+
+// PresenceTracker 维护用户设备在线状态。
+type PresenceTracker interface {
+	Touch(ctx context.Context, userID uint64, deviceID uint64) error
+	Remove(ctx context.Context, userID uint64, deviceID uint64) error
 }
 
 // ReceiptService 处理新版送达和已读回执。
@@ -48,8 +52,14 @@ type ReceiptService interface {
 }
 
 // NewWebsocketHandler 创建 WebSocket Handler。
-func NewWebsocketHandler(receipts ReceiptService) *WebsocketHandler {
-	return &WebsocketHandler{receipts: receipts}
+func NewWebsocketHandler(
+	receipts ReceiptService,
+	presence PresenceTracker,
+) *WebsocketHandler {
+	return &WebsocketHandler{
+		receipts: receipts,
+		presence: presence,
+	}
 }
 
 // Connect 完成鉴权后把连接交给单写协程客户端。
@@ -84,7 +94,11 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		ticketSession.DeviceID,
 		conn,
 		func(heartbeatCtx context.Context) {
-			h.updateHeartbeat(heartbeatCtx, ticketSession.UserID)
+			h.updatePresence(
+				heartbeatCtx,
+				ticketSession.UserID,
+				ticketSession.DeviceID,
+			)
 		},
 	)
 	if !Manager.Add(client) {
@@ -100,6 +114,12 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		return
 	}
 	defer Manager.Remove(client)
+	h.updatePresence(
+		c.Request.Context(),
+		ticketSession.UserID,
+		ticketSession.DeviceID,
+	)
+	defer h.removePresence(ticketSession.UserID, ticketSession.DeviceID)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
@@ -156,26 +176,31 @@ func (h *WebsocketHandler) handleClientMessage(
 	}
 }
 
-func (h *WebsocketHandler) updateHeartbeat(
+func (h *WebsocketHandler) updatePresence(
 	ctx context.Context,
 	userID uint64,
+	deviceID uint64,
 ) {
-	heartbeatCtx, cancel := context.WithTimeout(ctx, time.Second)
+	if h.presence == nil {
+		return
+	}
+	presenceCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	key := heartbeatKey(userID)
-	if err := redisstore.RDB.Set(
-		heartbeatCtx,
-		key,
-		time.Now().Unix(),
-		heartbeatTTL,
-	).Err(); err != nil {
-		slog.Warn("更新 WebSocket 心跳失败", "error", err)
+	if err := h.presence.Touch(presenceCtx, userID, deviceID); err != nil {
+		slog.Warn("更新设备在线状态失败", "user_id", userID, "error", err)
 	}
 }
 
-func heartbeatKey(userID uint64) string {
-	return "heartbeat:" + strconv.FormatUint(userID, 10)
+func (h *WebsocketHandler) removePresence(userID uint64, deviceID uint64) {
+	if h.presence == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := h.presence.Remove(ctx, userID, deviceID); err != nil {
+		slog.Warn("清理设备在线状态失败", "user_id", userID, "error", err)
+	}
 }
 
 func checkOrigin(request *http.Request) bool {
