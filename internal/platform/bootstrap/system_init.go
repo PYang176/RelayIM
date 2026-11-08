@@ -71,6 +71,9 @@ func bindConfigEnv(v *viper.Viper) error {
 		"s3.bucket":                        "GINCHAT_S3_BUCKET",
 		"s3.region":                        "GINCHAT_S3_REGION",
 		"s3.use_ssl":                       "GINCHAT_S3_USE_SSL",
+		"rate_limit.ws_ticket_global":      "GINCHAT_WS_TICKET_RATE_LIMIT_GLOBAL",
+		"rate_limit.ws_ticket_user":        "GINCHAT_WS_TICKET_RATE_LIMIT_USER",
+		"rate_limit.ws_ticket_window_ms":   "GINCHAT_WS_TICKET_RATE_LIMIT_WINDOW_MS",
 		"snowflake.workID":                 "GINCHAT_SNOWFLAKE_WORK_ID",
 	}
 
@@ -81,6 +84,31 @@ func bindConfigEnv(v *viper.Viper) error {
 		}
 	}
 	return nil
+}
+
+// LoadWSTicketRateLimitConfig 从 Viper 读取 WebSocket Ticket 限流配置。
+func LoadWSTicketRateLimitConfig() config.WSTicketRateLimitConfig {
+	return loadWSTicketRateLimitConfig(viper.GetViper())
+}
+
+func loadWSTicketRateLimitConfig(
+	v *viper.Viper,
+) config.WSTicketRateLimitConfig {
+	cfg := config.WSTicketRateLimitConfig{
+		GlobalLimit:        v.GetInt("rate_limit.ws_ticket_global"),
+		UserLimit:          v.GetInt("rate_limit.ws_ticket_user"),
+		WindowMilliseconds: v.GetInt("rate_limit.ws_ticket_window_ms"),
+	}
+	if cfg.GlobalLimit <= 0 {
+		cfg.GlobalLimit = 250
+	}
+	if cfg.UserLimit <= 0 {
+		cfg.UserLimit = 10
+	}
+	if cfg.WindowMilliseconds <= 0 {
+		cfg.WindowMilliseconds = 1000
+	}
+	return cfg
 }
 
 // LoadRabbitMQConfig 从 Viper 读取 RabbitMQ 后台任务配置。

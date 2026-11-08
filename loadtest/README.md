@@ -58,6 +58,7 @@ docker run --rm `
 - [HTTP 消息基线：10 VU / 30 秒](./reports/http-baseline.md)
 - [WebSocket 投递基线：20 个在线连接 / 30 秒](./reports/websocket-baseline.md)
 - [WebSocket 空闲连接阶梯：100 / 500 / 1,000 / 2,000 / 5,000](./reports/websocket-connections.md)
+- [WebSocket Ticket 限流验证](./reports/ticket-rate-limit.md)
 
 WebSocket 连接与投递基线使用：
 
@@ -87,3 +88,5 @@ docker run --rm `
   -w /work `
   grafana/k6:0.57.0 run loadtest/k6/websocket-connections.js
 ```
+
+Ticket 请求遇到 `429 Too Many Requests` 时，脚本会读取 `Retry-After` 并加入随机抖动后重试。`TICKET_RETRY_ATTEMPTS` 默认 120，用于验证限流后的流量恢复，而不是绕过限流。

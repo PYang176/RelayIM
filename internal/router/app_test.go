@@ -14,6 +14,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		nil,
 		observability.NewMetrics(),
 		observability.NewHealth(),
+		nil,
 	)
 
 	routes := make(map[string]bool)

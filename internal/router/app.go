@@ -25,6 +25,7 @@ func Router(
 	storage messagingapp.AttachmentStorage,
 	metrics *observability.Metrics,
 	health *observability.Health,
+	wsTicketLimiter middleware.WSTicketRateLimiter,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(
@@ -45,7 +46,7 @@ func Router(
 	//r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 新版用户认证模块
-	identityrouter.Register(r, db)
+	identityrouter.Register(r, db, wsTicketLimiter, metrics)
 
 	// 新版会话模块
 	conversationrouter.Register(r, db)

@@ -4,12 +4,18 @@ import (
 	identityapp "ginChatProject/internal/identity"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/platform/authn"
+	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 // Register 注册新版用户认证路由。
-func Register(r *gin.Engine, db *gorm.DB) {
+func Register(
+	r *gin.Engine,
+	db *gorm.DB,
+	wsTicketLimiter middleware.WSTicketRateLimiter,
+	metrics *observability.Metrics,
+) {
 	// 新认证链路只依赖新 ginchat_v2 用户表，不与旧 user_basic 混用。
 	repo := identityapp.NewRepository(db)
 	identityService := identityapp.NewService(repo, authn.DefaultManager)
@@ -22,5 +28,9 @@ func Register(r *gin.Engine, db *gorm.DB) {
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
 	protected.GET("/me", handler.Me)
-	protected.POST("/auth/ws-ticket", handler.WSTicket)
+	protected.POST(
+		"/auth/ws-ticket",
+		middleware.WSTicketRateLimit(wsTicketLimiter, metrics),
+		handler.WSTicket,
+	)
 }

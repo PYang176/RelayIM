@@ -21,6 +21,7 @@ func TestMetricsExposeHTTPAndWebSocketValues(t *testing.T) {
 	metrics.RecordMessageAccepted("text", false)
 	metrics.RecordMessageAccepted("text", true)
 	metrics.RecordAttachmentUpload(true)
+	metrics.RecordRateLimitRejected("user")
 	metrics.BeginRequest()
 	metrics.ObserveHTTP(
 		"GET",
@@ -44,6 +45,7 @@ func TestMetricsExposeHTTPAndWebSocketValues(t *testing.T) {
 		"ginchat_websocket_connections",
 		"ginchat_message_accepted_total",
 		"ginchat_attachment_uploads_total",
+		"ginchat_rate_limit_rejected_total",
 		"ginchat_outbox_events",
 		"ginchat_outbox_query_success",
 		"go_goroutines",

@@ -1,0 +1,46 @@
+{
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "fails": 0,
+        "rate": 1,
+        "passes": 4
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "rate": 0.43478260869565216,
+        "passes": 10,
+        "fails": 13
+      },
+      "thresholds": {}
+    },
+    "ws_ticket_accepted": {
+      "type": "counter",
+      "values": {
+        "count": 10,
+        "rate": 7.235083281744959
+      },
+      "thresholds": {}
+    },
+    "ws_ticket_rate_limited": {
+      "type": "counter",
+      "values": {
+        "count": 10,
+        "rate": 7.235083281744959
+      },
+      "thresholds": {
+        "count>0": {
+          "ok": true
+        }
+      }
+    }
+  }
+}

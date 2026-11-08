@@ -18,6 +18,7 @@ import (
 	"ginChatProject/internal/platform/bootstrap"
 	"ginChatProject/internal/platform/objectstore"
 	"ginChatProject/internal/platform/observability"
+	"ginChatProject/internal/platform/ratelimit"
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/ws"
@@ -87,6 +88,12 @@ func Run() error {
 			},
 		},
 	)
+	rateLimitConfig := bootstrap.LoadWSTicketRateLimitConfig()
+	wsTicketLimiter := ratelimit.NewWSTicketLimiter(
+		redisstore.RDB,
+		rateLimitConfig,
+		"ginchat",
+	)
 
 	storageCfg := bootstrap.LoadObjectStorageConfig()
 	var attachmentStorage messaging.AttachmentStorage
@@ -145,6 +152,7 @@ func Run() error {
 			attachmentStorage,
 			metrics,
 			health,
+			wsTicketLimiter,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

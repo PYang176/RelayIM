@@ -20,6 +20,7 @@ type Metrics struct {
 	inFlight       prometheus.Gauge
 	messages       *prometheus.CounterVec
 	attachments    *prometheus.CounterVec
+	rateLimited    *prometheus.CounterVec
 }
 
 // NewMetrics 创建指标注册表和 HTTP、运行时基础指标。
@@ -88,6 +89,15 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"result"},
 		),
+		rateLimited: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "ginchat",
+				Subsystem: "rate_limit",
+				Name:      "rejected_total",
+				Help:      "被限流拒绝的请求数",
+			},
+			[]string{"scope"},
+		),
 	}
 	registry.MustRegister(
 		metrics.requests,
@@ -95,6 +105,7 @@ func NewMetrics() *Metrics {
 		metrics.inFlight,
 		metrics.messages,
 		metrics.attachments,
+		metrics.rateLimited,
 	)
 	return metrics
 }
@@ -121,6 +132,11 @@ func (m *Metrics) RecordAttachmentUpload(success bool) {
 		result = "success"
 	}
 	m.attachments.WithLabelValues(result).Inc()
+}
+
+// RecordRateLimitRejected 记录被限流拒绝的请求。
+func (m *Metrics) RecordRateLimitRejected(scope string) {
+	m.rateLimited.WithLabelValues(scope).Inc()
 }
 
 // Handler 返回 Prometheus 标准抓取端点。

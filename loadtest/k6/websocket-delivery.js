@@ -107,6 +107,36 @@ function acceptFriendRequest(receiverToken, senderID) {
     )
 }
 
+function requestWSTicket(token) {
+    const maxAttempts = Number(__ENV.TICKET_RETRY_ATTEMPTS || 120)
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const response = http.post(
+            `${baseURL}/api/v1/auth/ws-ticket`,
+            JSON.stringify({
+                device_name: `k6-ws-${__VU}`,
+                platform: 1,
+            }),
+            {headers: requestHeaders(token)},
+        )
+        if (response.status === 200) {
+            return response.json().ticket
+        }
+        if (response.status !== 429) {
+            fail(
+                `申请 WebSocket Ticket失败: ` +
+                `status=${response.status} body=${response.body}`,
+            )
+        }
+        const retryAfter = Number(
+            response.headers['Retry-After'] ||
+            response.headers['Retry-after'] ||
+            1,
+        )
+        sleep(retryAfter + Math.random() * 0.25)
+    }
+    fail('申请 WebSocket Ticket持续被限流')
+}
+
 export function setup() {
     const senderUsername = `loadwss_${runID}`
     const sender = register(senderUsername, 'WebSocket 压测发送者')
@@ -164,16 +194,7 @@ export function receiveMessages(data) {
     const receiverIndex =
         (__VU - 1) % data.receivers.length
     const receiver = data.receivers[receiverIndex]
-    const ticketResponse = http.post(
-        `${baseURL}/api/v1/auth/ws-ticket`,
-        JSON.stringify({
-            device_name: `k6-ws-${__VU}`,
-            platform: 1,
-        }),
-        {headers: requestHeaders(receiver.token)},
-    )
-    requireStatus(ticketResponse, 200, '申请 WebSocket Ticket')
-    const ticket = ticketResponse.json().ticket
+    const ticket = requestWSTicket(receiver.token)
     let connected = false
 
     const response = ws.connect(

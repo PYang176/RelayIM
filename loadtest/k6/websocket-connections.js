@@ -84,6 +84,36 @@ function login(username) {
     return response.json()
 }
 
+function requestWSTicket(token) {
+    const maxAttempts = Number(__ENV.TICKET_RETRY_ATTEMPTS || 120)
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const response = http.post(
+            `${baseURL}/api/v1/auth/ws-ticket`,
+            JSON.stringify({
+                device_name: `k6-connections-${__VU}`,
+                platform: 1,
+            }),
+            {headers: requestHeaders(token)},
+        )
+        if (response.status === 200) {
+            return response.json().ticket
+        }
+        if (response.status !== 429) {
+            fail(
+                `申请连接基线 WebSocket Ticket失败: ` +
+                `status=${response.status} body=${response.body}`,
+            )
+        }
+        const retryAfter = Number(
+            response.headers['Retry-After'] ||
+            response.headers['Retry-after'] ||
+            1,
+        )
+        sleep(retryAfter + Math.random() * 0.25)
+    }
+    fail('申请连接基线 WebSocket Ticket持续被限流')
+}
+
 export function setup() {
     const users = []
     for (let index = 0; index < userCount; index += 1) {
@@ -109,16 +139,7 @@ export function holdConnection(data) {
     const userIndex =
         Math.floor((__VU - 1) / connectionsPerUser) % data.users.length
     const user = data.users[userIndex]
-    const ticketResponse = http.post(
-        `${baseURL}/api/v1/auth/ws-ticket`,
-        JSON.stringify({
-            device_name: `k6-connections-${__VU}`,
-            platform: 1,
-        }),
-        {headers: requestHeaders(user.token)},
-    )
-    requireStatus(ticketResponse, 200, '申请连接基线 WebSocket Ticket')
-    const ticket = ticketResponse.json().ticket
+    const ticket = requestWSTicket(user.token)
     const connectStartedAt = Date.now()
     let opened = false
     let expectedClose = false

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"testing"
 
+	"ginChatProject/internal/config"
 	"github.com/spf13/viper"
 )
 
@@ -126,6 +127,27 @@ func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
 		cfg.Region != "us-east-1" ||
 		cfg.UseSSL {
 		t.Fatalf("LoadObjectStorageConfig() = %+v", cfg)
+	}
+}
+
+func TestLoadWSTicketRateLimitConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_GLOBAL", "500")
+	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_USER", "20")
+	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_WINDOW_MS", "2000")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+
+	cfg := loadWSTicketRateLimitConfig(v)
+	expected := (config.WSTicketRateLimitConfig{
+		GlobalLimit:        500,
+		UserLimit:          20,
+		WindowMilliseconds: 2000,
+	})
+	if cfg != expected {
+		t.Fatalf("LoadWSTicketRateLimitConfig() = %+v，期望 %+v", cfg, expected)
 	}
 }
 
