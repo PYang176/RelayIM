@@ -25,10 +25,12 @@ import type {
 export interface ChatMessage extends Message {
     delivery?: DeliverySummary
     outgoing?: boolean
+    realtime_attachment_path?: string
 }
 
 interface ConversationSequenceState {
     cursor: SequenceCursor
+    pendingMessages: Map<number, ChatMessage>
     repairing: boolean
     repairRequested: boolean
     retryTimer?: number
@@ -89,6 +91,7 @@ export const useChatStore = defineStore('chat', () => {
         if (existing) return existing
         const created: ConversationSequenceState = {
             cursor: createSequenceCursor(contiguousSeq),
+            pendingMessages: new Map(),
             repairing: false,
             repairRequested: false,
             repairAttempts: 0,
@@ -105,9 +108,33 @@ export const useChatStore = defineStore('chat', () => {
         sequenceStates.delete(conversationId)
     }
 
-    function observeMessageSequence(
+    function storeMessage(conversationId: string, message: ChatMessage) {
+        upsertMessage(conversationId, message)
+        if (message.realtime_attachment_path) {
+            void resolveRealtimeAttachment(
+                conversationId,
+                message.message_id,
+                message.realtime_attachment_path,
+            )
+        }
+    }
+
+    function flushPendingMessages(
         conversationId: string,
-        seq: number,
+        state: ConversationSequenceState,
+    ) {
+        const ready = [...state.pendingMessages.entries()]
+            .filter(([seq]) => seq <= state.cursor.contiguousSeq)
+            .sort(([left], [right]) => left - right)
+        for (const [seq, message] of ready) {
+            state.pendingMessages.delete(seq)
+            storeMessage(conversationId, message)
+        }
+    }
+
+    function acceptMessageSequence(
+        conversationId: string,
+        message: ChatMessage,
     ): SequenceObservation {
         let state = sequenceStates.get(conversationId)
         if (!state) {
@@ -117,7 +144,14 @@ export const useChatStore = defineStore('chat', () => {
                 )?.last_seq ?? 0
             state = sequenceStateFor(conversationId, knownSeq)
         }
-        const observation = observeSequence(state.cursor, seq)
+        const previousSeq = state.cursor.contiguousSeq
+        const observation = observeSequence(state.cursor, message.seq)
+        if (message.seq > previousSeq + 1) {
+            state.pendingMessages.set(message.seq, message)
+        } else {
+            storeMessage(conversationId, message)
+            flushPendingMessages(conversationId, state)
+        }
         if (observation.gapDetected) {
             scheduleGapRepair(conversationId)
         }
@@ -126,6 +160,7 @@ export const useChatStore = defineStore('chat', () => {
 
     function scheduleGapRepair(conversationId: string, immediate = true) {
         const state = sequenceStateFor(conversationId)
+        if (state.repairing) return
         if (state.retryTimer) return
         const delay = immediate
             ? 0
@@ -159,15 +194,17 @@ export const useChatStore = defineStore('chat', () => {
                 for (const message of page.messages) {
                     const duplicate = (
                         messagesByConversation.value[conversationId] ?? []
-                    ).some((item) => item.message_id === message.message_id)
-                    upsertMessage(conversationId, message)
+                    ).some((item) => item.message_id === message.message_id) ||
+                        [...state.pendingMessages.values()].some(
+                            (item) => item.message_id === message.message_id,
+                        )
+                    const observation = acceptMessageSequence(
+                        conversationId,
+                        message,
+                    )
                     if (!duplicate && conversationId === activeConversationId.value) {
                         sendAck(message.message_id)
                     }
-                    const observation = observeSequence(
-                        state.cursor,
-                        message.seq,
-                    )
                     pageProgress = pageProgress || observation.advanced
                 }
                 if (page.has_more) {
@@ -227,6 +264,7 @@ export const useChatStore = defineStore('chat', () => {
                     attachment_id: undefined,
                     attachment_url: undefined,
                     attachment_name: undefined,
+                    realtime_attachment_path: undefined,
                 }
                 : {...next[index], ...message}
         } else {
@@ -245,6 +283,24 @@ export const useChatStore = defineStore('chat', () => {
         recalledBy = '',
         recalledAt = new Date().toISOString(),
     ) {
+        const sequenceState = sequenceStates.get(conversationId)
+        if (sequenceState) {
+            for (const [seq, pending] of sequenceState.pendingMessages) {
+                if (pending.message_id !== messageId) continue
+                sequenceState.pendingMessages.set(seq, {
+                    ...pending,
+                    content: '',
+                    attachment_id: undefined,
+                    attachment_url: undefined,
+                    attachment_name: undefined,
+                    realtime_attachment_path: undefined,
+                    recalled: true,
+                    recalled_at: recalledAt,
+                    recalled_by: recalledBy || pending.recalled_by,
+                })
+                return
+            }
+        }
         const current = messagesByConversation.value[conversationId] ?? []
         const index = current.findIndex((item) => item.message_id === messageId)
         if (index < 0) return
@@ -255,6 +311,7 @@ export const useChatStore = defineStore('chat', () => {
             attachment_id: undefined,
             attachment_url: undefined,
             attachment_name: undefined,
+            realtime_attachment_path: undefined,
             recalled: true,
             recalled_at: recalledAt,
             recalled_by: recalledBy || next[index].recalled_by,
@@ -571,7 +628,7 @@ export const useChatStore = defineStore('chat', () => {
             crypto.randomUUID(),
             trimmed,
         )
-        upsertMessage(conversationId, {
+        const observation = acceptMessageSequence(conversationId, {
             message_id: response.message_id,
             conversation_id: response.conversation_id,
             sender_id: auth.user?.id ?? '',
@@ -582,10 +639,6 @@ export const useChatStore = defineStore('chat', () => {
             recalled: false,
             outgoing: true,
         })
-        const observation = observeMessageSequence(
-            conversationId,
-            response.seq,
-        )
         const conversation = conversations.value.find((item) => item.id === conversationId)
         if (conversation) {
             conversation.last_seq = Math.max(conversation.last_seq, response.seq)
@@ -625,7 +678,7 @@ export const useChatStore = defineStore('chat', () => {
                 uploaded.message_type,
                 uploaded.attachment_id,
             )
-            upsertMessage(conversationId, {
+            const observation = acceptMessageSequence(conversationId, {
                 message_id: response.message_id,
                 conversation_id: response.conversation_id,
                 sender_id: auth.user?.id ?? '',
@@ -639,10 +692,6 @@ export const useChatStore = defineStore('chat', () => {
                 recalled: false,
                 outgoing: true,
             })
-            const observation = observeMessageSequence(
-                conversationId,
-                response.seq,
-            )
             const conversation = conversations.value.find(
                 (item) => item.id === conversationId,
             )
@@ -828,18 +877,13 @@ export const useChatStore = defineStore('chat', () => {
                 ? undefined
                 : payload.url,
             attachment_name: payload.file_name,
+            realtime_attachment_path: payload.url,
             recalled: false,
             created_at: new Date().toISOString(),
         }
-        upsertMessage(payload.conversation_id, message)
-        const observation = observeMessageSequence(
+        const observation = acceptMessageSequence(
             payload.conversation_id,
-            message.seq,
-        )
-        void resolveRealtimeAttachment(
-            payload.conversation_id,
-            message.message_id,
-            payload.url,
+            message,
         )
         updateConversationFromMessage(message)
         sendAck(message.message_id)
