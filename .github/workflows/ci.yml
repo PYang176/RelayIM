@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - "feat/**"
+      - "fix/**"
+      - "refactor/**"
+      - "chore/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go quality and integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: ginchat_v2
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -prootpassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+      rabbitmq:
+        image: rabbitmq:4.3.7-management
+        env:
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: integration-password
+          RABBITMQ_DEFAULT_VHOST: ginchat
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      GINCHAT_TEST_MYSQL_DSN: "root:rootpassword@tcp(127.0.0.1:3306)/ginchat_v2?charset=utf8mb4&parseTime=true&loc=UTC"
+      GINCHAT_TEST_REDIS_ADDR: "127.0.0.1:6379"
+      GINCHAT_TEST_REDIS_PASSWORD: ""
+      GINCHAT_TEST_RABBITMQ_URL: "amqp://admin:integration-password@127.0.0.1:5672/ginchat"
+      GINCHAT_TEST_S3_ENDPOINT: "127.0.0.1:8333"
+      GINCHAT_TEST_S3_ACCESS_KEY: "admin"
+      GINCHAT_TEST_S3_SECRET_KEY: "integration-password"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 启动 SeaweedFS
+        run: |
+          docker run -d \
+            --name ginchat-seaweedfs-ci \
+            -p 8333:8333 \
+            -e AWS_ACCESS_KEY_ID=admin \
+            -e AWS_SECRET_ACCESS_KEY=integration-password \
+            chrislusf/seaweedfs:4.52
+          for attempt in $(seq 1 30); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8333 || true)
+            if [ "$status" = "403" ] || [ "$status" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs ginchat-seaweedfs-ci
+          exit 1
+
+      - name: 安装 Goose
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
+
+      - name: 初始化数据库
+        run: "$(go env GOPATH)/bin/goose -dir migrations mysql \"$GINCHAT_TEST_MYSQL_DSN\" up"
+
+      - name: 静态检查
+        run: go vet ./...
+
+      - name: 后端集成测试
+        run: go test ./...
+
+      - name: 竞态检查
+        run: go test -race ./internal/messaging ./internal/ws ./internal/platform/ratelimit
+
+  frontend:
+    name: Vue typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 生产构建
+        run: npm run build
