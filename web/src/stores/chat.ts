@@ -138,10 +138,13 @@ export const useChatStore = defineStore('chat', () => {
             return
         }
         conversation.last_seq = Math.max(conversation.last_seq, message.seq)
-        const isIncoming =
+        const shouldIncrementUnread =
             message.sender_id !== auth.user?.id &&
-            message.conversation_id !== activeConversationId.value
-        if (isIncoming || document.visibilityState !== 'visible') {
+            (
+                message.conversation_id !== activeConversationId.value ||
+                document.visibilityState !== 'visible'
+            )
+        if (shouldIncrementUnread) {
             conversation.unread_count += 1
         }
     }

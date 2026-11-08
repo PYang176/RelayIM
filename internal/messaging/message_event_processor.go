@@ -35,23 +35,23 @@ func (e permanentEventError) Permanent() bool {
 type MessageEventProcessor struct {
 	db           *gorm.DB
 	consumerName string
-	realtime     RealtimeSender
+	delivery     EventDeliveryRouter
 }
 
-// RealtimeSender 把消息非阻塞提交给当前进程内的在线连接。
-type RealtimeSender interface {
-	SendToUsers(userIDs []uint64, message []byte) int
+// EventDeliveryRouter 把事件按用户当前所在实例进行实时路由。
+type EventDeliveryRouter interface {
+	Route(ctx context.Context, userIDs []uint64, message []byte) error
 }
 
 // NewMessageEventProcessor 创建消息领域事件处理器。
 func NewMessageEventProcessor(
 	db *gorm.DB,
-	realtime RealtimeSender,
+	delivery EventDeliveryRouter,
 ) *MessageEventProcessor {
 	return &MessageEventProcessor{
 		db:           db,
 		consumerName: messageEventsConsumerName,
-		realtime:     realtime,
+		delivery:     delivery,
 	}
 }
 
@@ -192,15 +192,14 @@ func (p *MessageEventProcessor) processMessageCreated(
 		var recipientIDs []uint64
 		if err := tx.Table("conversation_members").
 			Where(
-				"conversation_id = ? AND user_id <> ? AND left_at IS NULL",
+				"conversation_id = ? AND left_at IS NULL",
 				conversationID,
-				senderID,
 			).
 			Pluck("user_id", &recipientIDs).Error; err != nil {
 			return fmt.Errorf("查询消息在线接收者: %w", err)
 		}
 
-		if p.realtime != nil && len(recipientIDs) > 0 {
+		if p.delivery != nil && len(recipientIDs) > 0 {
 			attachmentURL := ""
 			if attachmentID > 0 {
 				attachmentURL = fmt.Sprintf(
@@ -222,7 +221,13 @@ func (p *MessageEventProcessor) processMessageCreated(
 			if err != nil {
 				return fmt.Errorf("序列化在线消息: %w", err)
 			}
-			p.realtime.SendToUsers(recipientIDs, realtimePayload)
+			if err := p.delivery.Route(
+				ctx,
+				recipientIDs,
+				realtimePayload,
+			); err != nil {
+				return fmt.Errorf("跨实例路由在线消息: %w", err)
+			}
 		}
 		return nil
 	})
@@ -333,7 +338,7 @@ func (p *MessageEventProcessor) processMessageRecalled(
 			Pluck("user_id", &recipientIDs).Error; err != nil {
 			return fmt.Errorf("查询撤回事件在线接收者: %w", err)
 		}
-		if p.realtime == nil || len(recipientIDs) == 0 {
+		if p.delivery == nil || len(recipientIDs) == 0 {
 			return nil
 		}
 
@@ -349,7 +354,13 @@ func (p *MessageEventProcessor) processMessageRecalled(
 		if err != nil {
 			return fmt.Errorf("序列化在线撤回事件: %w", err)
 		}
-		p.realtime.SendToUsers(recipientIDs, realtimePayload)
+		if err := p.delivery.Route(
+			ctx,
+			recipientIDs,
+			realtimePayload,
+		); err != nil {
+			return fmt.Errorf("跨实例路由撤回事件: %w", err)
+		}
 		return nil
 	})
 }

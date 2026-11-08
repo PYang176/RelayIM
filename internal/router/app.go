@@ -5,6 +5,7 @@ import (
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/platform/observability"
 	presenceapp "ginChatProject/internal/presence"
+	realtimeapp "ginChatProject/internal/realtime"
 	conversationrouter "ginChatProject/internal/router/conversation"
 	friendshiprouter "ginChatProject/internal/router/friendship"
 	identityrouter "ginChatProject/internal/router/identity"
@@ -30,6 +31,7 @@ func Router(
 	requestLimiter middleware.RateLimitChecker,
 	wsTicketLimiter middleware.WSTicketRateLimiter,
 	presenceService *presenceapp.Service,
+	realtimeRoutes *realtimeapp.Registry,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -68,7 +70,7 @@ func Router(
 	messagingrouter.Register(r, db, storage, requestLimiter, metrics)
 
 	// websocket
-	ws.Register(r, db, presenceService)
+	ws.Register(r, db, presenceService, realtimeRoutes)
 
 	// 在线状态
 	presencerouter.Register(r, presenceService, requestLimiter, metrics)

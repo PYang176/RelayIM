@@ -27,10 +27,17 @@ var upgrader = websocket.Upgrader{
 type WebsocketHandler struct {
 	receipts ReceiptService
 	presence PresenceTracker
+	routes   RouteTracker
 }
 
 // PresenceTracker 维护用户设备在线状态。
 type PresenceTracker interface {
+	Touch(ctx context.Context, userID uint64, deviceID uint64) error
+	Remove(ctx context.Context, userID uint64, deviceID uint64) error
+}
+
+// RouteTracker 维护当前 WebSocket 设备所在的应用实例。
+type RouteTracker interface {
 	Touch(ctx context.Context, userID uint64, deviceID uint64) error
 	Remove(ctx context.Context, userID uint64, deviceID uint64) error
 }
@@ -55,10 +62,12 @@ type ReceiptService interface {
 func NewWebsocketHandler(
 	receipts ReceiptService,
 	presence PresenceTracker,
+	routes RouteTracker,
 ) *WebsocketHandler {
 	return &WebsocketHandler{
 		receipts: receipts,
 		presence: presence,
+		routes:   routes,
 	}
 }
 
@@ -94,7 +103,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		ticketSession.DeviceID,
 		conn,
 		func(heartbeatCtx context.Context) {
-			h.updatePresence(
+			h.updateRealtime(
 				heartbeatCtx,
 				ticketSession.UserID,
 				ticketSession.DeviceID,
@@ -114,12 +123,34 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 		return
 	}
 	defer Manager.Remove(client)
+	if err := h.trackRoute(
+		c.Request.Context(),
+		ticketSession.UserID,
+		ticketSession.DeviceID,
+	); err != nil {
+		slog.Warn(
+			"注册跨实例 WebSocket 路由失败，关闭连接",
+			"user_id", ticketSession.UserID,
+			"error", err,
+		)
+		_ = conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(
+				websocket.CloseTryAgainLater,
+				"实时路由服务暂不可用",
+			),
+			time.Now().Add(writeWait),
+		)
+		_ = conn.Close()
+		return
+	}
 	h.updatePresence(
 		c.Request.Context(),
 		ticketSession.UserID,
 		ticketSession.DeviceID,
 	)
 	defer h.removePresence(ticketSession.UserID, ticketSession.DeviceID)
+	defer h.removeRoute(ticketSession.UserID, ticketSession.DeviceID)
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
@@ -132,6 +163,17 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 			raw,
 		)
 	})
+}
+
+func (h *WebsocketHandler) updateRealtime(
+	ctx context.Context,
+	userID uint64,
+	deviceID uint64,
+) {
+	h.updatePresence(ctx, userID, deviceID)
+	if err := h.trackRoute(ctx, userID, deviceID); err != nil {
+		slog.Warn("更新跨实例 WebSocket 路由失败", "user_id", userID, "error", err)
+	}
 }
 
 func (h *WebsocketHandler) handleClientMessage(
@@ -176,6 +218,22 @@ func (h *WebsocketHandler) handleClientMessage(
 	}
 }
 
+func (h *WebsocketHandler) trackRoute(
+	ctx context.Context,
+	userID uint64,
+	deviceID uint64,
+) error {
+	if h.routes == nil {
+		return nil
+	}
+	routeCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	if err := h.routes.Touch(routeCtx, userID, deviceID); err != nil {
+		return fmt.Errorf("更新跨实例实时路由: %w", err)
+	}
+	return nil
+}
+
 func (h *WebsocketHandler) updatePresence(
 	ctx context.Context,
 	userID uint64,
@@ -189,6 +247,17 @@ func (h *WebsocketHandler) updatePresence(
 
 	if err := h.presence.Touch(presenceCtx, userID, deviceID); err != nil {
 		slog.Warn("更新设备在线状态失败", "user_id", userID, "error", err)
+	}
+}
+
+func (h *WebsocketHandler) removeRoute(userID uint64, deviceID uint64) {
+	if h.routes == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := h.routes.Remove(ctx, userID, deviceID); err != nil {
+		slog.Warn("清理跨实例实时路由失败", "user_id", userID, "error", err)
 	}
 }
 

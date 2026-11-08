@@ -227,5 +227,6 @@ func NewTestRouter() *gin.Engine {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 }

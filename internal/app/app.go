@@ -21,6 +21,7 @@ import (
 	"ginChatProject/internal/platform/ratelimit"
 	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/presence"
+	"ginChatProject/internal/realtime"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/ws"
 	"gorm.io/gorm"
@@ -97,7 +98,14 @@ func Run() error {
 		slidingWindowLimiter,
 		rateLimitConfig,
 	)
+	serviceInstanceID := instanceID()
+	slog.Info("服务实例标识已生成", "instance_id", serviceInstanceID)
 	presenceService := presence.NewService(redisstore.RDB, "ginchat")
+	realtimeRegistry := realtime.NewRegistry(
+		redisstore.RDB,
+		"ginchat",
+		serviceInstanceID,
+	)
 
 	storageCfg := bootstrap.LoadObjectStorageConfig()
 	var attachmentStorage messaging.AttachmentStorage
@@ -113,10 +121,16 @@ func Run() error {
 
 	// 启动阶段 2：启动具备明确取消语义的 RabbitMQ 后台任务。
 	var backgroundWorkers sync.WaitGroup
+	var deliveryRouter *realtime.DeliveryRouter
 	defer func() {
 		// Run 退出时先取消后台任务，再等待连接和轮询协程释放资源。
 		stop()
 		backgroundWorkers.Wait()
+		if deliveryRouter != nil {
+			if err := deliveryRouter.Close(); err != nil {
+				slog.Warn("关闭跨实例实时投递发布器失败", "error", err)
+			}
+		}
 	}()
 
 	rabbitCfg := bootstrap.LoadRabbitMQConfig()
@@ -125,7 +139,7 @@ func Run() error {
 		outboxWorker := messaging.NewOutboxWorker(
 			messagingRepository,
 			rabbitCfg,
-			instanceID(),
+			serviceInstanceID,
 		)
 		backgroundWorkers.Add(1)
 		go func() {
@@ -133,16 +147,32 @@ func Run() error {
 			outboxWorker.Run(ctx)
 		}()
 
-		messageConsumer := messaging.NewMessageEventConsumer(
-			messaging.NewMessageEventProcessor(db, ws.Manager),
+		deliveryRouter = realtime.NewDeliveryRouter(
+			realtimeRegistry,
 			rabbitCfg,
-			instanceID()+"-message-events",
+			serviceInstanceID,
+		)
+		messageConsumer := messaging.NewMessageEventConsumer(
+			messaging.NewMessageEventProcessor(db, deliveryRouter),
+			rabbitCfg,
+			serviceInstanceID+"-message-events",
 			metrics,
 		)
 		backgroundWorkers.Add(1)
 		go func() {
 			defer backgroundWorkers.Done()
 			messageConsumer.Run(ctx)
+		}()
+
+		nodeConsumer := realtime.NewNodeConsumer(
+			rabbitCfg,
+			serviceInstanceID,
+			ws.Manager,
+		)
+		backgroundWorkers.Add(1)
+		go func() {
+			defer backgroundWorkers.Done()
+			nodeConsumer.Run(ctx)
 		}()
 	} else {
 		slog.Warn("未配置 RabbitMQ 地址，后台任务保持禁用")
@@ -160,6 +190,7 @@ func Run() error {
 			slidingWindowLimiter,
 			wsTicketLimiter,
 			presenceService,
+			realtimeRegistry,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -250,5 +281,12 @@ func instanceID() string {
 	if err != nil || strings.TrimSpace(hostname) == "" {
 		hostname = "ginchat"
 	}
-	return fmt.Sprintf("%s-%d", hostname, os.Getpid())
+	// PID 可能被操作系统复用。加入进程启动时间，保证临时节点队列和 Redis
+	// 路由不会与已经退出的旧进程混用。
+	return fmt.Sprintf(
+		"%s-%d-%d",
+		hostname,
+		os.Getpid(),
+		time.Now().UnixNano(),
+	)
 }

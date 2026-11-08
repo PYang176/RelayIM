@@ -41,7 +41,7 @@ Ticket 只用于建立连接，不替代 Access Token。Access Token 继续用�
 
 ## 3. 在线消息
 
-RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他在线成员提交：
+RabbitMQ Consumer 完成事件幂等校验后，会向同一会话全部有效成员提交。发送者账号的其他设备也会收到事件，客户端按 `message_id` 去重：
 
 ```json
 {
@@ -129,7 +129,9 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话中的其他�
 
 ## 7. 当前限制
 
-连接注册表仅存在单个 Go 进程内。多实例部署时，消费者需要先通过 Redis 查询用户连接所在实例，再经 `im.delivery.node.<instance_id>` 队列转发投递命令。当前阶段只支持单实例实时扇出。
+每个进程内仍使用独立连接注册表，但跨实例投递已经通过 Redis 设备路由、`im.delivery` Direct Exchange 和 `im.delivery.node.<instance_id>` 临时队列完成，详见 [多实例实时投递](./多实例实时投递.md)。
+
+节点队列是临时队列。实例退出或实时命令不可路由时，在线帧允许丢失，客户端重连后使用 HTTP `after_seq` 恢复。
 
 连接断开后，客户端调用：
 

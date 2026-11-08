@@ -115,8 +115,8 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 		Payload:     payload,
 	}
 
-	realtime := &stubRealtimeSender{}
-	processor := NewMessageEventProcessor(db, realtime)
+	delivery := &stubEventDeliveryRouter{}
+	processor := NewMessageEventProcessor(db, delivery)
 	if err := processor.Process(context.Background(), envelope); err != nil {
 		t.Fatalf("首次处理消息事件失败: %v", err)
 	}
@@ -134,14 +134,16 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	if processedCount != 1 {
 		t.Fatalf("消费幂等记录数量 = %d，期望 1", processedCount)
 	}
-	if len(realtime.messages) != 1 {
-		t.Fatalf("实时投递次数 = %d，期望 1", len(realtime.messages))
+	if len(delivery.messages) != 1 {
+		t.Fatalf("实时投递次数 = %d，期望 1", len(delivery.messages))
 	}
-	if len(realtime.userIDs) != 1 || realtime.userIDs[0] != userB {
-		t.Fatalf("实时接收者 = %v，期望用户 %d", realtime.userIDs, userB)
+	if len(delivery.userIDs) != 2 ||
+		!containsUserID(delivery.userIDs, userA) ||
+		!containsUserID(delivery.userIDs, userB) {
+		t.Fatalf("实时接收者 = %v，期望会话全部成员", delivery.userIDs)
 	}
 	var pushed ws.WsMessage
-	if err := json.Unmarshal(realtime.messages[0], &pushed); err != nil {
+	if err := json.Unmarshal(delivery.messages[0], &pushed); err != nil {
 		t.Fatalf("解析实时消息失败: %v", err)
 	}
 	if pushed.MessageID != fmt.Sprintf("%d", messageID) ||
@@ -182,16 +184,16 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	if err := processor.Process(context.Background(), recallEnvelope); err != nil {
 		t.Fatalf("处理消息撤回事件失败: %v", err)
 	}
-	if len(realtime.messages) != 2 {
-		t.Fatalf("实时投递次数 = %d，期望创建和撤回共 2 次", len(realtime.messages))
+	if len(delivery.messages) != 2 {
+		t.Fatalf("实时投递次数 = %d，期望创建和撤回共 2 次", len(delivery.messages))
 	}
-	if len(realtime.userIDs) != 2 ||
-		realtime.userIDs[0] != userA ||
-		realtime.userIDs[1] != userB {
-		t.Fatalf("撤回实时接收者 = %v，期望群内两名成员", realtime.userIDs)
+	if len(delivery.userIDs) != 2 ||
+		delivery.userIDs[0] != userA ||
+		delivery.userIDs[1] != userB {
+		t.Fatalf("撤回实时接收者 = %v，期望群内两名成员", delivery.userIDs)
 	}
 	var recalledPush ws.WsMessage
-	if err := json.Unmarshal(realtime.messages[1], &recalledPush); err != nil {
+	if err := json.Unmarshal(delivery.messages[1], &recalledPush); err != nil {
 		t.Fatalf("解析实时撤回消息失败: %v", err)
 	}
 	if recalledPush.Action != ws.ActionMessageRecalled ||
@@ -202,16 +204,26 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	}
 }
 
-type stubRealtimeSender struct {
+func containsUserID(userIDs []uint64, target uint64) bool {
+	for _, userID := range userIDs {
+		if userID == target {
+			return true
+		}
+	}
+	return false
+}
+
+type stubEventDeliveryRouter struct {
 	userIDs  []uint64
 	messages [][]byte
 }
 
-func (s *stubRealtimeSender) SendToUsers(
+func (s *stubEventDeliveryRouter) Route(
+	_ context.Context,
 	userIDs []uint64,
 	message []byte,
-) int {
+) error {
 	s.userIDs = append([]uint64(nil), userIDs...)
 	s.messages = append(s.messages, append([]byte(nil), message...))
-	return len(userIDs)
+	return nil
 }

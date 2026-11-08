@@ -18,6 +18,12 @@ const (
 	// DeadLetterExchange 接收无法正常处理的事件。
 	DeadLetterExchange = "im.dlx"
 
+	// DeliveryExchange 接收跨实例 WebSocket 定向投递命令。
+	DeliveryExchange = "im.delivery"
+
+	// DeliveryNodeQueuePrefix 是每个 Go 实例独占的临时投递队列前缀。
+	DeliveryNodeQueuePrefix = "im.delivery.node."
+
 	// MessageFanoutQueue 消费消息领域事件并执行后续投递扇出。
 	MessageFanoutQueue = "im.message.fanout.v1"
 
@@ -93,6 +99,18 @@ func DeclareTopology(channel *amqp.Channel) error {
 		nil,
 	); err != nil {
 		return fmt.Errorf("声明死信 Exchange: %w", err)
+	}
+
+	if err := channel.ExchangeDeclare(
+		DeliveryExchange,
+		amqp.ExchangeDirect,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("声明实时投递 Exchange: %w", err)
 	}
 
 	if _, err := channel.QueueDeclare(
@@ -229,19 +247,39 @@ func (p *Publisher) Publish(
 	if err != nil {
 		return fmt.Errorf("序列化 RabbitMQ 事件: %w", err)
 	}
-
-	confirmation, err := p.channel.PublishWithDeferredConfirmWithContext(
+	return p.PublishRaw(
 		ctx,
 		EventsExchange,
 		envelope.EventType,
+		envelope.EventID,
+		envelope.EventType,
+		envelope.OccurredAt,
+		body,
+	)
+}
+
+// PublishRaw 向指定 Exchange 和 Routing Key 发布持久化 JSON 消息。
+func (p *Publisher) PublishRaw(
+	ctx context.Context,
+	exchange string,
+	routingKey string,
+	messageID string,
+	messageType string,
+	occurredAt time.Time,
+	body []byte,
+) error {
+	confirmation, err := p.channel.PublishWithDeferredConfirmWithContext(
+		ctx,
+		exchange,
+		routingKey,
 		true,
 		false,
 		amqp.Publishing{
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
-			MessageId:    envelope.EventID,
-			Timestamp:    envelope.OccurredAt,
-			Type:         envelope.EventType,
+			MessageId:    messageID,
+			Timestamp:    occurredAt,
+			Type:         messageType,
 			AppId:        "ginchat",
 			Body:         body,
 		},

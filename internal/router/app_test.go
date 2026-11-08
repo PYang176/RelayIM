@@ -17,6 +17,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if engine.ForwardedByClientIP {
 		t.Fatal("默认配置不应信任客户端伪造的代理 IP 请求头")

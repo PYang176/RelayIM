@@ -15,6 +15,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - 消息幂等、会话内连续 `seq`、历史分页和断线 `after_seq` 补拉。
 - WebSocket 单写协程、有界队列、送达 ACK、已读游标和慢连接隔离。
 - Redis 多设备在线状态、批量查询和前端在线人数展示。
+- Redis 实例路由与 RabbitMQ 节点队列，支持跨 Go 实例 WebSocket 投递。
 - 消息撤回、群主转让和群解散。
 - Outbox + RabbitMQ Publisher Confirm + 手动 ACK + TTL 重试 + DLQ。
 - Snowflake 启动时间水位校验，小幅时钟回拨等待、大幅回拨拒绝启动。
@@ -164,6 +165,7 @@ GitHub Actions 会在 PR 和主分支提交上执行后端静态检查、真实�
 - [WebSocket 投递基线](loadtest/reports/websocket-baseline.md)
 - [WebSocket 连接阶梯](loadtest/reports/websocket-connections.md)
 - [Ticket 限流验证](loadtest/reports/ticket-rate-limit.md)
+- [两实例实时投递验证](loadtest/reports/two-instance-e2e.md)
 
 ## 目录
 
@@ -187,6 +189,7 @@ docs/              需求、协议、数据库和运维文档
 - [消息接口](docs/消息接口.md)
 - [WebSocket 协议](docs/WebSocket协议.md)
 - [在线状态](docs/在线状态.md)
+- [多实例实时投递](docs/多实例实时投递.md)
 - [雪花 ID 与时钟回拨](docs/雪花ID与时钟回拨.md)
 - [OpenAPI 接口契约](docs/OpenAPI指南.md)
 - [OpenAPI YAML](docs/openapi.yaml)
@@ -197,8 +200,7 @@ docs/              需求、协议、数据库和运维文档
 
 ## 当前边界
 
-- WebSocket 在线连接注册表仍在单进程内；跨实例投递路由尚未完成。
-- 当前 CI 覆盖单实例集成链路，不包含两实例故障切换和长时间稳定性测试。
+- 已支持两实例实时投递；当前 CI 仍未自动启动两实例，故障切换和长时间稳定性需要继续补测。
 - 尚未接入 OpenTelemetry Trace、举报审核和后台管理系统。
 - 对象存储已控制普通成员访问，但孤儿附件定时清理和病毒扫描尚未实现。
 

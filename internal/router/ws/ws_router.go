@@ -12,9 +12,10 @@ func Register(
 	r *gin.Engine,
 	db *gorm.DB,
 	presence ws.PresenceTracker,
+	routes ws.RouteTracker,
 ) {
 	repository := messagingapp.NewRepository(db)
 	service := messagingapp.NewService(repository)
-	wsHandler := ws.NewWebsocketHandler(service, presence)
+	wsHandler := ws.NewWebsocketHandler(service, presence, routes)
 	r.GET("/ws", wsHandler.Connect)
 }

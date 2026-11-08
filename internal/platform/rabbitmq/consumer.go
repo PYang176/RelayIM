@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -66,6 +67,35 @@ func NewConsumer(url string, prefetch int) (*Consumer, error) {
 		connection: connection,
 		channel:    channel,
 	}, nil
+}
+
+// DeclareNodeQueue 声明当前应用实例独占的临时 WebSocket 投递队列。
+func (c *Consumer) DeclareNodeQueue(instanceID string) error {
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" {
+		return errors.New("实时投递实例 ID 不能为空")
+	}
+	queue := DeliveryNodeQueuePrefix + instanceID
+	if _, err := c.channel.QueueDeclare(
+		queue,
+		false,
+		true,
+		true,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("声明实例实时投递队列: %w", err)
+	}
+	if err := c.channel.QueueBind(
+		queue,
+		queue,
+		DeliveryExchange,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("绑定实例实时投递队列: %w", err)
+	}
+	return nil
 }
 
 // Consume 手动 ACK 处理队列消息，失败消息按重试队列或 DLQ 处理。

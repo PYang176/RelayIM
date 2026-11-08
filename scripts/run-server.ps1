@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$EnvFile = ""
+    [string]$EnvFile = "",
+    [string]$ServerAddr = "",
+    [long]$SnowflakeWorkID = -1
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +45,13 @@ foreach ($line in Get-Content -LiteralPath $EnvFile) {
     }
 
     $environment[$name] = $value
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ServerAddr)) {
+    $environment["GINCHAT_SERVER_ADDR"] = $ServerAddr.Trim()
+}
+if ($SnowflakeWorkID -ge 0) {
+    $environment["GINCHAT_SNOWFLAKE_WORK_ID"] = [string]$SnowflakeWorkID
 }
 
 # 环境变量只注入即将启动的 Go 子进程，不污染当前 PowerShell 会话。

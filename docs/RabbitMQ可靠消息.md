@@ -11,6 +11,9 @@ POST 消息
   -> RabbitMQ im.events
   -> im.message.fanout.v1
   -> Consumer：按事件类型校验事实 + processed_events
+  -> Redis：查询用户所在 Go 实例
+  -> im.delivery
+  -> im.delivery.node.<instance_id>
   -> ACK
 ```
 
@@ -22,7 +25,9 @@ POST 消息
 | --- | --- | --- |
 | `im.events` | Durable Topic Exchange | 业务领域事件 |
 | `im.dlx` | Durable Direct Exchange | 最终失败事件 |
+| `im.delivery` | Durable Direct Exchange | 跨实例 WebSocket 定向投递 |
 | `im.message.fanout.v1` | Durable Classic Queue | 消费消息创建与撤回事件 |
+| `im.delivery.node.<instance_id>` | Exclusive Auto-delete Queue | 当前 Go 实例的实时投递命令 |
 | `im.message.retry.5s.v1` | TTL Queue | 5 秒后重试 |
 | `im.message.retry.30s.v1` | TTL Queue | 30 秒后重试 |
 | `im.message.retry.2m.v1` | TTL Queue | 2 分钟后重试 |
@@ -57,7 +62,9 @@ POST 消息
 - JSON、字段、版本或消息事实错误属于不可重试错误，直接 NACK 进入 DLQ。
 - `processed_events(event_id, consumer_name)` 保证同一消费者重复处理时不会重复执行业务状态。
 
-当前 Consumer 已查询会话有效成员，并把消息创建或撤回事件非阻塞提交到本实例的在线连接队列。WebSocket 每个连接只有一个写协程，慢连接队列满时只关闭该连接。跨实例在线路由尚未实现，当前扇出范围是“本进程内的在线用户连接”。
+消息 Consumer 查询会话有效成员和 Redis 实例路由，再把投递命令发布到目标实例队列。实例自己的 Node Consumer 将事件放入本地 WebSocket 有界队列。WebSocket 每个连接只有一个写协程，慢连接队列满时只关闭该连接。
+
+节点队列不追求持久化重放。实例发生时退出或队列不可路由时，客户端通过 HTTP `after_seq` 从 MySQL 补齐。完整链路见 [多实例实时投递](./多实例实时投递.md)。
 
 ## 5. 本地配置
 
