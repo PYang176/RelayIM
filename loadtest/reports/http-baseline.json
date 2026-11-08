@@ -1,0 +1,101 @@
+{
+  "scenario": {
+    "executor": "constant-vus",
+    "vus": 10,
+    "duration": "30s",
+    "sleepSeconds": 0.1
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 5392,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "passes": 0,
+        "fails": 2704,
+        "rate": 0
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 2704,
+        "rate": 89.03745023957943
+      },
+      "thresholds": {}
+    },
+    "iterations": {
+      "type": "counter",
+      "values": {
+        "count": 2696,
+        "rate": 88.7740258305866
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "avg": 10.52960690458578,
+        "min": 4.545468,
+        "med": 9.257936,
+        "p(90)": 12.474514000000006,
+        "p(95)": 15.38546575,
+        "p(99)": 42.672036819999995,
+        "max": 73.361243
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{endpoint:send_message}": {
+      "type": "trend",
+      "values": {
+        "min": 7.282081,
+        "med": 9.257936,
+        "p(90)": 12.410937,
+        "p(95)": 15.2548225,
+        "p(99)": 40.67371135000004,
+        "max": 73.361243,
+        "avg": 10.454760158753695
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        },
+        "p(99)<2000": {
+          "ok": true
+        }
+      }
+    },
+    "data_received": {
+      "type": "counter",
+      "values": {
+        "count": 880365,
+        "rate": 28988.70372787254
+      },
+      "thresholds": {}
+    },
+    "data_sent": {
+      "type": "counter",
+      "values": {
+        "count": 1627108,
+        "rate": 53577.49540843994
+      },
+      "thresholds": {}
+    }
+  }
+}
