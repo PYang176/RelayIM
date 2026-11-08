@@ -3,8 +3,10 @@ package messaging
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"ginChatProject/internal/config"
 	"ginChatProject/internal/platform/rabbitmq"
@@ -25,12 +27,23 @@ type deliveryConsumer interface {
 
 type consumerFactory func() (deliveryConsumer, error)
 
+// MessageEventMetrics 接收消费者结果、处理耗时和事件排队延迟。
+type MessageEventMetrics interface {
+	RecordMessageEvent(
+		eventType string,
+		result string,
+		duration time.Duration,
+		lag time.Duration,
+	)
+}
+
 // MessageEventConsumer 负责连接重建、事件解码和幂等业务处理。
 type MessageEventConsumer struct {
 	processor   *MessageEventProcessor
 	config      config.RabbitMQConfig
 	consumerTag string
 	newConsumer consumerFactory
+	metrics     MessageEventMetrics
 }
 
 // NewMessageEventConsumer 创建消息领域事件消费者。
@@ -38,11 +51,13 @@ func NewMessageEventConsumer(
 	processor *MessageEventProcessor,
 	cfg config.RabbitMQConfig,
 	consumerTag string,
+	metrics MessageEventMetrics,
 ) *MessageEventConsumer {
 	return &MessageEventConsumer{
 		processor:   processor,
 		config:      cfg,
 		consumerTag: consumerTag,
+		metrics:     metrics,
 		newConsumer: func() (deliveryConsumer, error) {
 			return rabbitmq.NewConsumer(cfg.URL, cfg.Prefetch)
 		},
@@ -88,7 +103,9 @@ func (c *MessageEventConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
 ) error {
+	startedAt := time.Now()
 	if len(delivery.Body) > maxEventBodyBytes {
+		c.recordMetrics("invalid", "dead", startedAt, time.Time{})
 		return permanentEventError{err: fmt.Errorf(
 			"%w: 事件体超过 1 MB",
 			ErrInvalidEvent,
@@ -97,11 +114,57 @@ func (c *MessageEventConsumer) processDelivery(
 
 	var envelope rabbitmq.EventEnvelope
 	if err := json.Unmarshal(delivery.Body, &envelope); err != nil {
+		c.recordMetrics("invalid", "dead", startedAt, time.Time{})
 		return permanentEventError{err: fmt.Errorf(
 			"%w: 解析事件信封: %v",
 			ErrInvalidEvent,
 			err,
 		)}
 	}
-	return c.processor.Process(ctx, envelope)
+	err := c.processor.Process(ctx, envelope)
+	c.recordMetrics(
+		envelope.EventType,
+		messageEventResult(err, delivery.Headers),
+		startedAt,
+		envelope.OccurredAt,
+	)
+	return err
+}
+
+func (c *MessageEventConsumer) recordMetrics(
+	eventType string,
+	result string,
+	startedAt time.Time,
+	occurredAt time.Time,
+) {
+	if c.metrics == nil {
+		return
+	}
+	lag := time.Duration(0)
+	if !occurredAt.IsZero() {
+		lag = startedAt.Sub(occurredAt)
+		if lag < 0 {
+			lag = 0
+		}
+	}
+	c.metrics.RecordMessageEvent(
+		eventType,
+		result,
+		time.Since(startedAt),
+		lag,
+	)
+}
+
+func messageEventResult(err error, headers amqp.Table) string {
+	if err == nil {
+		return "success"
+	}
+	var permanent rabbitmq.PermanentError
+	if errors.As(err, &permanent) && permanent.Permanent() {
+		return "dead"
+	}
+	if rabbitmq.DeliveryRetryCount(headers) >= rabbitmq.MaxDeliveryRetries {
+		return "dead"
+	}
+	return "retry"
 }

@@ -136,6 +136,7 @@ func Run() error {
 			messaging.NewMessageEventProcessor(db, ws.Manager),
 			rabbitCfg,
 			instanceID()+"-message-events",
+			metrics,
 		)
 		backgroundWorkers.Add(1)
 		go func() {

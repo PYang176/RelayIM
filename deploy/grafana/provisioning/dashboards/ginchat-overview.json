@@ -411,6 +411,92 @@
       ],
       "title": "限流拒绝速率",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(ginchat_message_consumer_events_total{result=\"success\"}[5m])) by (event_type) / clamp_min(sum(rate(ginchat_message_consumer_events_total[5m])) by (event_type), 0.001)",
+          "legendFormat": "{{event_type}} 成功率",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(ginchat_message_consumer_events_total{result=\"dead\"}[5m])) by (event_type) / clamp_min(sum(rate(ginchat_message_consumer_events_total[5m])) by (event_type), 0.001)",
+          "legendFormat": "{{event_type}} 死信率",
+          "refId": "B"
+        }
+      ],
+      "title": "消费者成功率与死信率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ginchat_message_consumer_duration_seconds_bucket[5m])) by (le, event_type))",
+          "legendFormat": "{{event_type}} 处理 P95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ginchat_message_consumer_lag_seconds_bucket[5m])) by (le, event_type))",
+          "legendFormat": "{{event_type}} 排队 P95",
+          "refId": "B"
+        }
+      ],
+      "title": "消费者耗时与事件积压延迟",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

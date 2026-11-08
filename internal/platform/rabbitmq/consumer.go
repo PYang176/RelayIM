@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	maxDeliveryRetries    = 3
+	// MaxDeliveryRetries 是消费失败后进入 TTL 重试队列的最大次数。
+	MaxDeliveryRetries    = 3
 	deliveryHandleTimeout = 10 * time.Second
 )
 
@@ -126,7 +127,7 @@ func (c *Consumer) handleDelivery(
 		return nil
 	}
 
-	if deliveryRetryCount(delivery.Headers) >= maxDeliveryRetries {
+	if DeliveryRetryCount(delivery.Headers) >= MaxDeliveryRetries {
 		if err := delivery.Nack(false, false); err != nil {
 			return fmt.Errorf("NACK 达到重试上限的消息失败: %w", err)
 		}
@@ -150,7 +151,7 @@ func (c *Consumer) retryDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
 ) error {
-	retryCount := deliveryRetryCount(delivery.Headers)
+	retryCount := DeliveryRetryCount(delivery.Headers)
 	retryQueue := retryQueueForCount(retryCount)
 	headers := amqp.Table{}
 	for key, value := range delivery.Headers {
@@ -193,7 +194,8 @@ func (c *Consumer) retryDelivery(
 	return nil
 }
 
-func deliveryRetryCount(headers amqp.Table) int {
+// DeliveryRetryCount 读取当前投递已经经过的 TTL 重试次数。
+func DeliveryRetryCount(headers amqp.Table) int {
 	value, exists := headers["x-retry-count"]
 	if !exists {
 		return 0

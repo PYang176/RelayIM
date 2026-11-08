@@ -21,6 +21,9 @@ type Metrics struct {
 	messages       *prometheus.CounterVec
 	attachments    *prometheus.CounterVec
 	rateLimited    *prometheus.CounterVec
+	messageEvents  *prometheus.CounterVec
+	eventDuration  *prometheus.HistogramVec
+	eventLag       *prometheus.HistogramVec
 }
 
 // NewMetrics 创建指标注册表和 HTTP、运行时基础指标。
@@ -98,6 +101,63 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"scope"},
 		),
+		messageEvents: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "ginchat",
+				Subsystem: "message_consumer",
+				Name:      "events_total",
+				Help:      "消息消费者按事件类型和处理结果统计的投递数",
+			},
+			[]string{"event_type", "result"},
+		),
+		eventDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: "ginchat",
+				Subsystem: "message_consumer",
+				Name:      "duration_seconds",
+				Help:      "消息消费者处理单条事件的耗时",
+				Buckets: []float64{
+					0.001,
+					0.005,
+					0.01,
+					0.025,
+					0.05,
+					0.1,
+					0.25,
+					0.5,
+					1,
+					2.5,
+					5,
+					10,
+				},
+			},
+			[]string{"event_type"},
+		),
+		eventLag: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: "ginchat",
+				Subsystem: "message_consumer",
+				Name:      "lag_seconds",
+				Help:      "事件发生到消费者开始处理的端到端延迟",
+				Buckets: []float64{
+					0.001,
+					0.005,
+					0.01,
+					0.025,
+					0.05,
+					0.1,
+					0.25,
+					0.5,
+					1,
+					2.5,
+					5,
+					10,
+					30,
+					60,
+				},
+			},
+			[]string{"event_type"},
+		),
 	}
 	registry.MustRegister(
 		metrics.requests,
@@ -106,6 +166,9 @@ func NewMetrics() *Metrics {
 		metrics.messages,
 		metrics.attachments,
 		metrics.rateLimited,
+		metrics.messageEvents,
+		metrics.eventDuration,
+		metrics.eventLag,
 	)
 	return metrics
 }
@@ -137,6 +200,20 @@ func (m *Metrics) RecordAttachmentUpload(success bool) {
 // RecordRateLimitRejected 记录被限流拒绝的请求。
 func (m *Metrics) RecordRateLimitRejected(scope string) {
 	m.rateLimited.WithLabelValues(scope).Inc()
+}
+
+// RecordMessageEvent 记录消费者处理结果、处理耗时和事件排队延迟。
+func (m *Metrics) RecordMessageEvent(
+	eventType string,
+	result string,
+	duration time.Duration,
+	lag time.Duration,
+) {
+	m.messageEvents.WithLabelValues(eventType, result).Inc()
+	m.eventDuration.WithLabelValues(eventType).Observe(duration.Seconds())
+	if lag > 0 {
+		m.eventLag.WithLabelValues(eventType).Observe(lag.Seconds())
+	}
 }
 
 // Handler 返回 Prometheus 标准抓取端点。
