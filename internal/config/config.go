@@ -23,6 +23,8 @@ type JWTConfig struct {
 	Secret string `yaml:"secret" mapstructure:"secret"`
 	// 过期时间
 	ExpireHours int `yaml:"expire_hours" mapstructure:"expire_hours"`
+	// RefreshExpireDays 是 Refresh Token 的有效天数。
+	RefreshExpireDays int `yaml:"refresh_expire_days" mapstructure:"refresh_expire_days"`
 }
 
 // RedisConfig Redis的配置信息

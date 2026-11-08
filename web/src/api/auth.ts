@@ -1,5 +1,10 @@
 import {request} from './http'
-import type {LoginResponse, UserSummary, WsTicketResponse} from '@/types/api'
+import type {
+    LoginResponse,
+    RefreshTokenResponse,
+    UserSummary,
+    WsTicketResponse,
+} from '@/types/api'
 
 interface RegisterInput {
     username: string
@@ -15,11 +20,39 @@ export function register(input: RegisterInput): Promise<UserSummary> {
     })
 }
 
-export function login(username: string, password: string): Promise<LoginResponse> {
+export function login(
+    username: string,
+    password: string,
+    deviceID: string,
+): Promise<LoginResponse> {
     return request('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({username, password}),
+        body: JSON.stringify({
+            username,
+            password,
+            device_id: deviceID || undefined,
+            device_name: 'GinChat Web',
+            platform: 1,
+        }),
     })
+}
+
+export function refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
+    return request('/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({refresh_token: refreshToken}),
+    })
+}
+
+export function logout(token: string, refreshToken: string): Promise<void> {
+    return request(
+        '/auth/logout',
+        {
+            method: 'POST',
+            body: JSON.stringify({refresh_token: refreshToken || undefined}),
+        },
+        token,
+    )
 }
 
 export function getMe(token: string): Promise<UserSummary> {

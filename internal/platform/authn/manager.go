@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -87,6 +88,38 @@ func (m *Manager) IssueToken(ctx context.Context, userID uint64) (string, error)
 		return "", fmt.Errorf("%w: 保存 Token 白名单: %w", ErrAuthUnavailable, err)
 	}
 	return token, nil
+}
+
+// IssueRefreshToken 生成新的 Refresh Token 及其 SHA-256 摘要。
+func (m *Manager) IssueRefreshToken(
+	_ context.Context,
+) (string, string, time.Time, error) {
+	if jwt.JwtCfg.RefreshExpireDays <= 0 {
+		return "", "", time.Time{}, fmt.Errorf(
+			"%w: Refresh Token 过期时间必须大于 0",
+			ErrAuthUnavailable,
+		)
+	}
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", "", time.Time{}, fmt.Errorf(
+			"生成 Refresh Token: %w",
+			err,
+		)
+	}
+	rawToken := "rt_" + base64.RawURLEncoding.EncodeToString(randomBytes)
+	return rawToken,
+		HashRefreshToken(rawToken),
+		time.Now().UTC().Add(
+			time.Duration(jwt.JwtCfg.RefreshExpireDays) * 24 * time.Hour,
+		),
+		nil
+}
+
+// HashRefreshToken 返回 Refresh Token 持久化前使用的 SHA-256 摘要。
+func HashRefreshToken(rawToken string) string {
+	hash := sha256.Sum256([]byte(rawToken))
+	return hex.EncodeToString(hash[:])
 }
 
 // Authenticate 校验 JWT、黑名单和 Redis 白名单。

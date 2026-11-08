@@ -81,3 +81,30 @@ type device struct {
 func (device) TableName() string {
 	return "devices"
 }
+
+type refreshToken struct {
+	// ID 是 Refresh Token Snowflake ID。
+	ID uint64 `gorm:"column:id;primaryKey;autoIncrement:false"`
+
+	// UserID 是 Refresh Token 所属用户 Snowflake ID。
+	UserID uint64 `gorm:"column:user_id"`
+
+	// DeviceID 是 Refresh Token 绑定的设备 Snowflake ID。
+	DeviceID uint64 `gorm:"column:device_id"`
+
+	// TokenHash 是原始 Refresh Token 的 SHA-256 十六进制摘要。
+	TokenHash string `gorm:"column:token_hash"`
+
+	// ExpiresAt 是 Refresh Token 的 UTC 过期时间。
+	ExpiresAt time.Time `gorm:"column:expires_at"`
+
+	// RevokedAt 是撤销时间，空表示仍可使用。
+	RevokedAt *time.Time `gorm:"column:revoked_at"`
+
+	// CreatedAt 是 Refresh Token 创建的 UTC 时间。
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+func (refreshToken) TableName() string {
+	return "refresh_tokens"
+}

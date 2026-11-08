@@ -24,10 +24,12 @@ func Register(
 	auth := r.Group("/api/v1/auth")
 	auth.POST("/register", handler.Register)
 	auth.POST("/login", handler.Login)
+	auth.POST("/refresh", handler.Refresh)
 
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
 	protected.GET("/me", handler.Me)
+	protected.POST("/auth/logout", handler.Logout)
 	protected.POST(
 		"/auth/ws-ticket",
 		middleware.WSTicketRateLimit(wsTicketLimiter, metrics),

@@ -56,6 +56,25 @@ type loginRequest struct {
 
 	// Password 是登录密码。
 	Password string `json:"password"`
+
+	// DeviceID 是客户端已保存的设备 Snowflake ID 字符串。
+	DeviceID string `json:"device_id"`
+
+	// DeviceName 是登录设备名称。
+	DeviceName string `json:"device_name"`
+
+	// Platform 表示设备平台：1 Web、2 Android、3 iOS、4 Desktop。
+	Platform int `json:"platform"`
+}
+
+type refreshRequest struct {
+	// RefreshToken 是客户端持有的原始 Refresh Token。
+	RefreshToken string `json:"refresh_token"`
+}
+
+type logoutRequest struct {
+	// RefreshToken 是可选原始 Refresh Token。
+	RefreshToken string `json:"refresh_token"`
 }
 
 type wsTicketRequest struct {
@@ -103,9 +122,21 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	var deviceID uint64
+	if request.DeviceID != "" {
+		parsed, err := strconv.ParseUint(request.DeviceID, 10, 64)
+		if err != nil || parsed == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "device_id 格式错误"})
+			return
+		}
+		deviceID = parsed
+	}
 	result, err := h.service.Login(c.Request.Context(), LoginCommand{
-		Username: request.Username,
-		Password: request.Password,
+		Username:   request.Username,
+		Password:   request.Password,
+		DeviceID:   deviceID,
+		DeviceName: request.DeviceName,
+		Platform:   request.Platform,
 	})
 	if err != nil {
 		writeIdentityError(c, err)
@@ -113,13 +144,74 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": result.Token,
+		"token":              result.Token,
+		"refresh_token":      result.RefreshToken,
+		"refresh_expires_at": result.RefreshExpiresAt,
+		"device_id":          strconv.FormatUint(result.DeviceID, 10),
 		"user": gin.H{
 			"id":       strconv.FormatUint(result.User.ID, 10),
 			"username": result.User.Username,
 			"nickname": result.User.Nickname,
 		},
 	})
+}
+
+// Refresh 处理 POST /api/v1/auth/refresh。
+func (h *Handler) Refresh(c *gin.Context) {
+	var request refreshRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	result, err := h.service.Refresh(
+		c.Request.Context(),
+		RefreshCommand{RefreshToken: request.RefreshToken},
+	)
+	if err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"token":              result.Token,
+		"refresh_token":      result.RefreshToken,
+		"refresh_expires_at": result.RefreshExpiresAt,
+	})
+}
+
+// Logout 处理 POST /api/v1/auth/logout。
+func (h *Handler) Logout(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	token, _ := c.Get(middleware.ContextTokenKey)
+	jti, _ := c.Get(middleware.ContextJTIKey)
+	expiresAt, _ := c.Get(middleware.ContextExpiresAtKey)
+	accessToken, _ := token.(string)
+	accessJTI, _ := jti.(string)
+	accessExpiresAt, _ := expiresAt.(time.Time)
+
+	var request logoutRequest
+	if err := c.ShouldBindJSON(&request); err != nil &&
+		!errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	if err := h.service.Logout(
+		c.Request.Context(),
+		LogoutCommand{
+			UserID:          userID,
+			AccessToken:     accessToken,
+			JTI:             accessJTI,
+			AccessExpiresAt: accessExpiresAt,
+			RefreshToken:    request.RefreshToken,
+		},
+	); err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // Me 处理 GET /api/v1/me。
@@ -214,6 +306,8 @@ func writeIdentityError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound.Error()})
 	case errors.Is(err, ErrDeviceNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrDeviceNotFound.Error()})
+	case errors.Is(err, ErrInvalidRefreshToken):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": ErrInvalidRefreshToken.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器内部错误"})
 	}

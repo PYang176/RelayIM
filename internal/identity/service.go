@@ -2,12 +2,14 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/security"
 	"ginChatProject/internal/platform/snowflake"
 )
@@ -26,6 +28,15 @@ var usernamePattern = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
 // TokenIssuer 抽象 Access Token 的签发。测试可以替换为不访问 Redis 的实现。
 type TokenIssuer interface {
 	IssueToken(ctx context.Context, userID uint64) (string, error)
+	IssueRefreshToken(
+		ctx context.Context,
+	) (string, string, time.Time, error)
+	Revoke(
+		ctx context.Context,
+		token string,
+		jti string,
+		expiresAt time.Time,
+	) error
 }
 
 // Service 提供用户注册、登录和当前用户查询。
@@ -73,6 +84,15 @@ type LoginCommand struct {
 
 	// Password 是待校验的明文密码。
 	Password string
+
+	// DeviceID 是客户端已保存的设备 Snowflake ID；为零时创建新设备。
+	DeviceID uint64
+
+	// DeviceName 是登录设备名称。
+	DeviceName string
+
+	// Platform 表示设备平台：1 Web、2 Android、3 iOS、4 Desktop。
+	Platform int
 }
 
 // LoginResult 是登录成功结果。
@@ -82,6 +102,51 @@ type LoginResult struct {
 
 	// User 是脱敏后的用户信息。
 	User UserResult
+
+	// RefreshToken 是用于轮换 Access Token 的长期凭证。
+	RefreshToken string
+
+	// RefreshExpiresAt 是 Refresh Token 的 UTC 过期时间。
+	RefreshExpiresAt time.Time
+
+	// DeviceID 是本次登录绑定的设备 Snowflake ID。
+	DeviceID uint64
+}
+
+// RefreshCommand 是轮换 Refresh Token 的参数。
+type RefreshCommand struct {
+	// RefreshToken 是客户端持有的原始 Refresh Token。
+	RefreshToken string
+}
+
+// RefreshResult 是 Refresh Token 轮换后的新凭证。
+type RefreshResult struct {
+	// Token 是新的 Access Token。
+	Token string
+
+	// RefreshToken 是新的 Refresh Token；旧值立即失效。
+	RefreshToken string
+
+	// RefreshExpiresAt 是新 Refresh Token 的 UTC 过期时间。
+	RefreshExpiresAt time.Time
+}
+
+// LogoutCommand 是退出登录参数。
+type LogoutCommand struct {
+	// UserID 是当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// AccessToken 是当前请求使用的 JWT。
+	AccessToken string
+
+	// JTI 是 Access Token 唯一标识。
+	JTI string
+
+	// AccessExpiresAt 是 Access Token 的 UTC 过期时间。
+	AccessExpiresAt time.Time
+
+	// RefreshToken 是可选原始 Refresh Token。
+	RefreshToken string
 }
 
 // EnsureDeviceCommand 是申请 WebSocket Ticket 时的设备信息。
@@ -203,19 +268,122 @@ func (s *Service) Login(
 		return LoginResult{}, err
 	}
 
+	device, err := s.EnsureDevice(ctx, EnsureDeviceCommand{
+		UserID:     userRecord.ID,
+		DeviceID:   command.DeviceID,
+		DeviceName: command.DeviceName,
+		Platform:   command.Platform,
+	})
+	if err != nil {
+		return LoginResult{}, err
+	}
+	rawRefreshToken, refreshHash, refreshExpiresAt, err :=
+		s.token.IssueRefreshToken(ctx)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	now := time.Now().UTC()
+	if err := s.repo.createRefreshToken(ctx, &refreshToken{
+		ID:        uint64(snowflake.Generate()),
+		UserID:    userRecord.ID,
+		DeviceID:  device.ID,
+		TokenHash: refreshHash,
+		ExpiresAt: refreshExpiresAt,
+		CreatedAt: now,
+	}); err != nil {
+		return LoginResult{}, err
+	}
 	token, err := s.token.IssueToken(ctx, userRecord.ID)
 	if err != nil {
+		_ = s.repo.revokeRefreshToken(
+			context.WithoutCancel(ctx),
+			refreshHash,
+			time.Now().UTC(),
+		)
 		return LoginResult{}, err
 	}
 
 	return LoginResult{
-		Token: token,
+		Token:            token,
+		RefreshToken:     rawRefreshToken,
+		RefreshExpiresAt: refreshExpiresAt,
+		DeviceID:         device.ID,
 		User: UserResult{
 			ID:       userRecord.ID,
 			Username: userRecord.Username,
 			Nickname: profile.Nickname,
 		},
 	}, nil
+}
+
+// Refresh 原子轮换 Refresh Token 并签发新的 Access Token。
+func (s *Service) Refresh(
+	ctx context.Context,
+	command RefreshCommand,
+) (RefreshResult, error) {
+	command.RefreshToken = strings.TrimSpace(command.RefreshToken)
+	if command.RefreshToken == "" {
+		return RefreshResult{}, ErrInvalidRefreshToken
+	}
+
+	newRaw, newHash, expiresAt, err := s.token.IssueRefreshToken(ctx)
+	if err != nil {
+		return RefreshResult{}, err
+	}
+	now := time.Now().UTC()
+	userID, _, err := s.repo.rotateRefreshToken(
+		ctx,
+		authn.HashRefreshToken(command.RefreshToken),
+		&refreshToken{
+			ID:        uint64(snowflake.Generate()),
+			TokenHash: newHash,
+			ExpiresAt: expiresAt,
+			CreatedAt: now,
+		},
+		now,
+	)
+	if err != nil {
+		return RefreshResult{}, err
+	}
+	accessToken, err := s.token.IssueToken(ctx, userID)
+	if err != nil {
+		_ = s.repo.revokeRefreshToken(
+			context.WithoutCancel(ctx),
+			newHash,
+			time.Now().UTC(),
+		)
+		return RefreshResult{}, err
+	}
+	return RefreshResult{
+		Token:            accessToken,
+		RefreshToken:     newRaw,
+		RefreshExpiresAt: expiresAt,
+	}, nil
+}
+
+// Logout 撤销 Access Token 和可选的 Refresh Token。
+func (s *Service) Logout(
+	ctx context.Context,
+	command LogoutCommand,
+) error {
+	if command.UserID == 0 || command.AccessToken == "" || command.JTI == "" {
+		return ErrInvalidInput
+	}
+	accessErr := s.token.Revoke(
+		ctx,
+		command.AccessToken,
+		command.JTI,
+		command.AccessExpiresAt,
+	)
+	var refreshErr error
+	if strings.TrimSpace(command.RefreshToken) != "" {
+		refreshErr = s.repo.revokeRefreshToken(
+			ctx,
+			authn.HashRefreshToken(command.RefreshToken),
+			time.Now().UTC(),
+		)
+	}
+	return errors.Join(accessErr, refreshErr)
 }
 
 // Me 返回当前登录用户及其公开资料。

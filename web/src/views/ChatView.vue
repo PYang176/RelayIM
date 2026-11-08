@@ -158,7 +158,7 @@ function markVisibleConversationRead() {
 async function logout() {
     chat.reset()
     friendships.reset()
-    auth.logout()
+    await auth.logout()
     await router.replace('/login')
 }
 
@@ -177,7 +177,7 @@ onMounted(async () => {
     try {
         await auth.restoreUser()
     } catch {
-        auth.logout()
+        await auth.logout()
         await router.replace('/login')
         return
     }

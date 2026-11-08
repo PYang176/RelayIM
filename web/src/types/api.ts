@@ -6,7 +6,16 @@ export interface UserSummary {
 
 export interface LoginResponse {
     token: string
+    refresh_token: string
+    refresh_expires_at: string
+    device_id: string
     user: UserSummary
+}
+
+export interface RefreshTokenResponse {
+    token: string
+    refresh_token: string
+    refresh_expires_at: string
 }
 
 export interface Conversation {

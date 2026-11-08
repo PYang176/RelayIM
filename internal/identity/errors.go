@@ -21,4 +21,7 @@ var (
 
 	// ErrDeviceNotFound 表示设备不存在、已撤销或不属于当前用户。
 	ErrDeviceNotFound = errors.New("设备不存在或无权访问")
+
+	// ErrInvalidRefreshToken 表示 Refresh Token 不存在、过期或已撤销。
+	ErrInvalidRefreshToken = errors.New("Refresh Token 无效或已过期")
 )

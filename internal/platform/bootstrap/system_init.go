@@ -53,6 +53,7 @@ func bindConfigEnv(v *viper.Viper) error {
 		"mysql.config.loc":                 "GINCHAT_MYSQL_LOCATION",
 		"jwt.secret":                       "GINCHAT_JWT_SECRET",
 		"jwt.expire_hours":                 "GINCHAT_JWT_EXPIRE_HOURS",
+		"jwt.refresh_expire_days":          "GINCHAT_JWT_REFRESH_EXPIRE_DAYS",
 		"redis.host":                       "GINCHAT_REDIS_HOST",
 		"redis.port":                       "GINCHAT_REDIS_PORT",
 		"redis.password":                   "GINCHAT_REDIS_PASSWORD",
@@ -236,11 +237,15 @@ func InitJWT() error {
 	v := viper.GetViper()
 	jwt.JwtCfg.Secret = v.GetString("jwt.secret")
 	jwt.JwtCfg.ExpireHours = v.GetInt("jwt.expire_hours")
+	jwt.JwtCfg.RefreshExpireDays = v.GetInt("jwt.refresh_expire_days")
 	if strings.TrimSpace(jwt.JwtCfg.Secret) == "" {
 		return fmt.Errorf("JWT 密钥不能为空")
 	}
 	if jwt.JwtCfg.ExpireHours <= 0 {
 		return fmt.Errorf("JWT 过期时间必须大于 0")
+	}
+	if jwt.JwtCfg.RefreshExpireDays <= 0 {
+		jwt.JwtCfg.RefreshExpireDays = 30
 	}
 	return nil
 }
