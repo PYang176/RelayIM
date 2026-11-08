@@ -1,4 +1,4 @@
-// Package main 把 OpenAPI YAML 机械转换为 Swagger UI 可直接加载的 JSON。
+// Package main 把 OpenAPI YAML 机械转换为通用 JSON 格式。
 package main
 
 import (
@@ -11,8 +11,8 @@ import (
 )
 
 func main() {
-	source := filepath.Join("docs", "swagger.yaml")
-	target := filepath.Join("docs", "swagger.json")
+	source := filepath.Join("docs", "openapi.yaml")
+	target := filepath.Join("docs", "openapi.json")
 
 	content, err := os.ReadFile(source)
 	if err != nil {

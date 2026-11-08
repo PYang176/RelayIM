@@ -49,10 +49,10 @@ func TestOpenAPIContractMatchesRouter(t *testing.T) {
 }
 
 func TestOpenAPIYAMLAndJSONStayInSync(t *testing.T) {
-	yamlDocument := normalizeOpenAPIDocument(t, readFile(t, "swagger.yaml"))
-	jsonDocument := normalizeOpenAPIDocument(t, readFile(t, "swagger.json"))
+	yamlDocument := normalizeOpenAPIDocument(t, readFile(t, "openapi.yaml"))
+	jsonDocument := normalizeOpenAPIDocument(t, readFile(t, "openapi.json"))
 	if !reflect.DeepEqual(yamlDocument, jsonDocument) {
-		t.Fatal("docs/swagger.json 与 swagger.yaml 不一致，请运行 go run ./scripts/openapi")
+		t.Fatal("docs/openapi.json 与 openapi.yaml 不一致，请运行 go run ./scripts/openapi")
 	}
 }
 
@@ -84,7 +84,7 @@ func TestOpenAPIReferencesAndOperationIDs(t *testing.T) {
 		}
 	}
 
-	raw := readFile(t, "swagger.yaml")
+	raw := readFile(t, "openapi.yaml")
 	var generic any
 	if err := yaml.Unmarshal(raw, &generic); err != nil {
 		t.Fatalf("解析 OpenAPI YAML 失败: %v", err)
@@ -102,7 +102,7 @@ type openAPIDocument struct {
 func loadOpenAPIDocument(t *testing.T) openAPIDocument {
 	t.Helper()
 	var document openAPIDocument
-	if err := yaml.Unmarshal(readFile(t, "swagger.yaml"), &document); err != nil {
+	if err := yaml.Unmarshal(readFile(t, "openapi.yaml"), &document); err != nil {
 		t.Fatalf("解析 OpenAPI YAML 失败: %v", err)
 	}
 	return document

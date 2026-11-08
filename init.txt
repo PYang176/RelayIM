@@ -3,7 +3,7 @@ go get -u gorm.io/driver/sqlite
 go get -u github.com/gin-gonic/gin
 go get github.com/spf13/viper
 
-//OpenAPI 采用契约优先，当前无需安装 Swag 注解生成器或 gin-swagger。
+//OpenAPI 采用契约优先，无需安装额外的文档生成工具。
 //YAML 转 JSON 使用项目已有的 YAML 库：
 //go run ./scripts/openapi
 
