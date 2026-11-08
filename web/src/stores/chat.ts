@@ -6,6 +6,13 @@ import * as messageApi from '@/api/messages'
 import * as presenceApi from '@/api/presence'
 import {useChatSocket} from '@/composables/useChatSocket'
 import {useAuthStore} from '@/stores/auth'
+import {
+    createSequenceCursor,
+    establishSequenceBaseline,
+    observeSequence,
+    type SequenceCursor,
+    type SequenceObservation,
+} from '@/stores/message-ordering'
 import type {
     Conversation,
     ConversationMember,
@@ -18,6 +25,14 @@ import type {
 export interface ChatMessage extends Message {
     delivery?: DeliverySummary
     outgoing?: boolean
+}
+
+interface ConversationSequenceState {
+    cursor: SequenceCursor
+    repairing: boolean
+    repairRequested: boolean
+    retryTimer?: number
+    repairAttempts: number
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -35,6 +50,7 @@ export const useChatStore = defineStore('chat', () => {
     const uploadProgress = shallowRef(0)
     const hasMoreByConversation = ref<Record<string, boolean>>({})
     const error = shallowRef('')
+    const sequenceStates = new Map<string, ConversationSequenceState>()
 
     const activeConversation = computed(() =>
         conversations.value.find((item) => item.id === activeConversationId.value),
@@ -63,6 +79,126 @@ export const useChatStore = defineStore('chat', () => {
 
     function clearError() {
         error.value = ''
+    }
+
+    function sequenceStateFor(
+        conversationId: string,
+        contiguousSeq = 0,
+    ): ConversationSequenceState {
+        const existing = sequenceStates.get(conversationId)
+        if (existing) return existing
+        const created: ConversationSequenceState = {
+            cursor: createSequenceCursor(contiguousSeq),
+            repairing: false,
+            repairRequested: false,
+            repairAttempts: 0,
+        }
+        sequenceStates.set(conversationId, created)
+        return created
+    }
+
+    function clearSequenceState(conversationId: string) {
+        const state = sequenceStates.get(conversationId)
+        if (state?.retryTimer) {
+            window.clearTimeout(state.retryTimer)
+        }
+        sequenceStates.delete(conversationId)
+    }
+
+    function observeMessageSequence(
+        conversationId: string,
+        seq: number,
+    ): SequenceObservation {
+        let state = sequenceStates.get(conversationId)
+        if (!state) {
+            const knownSeq =
+                conversations.value.find(
+                    (item) => item.id === conversationId,
+                )?.last_seq ?? 0
+            state = sequenceStateFor(conversationId, knownSeq)
+        }
+        const observation = observeSequence(state.cursor, seq)
+        if (observation.gapDetected) {
+            scheduleGapRepair(conversationId)
+        }
+        return observation
+    }
+
+    function scheduleGapRepair(conversationId: string, immediate = true) {
+        const state = sequenceStateFor(conversationId)
+        if (state.retryTimer) return
+        const delay = immediate
+            ? 0
+            : Math.min(500 * 2 ** state.repairAttempts, 5000)
+        state.retryTimer = window.setTimeout(() => {
+            state.retryTimer = undefined
+            void repairConversationGap(conversationId)
+        }, delay)
+    }
+
+    async function repairConversationGap(conversationId: string) {
+        const state = sequenceStateFor(conversationId)
+        if (state.repairing) {
+            state.repairRequested = true
+            return
+        }
+        state.repairing = true
+        try {
+            do {
+                state.repairRequested = false
+                const afterSeq = state.cursor.contiguousSeq
+                const page = await messageApi.listMessages(
+                    auth.token,
+                    conversationId,
+                    {
+                        afterSeq: afterSeq || undefined,
+                        limit: 100,
+                    },
+                )
+                let pageProgress = false
+                for (const message of page.messages) {
+                    const duplicate = (
+                        messagesByConversation.value[conversationId] ?? []
+                    ).some((item) => item.message_id === message.message_id)
+                    upsertMessage(conversationId, message)
+                    if (!duplicate && conversationId === activeConversationId.value) {
+                        sendAck(message.message_id)
+                    }
+                    const observation = observeSequence(
+                        state.cursor,
+                        message.seq,
+                    )
+                    pageProgress = pageProgress || observation.advanced
+                }
+                if (page.has_more) {
+                    if (!pageProgress) {
+                        break
+                    }
+                    state.repairRequested = true
+                }
+            } while (state.repairRequested)
+
+            if (state.cursor.pendingSeqs.size === 0) {
+                state.repairAttempts = 0
+                if (
+                    conversationId === activeConversationId.value &&
+                    document.visibilityState === 'visible'
+                ) {
+                    await markRead()
+                }
+            } else {
+                state.repairAttempts += 1
+                scheduleGapRepair(conversationId, false)
+            }
+        } catch {
+            state.repairAttempts += 1
+            scheduleGapRepair(conversationId, false)
+        } finally {
+            state.repairing = false
+            if (state.repairRequested && state.cursor.pendingSeqs.size > 0) {
+                scheduleGapRepair(conversationId)
+            }
+        }
     }
 
     function conversationTitle(conversation: Conversation): string {
@@ -201,6 +337,9 @@ export const useChatStore = defineStore('chat', () => {
             tasks.push(loadMembers(conversationId))
         }
         await Promise.all(tasks)
+        if (conversation) {
+            await syncConversationAfterReconnect(conversation)
+        }
         await markRead()
         await refreshReadStates()
         await refreshPresence()
@@ -321,6 +460,7 @@ export const useChatStore = defineStore('chat', () => {
         )
         delete messagesByConversation.value[conversationId]
         delete membersByConversation.value[conversationId]
+        clearSequenceState(conversationId)
         activeConversationId.value = ''
         readStates.value = []
         if (conversations.value.length > 0) {
@@ -329,6 +469,8 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     async function loadLatestMessages(conversationId: string) {
+        const hadLocalMessages =
+            (messagesByConversation.value[conversationId]?.length ?? 0) > 0
         loadingMessages.value = true
         clearError()
         try {
@@ -351,6 +493,22 @@ export const useChatStore = defineStore('chat', () => {
             hasMoreByConversation.value = {
                 ...hasMoreByConversation.value,
                 [conversationId]: page.has_more,
+            }
+            if (!hadLocalMessages) {
+                const state = sequenceStateFor(conversationId)
+                const baseline =
+                    page.messages.at(-1)?.seq ??
+                    conversations.value.find(
+                        (item) => item.id === conversationId,
+                    )?.last_read_seq ??
+                    0
+                const observation = establishSequenceBaseline(
+                    state.cursor,
+                    baseline,
+                )
+                if (observation.gapDetected) {
+                    scheduleGapRepair(conversationId)
+                }
             }
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : '加载消息失败')
@@ -386,22 +544,18 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     async function syncConversationAfterReconnect(conversation: Conversation) {
-        const localMessages = messagesByConversation.value[conversation.id] ?? []
-        const lastLocalSeq =
-            localMessages.length > 0 ? localMessages[localMessages.length - 1].seq : 0
-        const afterSeq = Math.max(lastLocalSeq, conversation.last_read_seq)
-        const page = await messageApi.listMessages(auth.token, conversation.id, {
-            afterSeq: afterSeq || undefined,
-            limit: 100,
-        })
-        for (const message of page.messages) {
-            upsertMessage(conversation.id, message)
-            if (message.conversation_id === activeConversationId.value) {
-                sendAck(message.message_id)
-            }
+        const state = sequenceStateFor(conversation.id)
+        if (state.cursor.contiguousSeq === 0) {
+            establishSequenceBaseline(
+                state.cursor,
+                conversation.last_read_seq,
+            )
         }
-        if (page.has_more) {
-            await syncConversationAfterReconnect(conversation)
+        if (
+            conversation.last_seq > state.cursor.contiguousSeq ||
+            state.cursor.pendingSeqs.size > 0
+        ) {
+            await repairConversationGap(conversation.id)
         }
     }
 
@@ -428,14 +582,20 @@ export const useChatStore = defineStore('chat', () => {
             recalled: false,
             outgoing: true,
         })
+        const observation = observeMessageSequence(
+            conversationId,
+            response.seq,
+        )
         const conversation = conversations.value.find((item) => item.id === conversationId)
         if (conversation) {
             conversation.last_seq = Math.max(conversation.last_seq, response.seq)
-            conversation.last_read_seq = Math.max(
-                conversation.last_read_seq,
-                response.seq,
-            )
-            conversation.unread_count = 0
+            if (!observation.gapDetected) {
+                conversation.last_read_seq = Math.max(
+                    conversation.last_read_seq,
+                    sequenceStateFor(conversationId).cursor.contiguousSeq,
+                )
+                conversation.unread_count = 0
+            }
         }
         void refreshReadStates()
         window.setTimeout(() => {
@@ -479,16 +639,22 @@ export const useChatStore = defineStore('chat', () => {
                 recalled: false,
                 outgoing: true,
             })
+            const observation = observeMessageSequence(
+                conversationId,
+                response.seq,
+            )
             const conversation = conversations.value.find(
                 (item) => item.id === conversationId,
             )
             if (conversation) {
                 conversation.last_seq = Math.max(conversation.last_seq, response.seq)
-                conversation.last_read_seq = Math.max(
-                    conversation.last_read_seq,
-                    response.seq,
-                )
-                conversation.unread_count = 0
+                if (!observation.gapDetected) {
+                    conversation.last_read_seq = Math.max(
+                        conversation.last_read_seq,
+                        sequenceStateFor(conversationId).cursor.contiguousSeq,
+                    )
+                    conversation.unread_count = 0
+                }
             }
             void refreshReadStates()
             window.setTimeout(() => {
@@ -605,9 +771,10 @@ export const useChatStore = defineStore('chat', () => {
     async function markRead() {
         const conversation = activeConversation.value
         if (!conversation) return
-        const messages = messagesByConversation.value[conversation.id] ?? []
-        const seq = messages.length > 0 ? messages[messages.length - 1].seq : conversation.last_seq
-        if (!seq) return
+        const state = sequenceStateFor(conversation.id)
+        if (state.cursor.pendingSeqs.size > 0) return
+        const seq = state.cursor.contiguousSeq
+        if (!seq || seq <= conversation.last_read_seq) return
         if (
             sendSocket({
                 action: 'read',
@@ -665,6 +832,10 @@ export const useChatStore = defineStore('chat', () => {
             created_at: new Date().toISOString(),
         }
         upsertMessage(payload.conversation_id, message)
+        const observation = observeMessageSequence(
+            payload.conversation_id,
+            message.seq,
+        )
         void resolveRealtimeAttachment(
             payload.conversation_id,
             message.message_id,
@@ -674,7 +845,8 @@ export const useChatStore = defineStore('chat', () => {
         sendAck(message.message_id)
         if (
             payload.conversation_id === activeConversationId.value &&
-            document.visibilityState === 'visible'
+            document.visibilityState === 'visible' &&
+            !observation.gapDetected
         ) {
             void markRead()
         }
@@ -682,8 +854,11 @@ export const useChatStore = defineStore('chat', () => {
 
     async function handleSocketConnected() {
         await loadConversations()
-        for (const conversation of conversations.value) {
-            await syncConversationAfterReconnect(conversation)
+        const active = conversations.value.find(
+            (conversation) => conversation.id === activeConversationId.value,
+        )
+        if (active) {
+            await syncConversationAfterReconnect(active)
         }
         await markRead()
     }
@@ -698,6 +873,9 @@ export const useChatStore = defineStore('chat', () => {
 
     function reset() {
         disconnectWebSocket()
+        for (const conversationId of [...sequenceStates.keys()]) {
+            clearSequenceState(conversationId)
+        }
         conversations.value = []
         messagesByConversation.value = {}
         membersByConversation.value = {}

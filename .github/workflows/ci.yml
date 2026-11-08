@@ -128,5 +128,8 @@ jobs:
       - name: 类型检查
         run: npm run typecheck
 
+      - name: 前端单元测试
+        run: npm run test:unit
+
       - name: 生产构建
         run: npm run build

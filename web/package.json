@@ -7,6 +7,7 @@
     "dev": "vite",
     "typecheck": "vue-tsc -b --force",
     "build": "vue-tsc -b --force && vite build",
+    "test:unit": "node --test src/stores/message-ordering.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

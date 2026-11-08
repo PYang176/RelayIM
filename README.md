@@ -16,6 +16,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - WebSocket 单写协程、有界队列、送达 ACK、已读游标和慢连接隔离。
 - Redis 多设备在线状态、批量查询和前端在线人数展示。
 - Redis 实例路由与 RabbitMQ 节点队列，支持跨 Go 实例 WebSocket 投递。
+- 客户端连续序号水位、缺口补拉和防越级已读游标。
 - 消息撤回、群主转让和群解散。
 - Outbox + RabbitMQ Publisher Confirm + 手动 ACK + TTL 重试 + DLQ。
 - Snowflake 启动时间水位校验，小幅时钟回拨等待、大幅回拨拒绝启动。
@@ -131,6 +132,7 @@ go test ./...
 go test -race ./internal/messaging ./internal/ws ./internal/platform/ratelimit
 Set-Location web
 npm run typecheck
+npm run test:unit
 npm run build
 ```
 
