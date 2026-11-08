@@ -1,13 +1,15 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"ginChatProject/internal/app"
 )
 
 func main() {
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		slog.Error("服务异常退出", "error", err)
+		os.Exit(1)
 	}
 }

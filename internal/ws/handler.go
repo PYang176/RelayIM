@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"ginChatProject/internal/platform/authn"
 	"ginChatProject/internal/platform/redisstore"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -75,7 +75,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("升级 WebSocket 连接失败: %v", err)
+		slog.Warn("升级 WebSocket 连接失败", "error", err)
 		return
 	}
 
@@ -170,7 +170,7 @@ func (h *WebsocketHandler) updateHeartbeat(
 		time.Now().Unix(),
 		heartbeatTTL,
 	).Err(); err != nil {
-		log.Printf("更新 WebSocket 心跳失败: error=%v", err)
+		slog.Warn("更新 WebSocket 心跳失败", "error", err)
 	}
 }
 

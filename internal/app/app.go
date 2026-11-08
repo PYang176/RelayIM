@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +17,8 @@ import (
 	"ginChatProject/internal/messaging"
 	"ginChatProject/internal/platform/bootstrap"
 	"ginChatProject/internal/platform/objectstore"
+	"ginChatProject/internal/platform/observability"
+	"ginChatProject/internal/platform/redisstore"
 	"ginChatProject/internal/router"
 	"ginChatProject/internal/ws"
 )
@@ -29,6 +31,8 @@ const (
 // Run 初始化依赖、启动后台任务并持续提供 HTTP 服务，
 // 直到进程收到中断或终止信号。
 func Run() error {
+	setupLogging()
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -64,10 +68,26 @@ func Run() error {
 	}
 	defer sqlDB.Close()
 
+	metrics := observability.NewMetrics()
+	metrics.RegisterDatabaseStats(sqlDB.Stats)
+	metrics.RegisterWebSocketConnections(ws.Manager.ConnectionCount)
+	health := observability.NewHealth(
+		observability.DependencyCheck{
+			Name:  "mysql",
+			Check: sqlDB.PingContext,
+		},
+		observability.DependencyCheck{
+			Name: "redis",
+			Check: func(ctx context.Context) error {
+				return redisstore.RDB.Ping(ctx).Err()
+			},
+		},
+	)
+
 	storageCfg := bootstrap.LoadObjectStorageConfig()
 	var attachmentStorage messaging.AttachmentStorage
 	if storageCfg.AccessKey == "" || storageCfg.SecretKey == "" {
-		log.Println("未配置 S3 凭据，附件上传保持禁用")
+		slog.Warn("未配置 S3 凭据，附件上传保持禁用")
 	} else {
 		client, err := objectstore.NewClient(ctx, storageCfg)
 		if err != nil {
@@ -109,14 +129,19 @@ func Run() error {
 			messageConsumer.Run(ctx)
 		}()
 	} else {
-		log.Println("未配置 GINCHAT_RABBITMQ_URL，RabbitMQ 后台任务保持禁用")
+		slog.Warn("未配置 RabbitMQ 地址，后台任务保持禁用")
 	}
 
 	// 启动阶段 3：把已组装的依赖交给 Router。这里不读取环境变量或数据库，
 	// 只负责 HTTP 监听和连接池生命周期。
 	server := &http.Server{
-		Addr:              serverAddr(),
-		Handler:           router.Router(db, attachmentStorage),
+		Addr: serverAddr(),
+		Handler: router.Router(
+			db,
+			attachmentStorage,
+			metrics,
+			health,
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -124,6 +149,14 @@ func Run() error {
 	}
 
 	return runServer(ctx, server)
+}
+
+func setupLogging() {
+	handler := slog.NewJSONHandler(
+		os.Stdout,
+		&slog.HandlerOptions{Level: slog.LevelInfo},
+	)
+	slog.SetDefault(slog.New(handler))
 }
 
 func serverAddr() string {
@@ -137,7 +170,7 @@ func runServer(ctx context.Context, server *http.Server) error {
 	// 缓冲 1 个错误，确保 ListenAndServe 退出时不会因无人接收而泄漏 Goroutine。
 	serverErr := make(chan error, 1)
 	go func() {
-		log.Printf("HTTP 服务监听于 %s", server.Addr)
+		slog.Info("HTTP 服务开始监听", "addr", server.Addr)
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -155,7 +188,7 @@ func runServer(ctx context.Context, server *http.Server) error {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("关闭 HTTP 服务失败: %w", err)
 		}
-		log.Println("HTTP 服务已停止")
+		slog.Info("HTTP 服务已停止")
 		return nil
 	}
 }

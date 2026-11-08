@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -85,7 +85,7 @@ func (w *OutboxWorker) Run(ctx context.Context) {
 	defer func() {
 		if publisher != nil {
 			if err := publisher.Close(); err != nil {
-				log.Printf("关闭 RabbitMQ 发布器失败: %v", err)
+				slog.Warn("关闭 RabbitMQ 发布器失败", "error", err)
 			}
 		}
 	}()
@@ -98,7 +98,7 @@ func (w *OutboxWorker) Run(ctx context.Context) {
 		if publisher == nil {
 			created, err := w.newPublisher()
 			if err != nil {
-				log.Printf("连接 RabbitMQ 发布端失败，将重试: %v", err)
+				slog.Warn("连接 RabbitMQ 发布端失败，将重试", "error", err)
 				if !waitForReconnect(ctx, defaultReconnectDelay, nil) {
 					return
 				}
@@ -109,9 +109,9 @@ func (w *OutboxWorker) Run(ctx context.Context) {
 
 		processed, err := w.dispatchBatch(ctx, publisher)
 		if err != nil {
-			log.Printf("发布 Outbox 事件失败: %v", err)
+			slog.Error("发布 Outbox 事件失败", "error", err)
 			if closeErr := publisher.Close(); closeErr != nil {
-				log.Printf("关闭异常 RabbitMQ 发布器失败: %v", closeErr)
+				slog.Warn("关闭异常 RabbitMQ 发布器失败", "error", closeErr)
 			}
 			publisher = nil
 			if !waitForReconnect(ctx, defaultReconnectDelay, nil) {
@@ -129,9 +129,9 @@ func (w *OutboxWorker) Run(ctx context.Context) {
 				if ctx.Err() != nil {
 					return
 				}
-				log.Println("RabbitMQ 发布连接已关闭，准备重建")
+				slog.Warn("RabbitMQ 发布连接已关闭，准备重建")
 				if err := publisher.Close(); err != nil {
-					log.Printf("关闭 RabbitMQ 发布连接失败: %v", err)
+					slog.Warn("关闭 RabbitMQ 发布连接失败", "error", err)
 				}
 				publisher = nil
 			}
@@ -210,7 +210,11 @@ func (w *OutboxWorker) publishEvent(
 		); err != nil {
 			return fmt.Errorf("标记 Outbox 死信: %w", err)
 		}
-		log.Printf("Outbox 事件进入死信状态: id=%d error=%s", event.ID, lastError)
+		slog.Error(
+			"Outbox 事件进入死信状态",
+			"outbox_id", event.ID,
+			"error", lastError,
+		)
 		return nil
 	}
 

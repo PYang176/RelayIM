@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"ginChatProject/internal/config"
 	"ginChatProject/internal/platform/rabbitmq"
@@ -58,7 +58,7 @@ func (c *MessageCreatedConsumer) Run(ctx context.Context) {
 
 		consumer, err := c.newConsumer()
 		if err != nil {
-			log.Printf("连接 RabbitMQ 消费端失败，将重试: %v", err)
+			slog.Warn("连接 RabbitMQ 消费端失败，将重试", "error", err)
 			if !waitForReconnect(ctx, defaultReconnectDelay, nil) {
 				return
 			}
@@ -72,12 +72,12 @@ func (c *MessageCreatedConsumer) Run(ctx context.Context) {
 			c.processDelivery,
 		)
 		if closeErr := consumer.Close(); closeErr != nil {
-			log.Printf("关闭 RabbitMQ 消费连接失败: %v", closeErr)
+			slog.Warn("关闭 RabbitMQ 消费连接失败", "error", closeErr)
 		}
 		if ctx.Err() != nil {
 			return
 		}
-		log.Printf("RabbitMQ Consumer 停止，将重建连接: %v", err)
+		slog.Warn("RabbitMQ Consumer 停止，将重建连接", "error", err)
 		if !waitForReconnect(ctx, defaultReconnectDelay, nil) {
 			return
 		}

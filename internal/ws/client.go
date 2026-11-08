@@ -3,7 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -75,7 +75,11 @@ func (c *Client) Enqueue(message []byte) bool {
 		return false
 	default:
 		if err := c.Close(); err != nil {
-			log.Printf("关闭慢 WebSocket 连接失败: user_id=%d error=%v", c.userID, err)
+			slog.Warn(
+				"关闭慢 WebSocket 连接失败",
+				"user_id", c.userID,
+				"error", err,
+			)
 		}
 		return false
 	}
@@ -94,7 +98,11 @@ func (c *Client) Run(
 
 	c.readPump(ctx, onMessage)
 	if err := c.Close(); err != nil {
-		log.Printf("关闭 WebSocket 连接失败: user_id=%d error=%v", c.userID, err)
+		slog.Warn(
+			"关闭 WebSocket 连接失败",
+			"user_id", c.userID,
+			"error", err,
+		)
 	}
 	<-writerDone
 }
@@ -124,7 +132,11 @@ func (c *Client) readPump(
 		}
 		if onMessage != nil {
 			if err := onMessage(ctx, message); err != nil {
-				log.Printf("处理 WebSocket 消息失败: user_id=%d error=%v", c.userID, err)
+				slog.Warn(
+					"处理 WebSocket 消息失败",
+					"user_id", c.userID,
+					"error", err,
+				)
 			}
 		}
 	}

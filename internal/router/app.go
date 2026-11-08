@@ -2,6 +2,8 @@ package router
 
 import (
 	messagingapp "ginChatProject/internal/messaging"
+	"ginChatProject/internal/middleware"
+	"ginChatProject/internal/platform/observability"
 	conversationrouter "ginChatProject/internal/router/conversation"
 	friendshiprouter "ginChatProject/internal/router/friendship"
 	identityrouter "ginChatProject/internal/router/identity"
@@ -21,15 +23,22 @@ import (
 func Router(
 	db *gorm.DB,
 	storage messagingapp.AttachmentStorage,
+	metrics *observability.Metrics,
+	health *observability.Health,
 ) *gin.Engine {
 	r := gin.New()
-	// WebSocket 当前仍需查询参数携带 Token；跳过该路径访问日志，避免凭证落盘。
 	r.Use(
-		gin.LoggerWithConfig(gin.LoggerConfig{
-			SkipPaths: []string{"/ws"},
-		}),
+		middleware.ObserveRequest(metrics),
 		gin.Recovery(),
 	)
+
+	if health != nil {
+		r.GET("/health/live", gin.WrapH(health.LiveHandler()))
+		r.GET("/health/ready", gin.WrapH(health.ReadyHandler()))
+	}
+	if metrics != nil {
+		r.GET("/metrics", gin.WrapH(metrics.Handler()))
+	}
 
 	// 调试接口文档
 	//docs.SwaggerInfo.BasePath = ""

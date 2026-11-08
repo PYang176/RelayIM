@@ -131,7 +131,8 @@ rabbitmq:15692
 host.docker.internal:8081
 ```
 
-Go 服务实现 `/metrics` 接口之前，这个目标在 Prometheus 中会显示为 DOWN，属于正常状态。
+Go 服务提供 `/metrics`、`/health/live` 和 `/health/ready`。Grafana 会自动加载 `GinChat Overview` 面板，详细说明见
+[可观测性](../docs/可观测性.md)。
 
 ## 对象存储
 

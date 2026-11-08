@@ -3,12 +3,18 @@ package router
 import (
 	"testing"
 
+	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 )
 
 func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	engine := Router(nil, nil)
+	engine := Router(
+		nil,
+		nil,
+		observability.NewMetrics(),
+		observability.NewHealth(),
+	)
 
 	routes := make(map[string]bool)
 	for _, route := range engine.Routes() {
@@ -42,6 +48,9 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		"GET /api/v1/attachments/:id",
 		"GET /api/v1/attachments/:id/content",
 		"GET /ws",
+		"GET /health/live",
+		"GET /health/ready",
+		"GET /metrics",
 	}
 	for _, route := range required {
 		if !routes[route] {

@@ -29,14 +29,16 @@ func InitRedis(cfg config.RedisConfig) error {
 
 // Publish 发消息到redis
 func Publish(ctx context.Context, channel string, msg string) error {
-	fmt.Println("publish...", msg)
 	return RDB.Publish(ctx, channel, msg).Err()
 }
 
 // Subscribe 订阅redis消息
 func Subscribe(ctx context.Context, channel string) (string, error) {
 	sub := RDB.PSubscribe(ctx, channel)
+	defer sub.Close()
 	msg, err := sub.ReceiveMessage(ctx)
-	fmt.Println("subscribe...", msg)
+	if err != nil {
+		return "", err
+	}
 	return msg.Payload, err
 }

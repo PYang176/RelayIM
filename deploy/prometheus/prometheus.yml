@@ -14,8 +14,7 @@ scrape_configs:
       - targets:
           - rabbitmq:15692
 
-  # The Go service runs on the Windows host while it is under development.
-  # This target becomes healthy after /metrics is implemented.
+  # 开发阶段 Go 服务运行在 Windows 主机，通过 Docker 网关抓取指标。
   - job_name: ginchat-app
     metrics_path: /metrics
     static_configs:

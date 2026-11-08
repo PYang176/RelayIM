@@ -2,7 +2,6 @@ package snowflake
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/bwmarrin/snowflake"
@@ -11,16 +10,13 @@ import (
 var (
 	node *snowflake.Node
 	once sync.Once
+	err  error
 )
 
 // Init 初始化 Snowflake 节点
 func Init(workerID int64) error {
-	var err error
 	once.Do(func() {
 		node, err = snowflake.NewNode(workerID)
-		if err != nil {
-			log.Fatalf(" Snowflake 初始化失败: %v", err)
-		}
 	})
 	return err
 }
