@@ -15,7 +15,11 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		observability.NewMetrics(),
 		observability.NewHealth(),
 		nil,
+		nil,
 	)
+	if engine.ForwardedByClientIP {
+		t.Fatal("默认配置不应信任客户端伪造的代理 IP 请求头")
+	}
 
 	routes := make(map[string]bool)
 	for _, route := range engine.Routes() {

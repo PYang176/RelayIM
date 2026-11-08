@@ -4,8 +4,27 @@ import (
 	messagingapp "ginChatProject/internal/messaging"
 	"ginChatProject/internal/middleware"
 	"ginChatProject/internal/platform/observability"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+)
+
+var (
+	messageRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "message_send",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 20,
+		GlobalLimit:  500,
+		Window:       10 * time.Second,
+	}
+	attachmentRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "attachment_upload",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 10,
+		GlobalLimit:  100,
+		Window:       time.Minute,
+	}
 )
 
 // Register 注册新版消息路由。
@@ -13,6 +32,7 @@ func Register(
 	r *gin.Engine,
 	db *gorm.DB,
 	storage messagingapp.AttachmentStorage,
+	requestLimiter middleware.RateLimitChecker,
 	metrics *observability.Metrics,
 ) {
 	repository := messagingapp.NewRepository(db)
@@ -32,11 +52,19 @@ func Register(
 	)
 	group.GET("/:conversation_id/read-states", handler.ListReadStates)
 	group.GET("/:conversation_id/messages", handler.ListMessages)
-	group.POST("/:conversation_id/messages", handler.SendMessage)
+	group.POST(
+		"/:conversation_id/messages",
+		middleware.RateLimit(requestLimiter, messageRateLimitPolicy, metrics),
+		handler.SendMessage,
+	)
 
 	attachments := r.Group("/api/v1/attachments")
 	attachments.Use(middleware.AuthMiddleware())
-	attachments.POST("", handler.UploadAttachment)
+	attachments.POST(
+		"",
+		middleware.RateLimit(requestLimiter, attachmentRateLimitPolicy, metrics),
+		handler.UploadAttachment,
+	)
 	attachments.GET("/:id", handler.GetAttachmentInfo)
 	attachments.GET("/:id/content", handler.DownloadAttachment)
 }

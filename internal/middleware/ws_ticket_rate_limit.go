@@ -2,9 +2,7 @@ package middleware
 
 import (
 	"context"
-	"math"
 	"net/http"
-	"strconv"
 
 	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/ratelimit"
@@ -42,19 +40,10 @@ func WSTicketRateLimit(
 			return
 		}
 		if !decision.Allowed {
-			retryAfter := int(math.Ceil(decision.RetryAfter.Seconds()))
-			if retryAfter < 1 {
-				retryAfter = 1
-			}
 			if metrics != nil {
 				metrics.RecordRateLimitRejected(decision.Scope)
 			}
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-			c.Header("X-RateLimit-Scope", decision.Scope)
-			c.Header("Cache-Control", "no-store")
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "请求过于频繁，请稍后重试",
-			})
+			abortRateLimited(c, decision)
 			return
 		}
 		c.Next()

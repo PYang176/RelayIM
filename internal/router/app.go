@@ -25,9 +25,14 @@ func Router(
 	storage messagingapp.AttachmentStorage,
 	metrics *observability.Metrics,
 	health *observability.Health,
+	requestLimiter middleware.RateLimitChecker,
 	wsTicketLimiter middleware.WSTicketRateLimiter,
 ) *gin.Engine {
 	r := gin.New()
+
+	// 当前服务直接暴露给客户端。关闭代理头信任，避免伪造 X-Forwarded-For
+	// 绕过按 IP 限流；接入可信反向代理后再显式配置代理网段。
+	r.ForwardedByClientIP = false
 	r.Use(
 		middleware.ObserveRequest(metrics),
 		gin.Recovery(),
@@ -46,16 +51,22 @@ func Router(
 	//r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 新版用户认证模块
-	identityrouter.Register(r, db, wsTicketLimiter, metrics)
+	identityrouter.Register(
+		r,
+		db,
+		wsTicketLimiter,
+		requestLimiter,
+		metrics,
+	)
 
 	// 新版会话模块
 	conversationrouter.Register(r, db)
 
 	// 新版好友模块
-	friendshiprouter.Register(r, db)
+	friendshiprouter.Register(r, db, requestLimiter, metrics)
 
 	// 新版消息模块
-	messagingrouter.Register(r, db, storage, metrics)
+	messagingrouter.Register(r, db, storage, requestLimiter, metrics)
 
 	// websocket
 	ws.Register(r, db)

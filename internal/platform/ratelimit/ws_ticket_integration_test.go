@@ -80,7 +80,10 @@ func TestWSTicketLimiterIntegration(t *testing.T) {
 				}
 			})
 
-			limiter := NewWSTicketLimiter(client, tt.cfg, prefix)
+			limiter := NewWSTicketLimiter(
+				NewSlidingWindowLimiter(client, prefix),
+				tt.cfg,
+			)
 			for requestIndex, userID := range tt.userIDs {
 				decision, err := limiter.Allow(context.Background(), userID)
 				if err != nil {
@@ -131,11 +134,14 @@ func TestWSTicketLimiterSlidingWindowBoundary(t *testing.T) {
 		}
 	})
 
-	limiter := NewWSTicketLimiter(client, config.WSTicketRateLimitConfig{
-		GlobalLimit:        100,
-		UserLimit:          2,
-		WindowMilliseconds: 1000,
-	}, prefix)
+	limiter := NewWSTicketLimiter(
+		NewSlidingWindowLimiter(client, prefix),
+		config.WSTicketRateLimitConfig{
+			GlobalLimit:        100,
+			UserLimit:          2,
+			WindowMilliseconds: 1000,
+		},
+	)
 	base := time.Unix(1_800_000_000, 0)
 	current := base.Add(899 * time.Millisecond)
 	limiter.now = func() time.Time {

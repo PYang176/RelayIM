@@ -89,10 +89,13 @@ func Run() error {
 		},
 	)
 	rateLimitConfig := bootstrap.LoadWSTicketRateLimitConfig()
-	wsTicketLimiter := ratelimit.NewWSTicketLimiter(
+	slidingWindowLimiter := ratelimit.NewSlidingWindowLimiter(
 		redisstore.RDB,
-		rateLimitConfig,
 		"ginchat",
+	)
+	wsTicketLimiter := ratelimit.NewWSTicketLimiter(
+		slidingWindowLimiter,
+		rateLimitConfig,
 	)
 
 	storageCfg := bootstrap.LoadObjectStorageConfig()
@@ -152,6 +155,7 @@ func Run() error {
 			attachmentStorage,
 			metrics,
 			health,
+			slidingWindowLimiter,
 			wsTicketLimiter,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
