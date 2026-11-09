@@ -25,7 +25,8 @@ src/
 - Snowflake ID 全部使用字符串。
 - WebSocket 建立前申请一次性 Ticket。
 - 收到消息后发送 ACK；阅读后发送 Read。
-- 断线重连后使用 `after_seq` 补拉。
+- 会话首次打开和断线重连先获取最新页，历史使用 `before_seq` 按需加载。
+- 实时窗口出现缺口时使用 `after_seq` 连续补齐，并每 30 秒对账活跃会话。
 - 登录后保存 Access Token、Refresh Token 和设备 ID；启动时 Access Token 失效会尝试刷新。
 - 用户可以编辑昵称、头像地址和个人简介，保存后立即更新当前登录状态。
 - 退出登录会调用服务端撤销 Access Token 和 Refresh Token，而不只是清理 localStorage。

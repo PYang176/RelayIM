@@ -8,7 +8,7 @@ import {useChatSocket} from '@/composables/useChatSocket'
 import {useAuthStore} from '@/stores/auth'
 import {
     createSequenceCursor,
-    establishSequenceBaseline,
+    needsLatestWindowSync,
     observeSequence,
     type SequenceCursor,
     type SequenceObservation,
@@ -32,9 +32,11 @@ interface ConversationSequenceState {
     cursor: SequenceCursor
     pendingMessages: Map<number, ChatMessage>
     repairing: boolean
+    resyncing: boolean
     repairRequested: boolean
     retryTimer?: number
     repairAttempts: number
+    generation: number
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -93,8 +95,10 @@ export const useChatStore = defineStore('chat', () => {
             cursor: createSequenceCursor(contiguousSeq),
             pendingMessages: new Map(),
             repairing: false,
+            resyncing: false,
             repairRequested: false,
             repairAttempts: 0,
+            generation: 0,
         }
         sequenceStates.set(conversationId, created)
         return created
@@ -160,7 +164,7 @@ export const useChatStore = defineStore('chat', () => {
 
     function scheduleGapRepair(conversationId: string, immediate = true) {
         const state = sequenceStateFor(conversationId)
-        if (state.repairing) return
+        if (state.resyncing || state.repairing) return
         if (state.retryTimer) return
         const delay = immediate
             ? 0
@@ -173,10 +177,12 @@ export const useChatStore = defineStore('chat', () => {
 
     async function repairConversationGap(conversationId: string) {
         const state = sequenceStateFor(conversationId)
+        if (state.resyncing) return
         if (state.repairing) {
             state.repairRequested = true
             return
         }
+        const generation = state.generation
         state.repairing = true
         try {
             do {
@@ -190,6 +196,12 @@ export const useChatStore = defineStore('chat', () => {
                         limit: 100,
                     },
                 )
+                if (
+                    sequenceStates.get(conversationId) !== state ||
+                    state.generation !== generation
+                ) {
+                    return
+                }
                 let pageProgress = false
                 for (const message of page.messages) {
                     const duplicate = (
@@ -228,12 +240,23 @@ export const useChatStore = defineStore('chat', () => {
                 scheduleGapRepair(conversationId, false)
             }
         } catch {
+            if (
+                sequenceStates.get(conversationId) !== state ||
+                state.generation !== generation
+            ) {
+                return
+            }
             state.repairAttempts += 1
             scheduleGapRepair(conversationId, false)
         } finally {
-            state.repairing = false
-            if (state.repairRequested && state.cursor.pendingSeqs.size > 0) {
-                scheduleGapRepair(conversationId)
+            const stale =
+                sequenceStates.get(conversationId) !== state ||
+                state.generation !== generation
+            if (!stale) {
+                state.repairing = false
+                if (state.repairRequested && state.cursor.pendingSeqs.size > 0) {
+                    scheduleGapRepair(conversationId)
+                }
             }
         }
     }
@@ -384,9 +407,6 @@ export const useChatStore = defineStore('chat', () => {
             (item) => item.id === conversationId,
         )
         const tasks: Promise<void>[] = []
-        if (!messagesByConversation.value[conversationId]) {
-            tasks.push(loadLatestMessages(conversationId))
-        }
         if (
             conversation?.conversation_type === 2 &&
             !membersByConversation.value[conversationId]
@@ -395,7 +415,7 @@ export const useChatStore = defineStore('chat', () => {
         }
         await Promise.all(tasks)
         if (conversation) {
-            await syncConversationAfterReconnect(conversation)
+            await ensureConversationLatestWindow(conversation)
         }
         await markRead()
         await refreshReadStates()
@@ -525,52 +545,112 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
-    async function loadLatestMessages(conversationId: string) {
-        const hadLocalMessages =
-            (messagesByConversation.value[conversationId]?.length ?? 0) > 0
+    async function resyncConversationLatestWindow(conversationId: string) {
+        const state = sequenceStateFor(conversationId)
+        const generation = state.generation + 1
+        state.generation = generation
+        state.resyncing = true
+        if (state.retryTimer) {
+            window.clearTimeout(state.retryTimer)
+            state.retryTimer = undefined
+        }
+        state.repairing = false
+        state.repairRequested = false
+        state.repairAttempts = 0
         loadingMessages.value = true
         clearError()
         try {
             const page = await messageApi.listMessages(auth.token, conversationId, {
                 limit: 40,
             })
-            const merged = new Map<string, ChatMessage>()
-            for (const message of messagesByConversation.value[conversationId] ?? []) {
-                merged.set(message.message_id, message)
+            // 会话切换或新一轮重同步会递增代次；较早发出的请求不得覆盖当前窗口。
+            if (
+                sequenceStates.get(conversationId) !== state ||
+                state.generation !== generation
+            ) {
+                return
             }
-            for (const message of page.messages) {
-                merged.set(message.message_id, message)
+
+            const latestMessages = [...page.messages].sort(
+                (left, right) => left.seq - right.seq,
+            )
+            const latestSeq = latestMessages.at(-1)?.seq ?? 0
+
+            /*
+             * 最新页是新的历史窗口。旧窗口可能距离最新消息几千条，
+             * 不能直接拼接，否则向前分页会从错误的 before_seq 开始。
+             * 请求期间新到的实时消息比最新页更新，必须继续缓冲，避免
+             * HTTP 响应覆盖 WebSocket 已经送达的消息。
+             */
+
+            const buffered = new Map<string, ChatMessage>()
+            for (const message of [
+                ...(messagesByConversation.value[conversationId] ?? []),
+                ...state.pendingMessages.values(),
+            ]) {
+                if (message.seq > latestSeq) {
+                    buffered.set(message.message_id, message)
+                }
             }
             messagesByConversation.value = {
                 ...messagesByConversation.value,
-                [conversationId]: [...merged.values()].sort(
-                    (left, right) => left.seq - right.seq,
-                ),
+                [conversationId]: latestMessages,
             }
             hasMoreByConversation.value = {
                 ...hasMoreByConversation.value,
                 [conversationId]: page.has_more,
             }
-            if (!hadLocalMessages) {
-                const state = sequenceStateFor(conversationId)
-                const baseline =
-                    page.messages.at(-1)?.seq ??
-                    conversations.value.find(
-                        (item) => item.id === conversationId,
-                    )?.last_read_seq ??
-                    0
-                const observation = establishSequenceBaseline(
-                    state.cursor,
-                    baseline,
-                )
-                if (observation.gapDetected) {
+
+            state.cursor = createSequenceCursor(latestSeq)
+            state.pendingMessages = new Map()
+            for (const message of [...buffered.values()].sort(
+                (left, right) => left.seq - right.seq,
+            )) {
+                observeSequence(state.cursor, message.seq)
+                if (message.seq <= state.cursor.contiguousSeq) {
+                    storeMessage(conversationId, message)
+                } else {
+                    state.pendingMessages.set(message.seq, message)
+                }
+            }
+
+            if (state.cursor.pendingSeqs.size > 0) {
+                scheduleGapRepair(conversationId)
+            }
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : '同步最新消息失败')
+        } finally {
+            if (
+                sequenceStates.get(conversationId) === state &&
+                state.generation === generation
+            ) {
+                state.resyncing = false
+                if (state.cursor.pendingSeqs.size > 0) {
                     scheduleGapRepair(conversationId)
                 }
             }
-        } catch (cause) {
-            setError(cause instanceof Error ? cause.message : '加载消息失败')
-        } finally {
             loadingMessages.value = false
+        }
+    }
+
+    async function ensureConversationLatestWindow(
+        conversation: Conversation,
+    ) {
+        const state = sequenceStateFor(conversation.id)
+        const hasWindow =
+            (messagesByConversation.value[conversation.id]?.length ?? 0) > 0
+        if (
+            needsLatestWindowSync(
+                hasWindow,
+                conversation.last_seq,
+                state.cursor.contiguousSeq,
+            )
+        ) {
+            await resyncConversationLatestWindow(conversation.id)
+            return
+        }
+        if (state.cursor.pendingSeqs.size > 0) {
+            await repairConversationGap(conversation.id)
         }
     }
 
@@ -597,22 +677,6 @@ export const useChatStore = defineStore('chat', () => {
         hasMoreByConversation.value = {
             ...hasMoreByConversation.value,
             [conversationId]: page.has_more,
-        }
-    }
-
-    async function syncConversationAfterReconnect(conversation: Conversation) {
-        const state = sequenceStateFor(conversation.id)
-        if (state.cursor.contiguousSeq === 0) {
-            establishSequenceBaseline(
-                state.cursor,
-                conversation.last_read_seq,
-            )
-        }
-        if (
-            conversation.last_seq > state.cursor.contiguousSeq ||
-            state.cursor.pendingSeqs.size > 0
-        ) {
-            await repairConversationGap(conversation.id)
         }
     }
 
@@ -897,14 +961,53 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     async function handleSocketConnected() {
+        const activeConversationBeforeReconnect = activeConversationId.value
         await loadConversations()
         const active = conversations.value.find(
             (conversation) => conversation.id === activeConversationId.value,
         )
-        if (active) {
-            await syncConversationAfterReconnect(active)
+        if (activeConversationBeforeReconnect && active) {
+            await ensureConversationLatestWindow(active)
         }
         await markRead()
+    }
+
+    async function reconcileActiveConversation() {
+        const conversationId = activeConversationId.value
+        if (!conversationId) return
+        try {
+            const latestConversations = await conversationApi.listConversations(
+                auth.token,
+            )
+            const conversation = latestConversations.find(
+                (item) => item.id === conversationId,
+            )
+            if (!conversation) return
+            upsertConversation(conversation)
+
+            const state = sequenceStateFor(conversationId)
+            const hasWindow =
+                (messagesByConversation.value[conversationId]?.length ?? 0) > 0
+            if (!hasWindow || state.cursor.contiguousSeq === 0) {
+                await ensureConversationLatestWindow(conversation)
+                return
+            }
+
+            /*
+             * 活跃会话已经建立连续实时窗口。对账只补服务端最后序号
+             * 与本地连续水位之间的区间，避免最后一条推送丢失后因没有
+             * 后续消息而永远无法收敛。历史加载仍由客户端主动向前翻页。
+             */
+
+            if (
+                conversation.last_seq > state.cursor.contiguousSeq ||
+                state.cursor.pendingSeqs.size > 0
+            ) {
+                await repairConversationGap(conversationId)
+            }
+        } catch {
+            // 对账是可靠性兜底；页面下一次定时触发时会再次尝试。
+        }
     }
 
     function connectWebSocket() {
@@ -967,6 +1070,7 @@ export const useChatStore = defineStore('chat', () => {
         disconnectWebSocket,
         markRead,
         refreshPresence,
+        reconcileActiveConversation,
         reportError: setError,
         clearError,
         reset,

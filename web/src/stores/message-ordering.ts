@@ -8,6 +8,14 @@ export interface SequenceObservation {
     gapDetected: boolean
 }
 
+export function needsLatestWindowSync(
+    hasWindow: boolean,
+    serverLastSeq: number,
+    contiguousSeq: number,
+): boolean {
+    return !hasWindow || serverLastSeq > contiguousSeq
+}
+
 export function createSequenceCursor(contiguousSeq = 0): SequenceCursor {
     return {
         contiguousSeq: Math.max(0, contiguousSeq),

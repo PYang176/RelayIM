@@ -289,6 +289,7 @@ onMounted(async () => {
     await chat.connectWebSocket()
     presenceTimer = window.setInterval(() => {
         void chat.refreshPresence()
+        void chat.reconcileActiveConversation()
     }, 30_000)
 })
 
