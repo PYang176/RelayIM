@@ -14,6 +14,14 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	conversationTitleExpression = "CASE WHEN c.conversation_type = 1 " +
+		"THEN COALESCE(NULLIF(fr.remark, ''), dp.nickname, " +
+		"direct_user.username, '私聊') ELSE COALESCE(c.name, '群聊') END"
+	conversationPinnedExpression = "CASE WHEN m.pinned_at IS NULL " +
+		"THEN 0 ELSE 1 END"
+)
+
 // Repository 负责会话与成员的数据库访问。
 type Repository struct {
 	db *gorm.DB
@@ -175,34 +183,47 @@ func (r *Repository) CreateGroup(
 	return result, nil
 }
 
-// ListForUser 返回用户当前有效会话，按最近活动时间倒序。
+// ListForUser 返回用户当前有效会话，置顶会话优先并按最近活动时间倒序。
 func (r *Repository) ListForUser(
 	ctx context.Context,
 	userID uint64,
-	limit int,
-	beforeUpdatedAt time.Time,
-	beforeID uint64,
+	page ConversationPageQuery,
 ) ([]conversationSummary, bool, error) {
 	var results []conversationSummary
 	query := r.conversationSummaryQuery(ctx, userID)
-	if !beforeUpdatedAt.IsZero() && beforeID > 0 {
+	if page.Search != "" {
 		query = query.Where(
-			"(c.updated_at < ? OR (c.updated_at = ? AND c.id < ?))",
-			beforeUpdatedAt,
-			beforeUpdatedAt,
-			beforeID,
+			"LOCATE(?, "+conversationTitleExpression+") > 0",
+			page.Search,
+		)
+	}
+	if !page.BeforeUpdatedAt.IsZero() && page.BeforeID > 0 {
+		beforePinned := 0
+		if page.BeforePinned {
+			beforePinned = 1
+		}
+		query = query.Where(
+			"("+conversationPinnedExpression+" < ? OR "+
+				"("+conversationPinnedExpression+" = ? AND "+
+				"(c.updated_at < ? OR "+
+				"(c.updated_at = ? AND c.id < ?))))",
+			beforePinned,
+			beforePinned,
+			page.BeforeUpdatedAt,
+			page.BeforeUpdatedAt,
+			page.BeforeID,
 		)
 	}
 	err := query.
-		Order("c.updated_at DESC, c.id DESC").
-		Limit(limit + 1).
+		Order(conversationPinnedExpression + " DESC, c.updated_at DESC, c.id DESC").
+		Limit(page.Limit + 1).
 		Scan(&results).Error
 	if err != nil {
 		return nil, false, fmt.Errorf("查询用户会话: %w", err)
 	}
-	hasMore := len(results) > limit
+	hasMore := len(results) > page.Limit
 	if hasMore {
-		results = results[:limit]
+		results = results[:page.Limit]
 	}
 	return results, hasMore, nil
 }
@@ -235,15 +256,13 @@ func (r *Repository) conversationSummaryQuery(
 		Select(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
 				"c.last_seq, m.last_read_seq, c.updated_at, "+
+				conversationPinnedExpression+" AS pinned, "+
 				"CASE WHEN c.conversation_type = 1 "+
 				"AND c.direct_low_user_id = m.user_id "+
 				"THEN c.direct_high_user_id "+
 				"WHEN c.conversation_type = 1 "+
 				"THEN c.direct_low_user_id ELSE NULL END AS peer_user_id, "+
-				"CASE WHEN c.conversation_type = 1 "+
-			"THEN COALESCE(NULLIF(fr.remark, ''), dp.nickname, "+
-			"direct_user.username, '私聊') "+
-				"ELSE COALESCE(c.name, '群聊') END AS title, "+
+				conversationTitleExpression+" AS title, "+
 				"(SELECT COUNT(*) FROM conversation_members AS active_member "+
 				"WHERE active_member.conversation_id = c.id "+
 				"AND active_member.left_at IS NULL) AS member_count",
@@ -273,6 +292,62 @@ func (r *Repository) conversationSummaryQuery(
 			userID,
 			conversationStatusOpen,
 		)
+}
+
+// SetPinned 修改用户自己的会话置顶状态，重复设置保持幂等。
+func (r *Repository) SetPinned(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+	pinned bool,
+) error {
+	var value any
+	if pinned {
+		value = time.Now().UTC()
+	}
+	result := r.db.WithContext(ctx).
+		Model(&conversationMember{}).
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			userID,
+		).
+		Where(
+			"EXISTS (SELECT 1 FROM conversations AS active_conversation "+
+				"WHERE active_conversation.id = ? "+
+				"AND active_conversation.status = ?)",
+			conversationID,
+			conversationStatusOpen,
+		).
+		Update("pinned_at", value)
+	if result.Error != nil {
+		return fmt.Errorf("更新会话置顶状态: %w", result.Error)
+	}
+	if result.RowsAffected > 0 {
+		return nil
+	}
+
+	// MySQL 默认返回实际变更行数，重复设置相同状态时也可能为零。
+	var activeCount int64
+	if err := r.db.WithContext(ctx).
+		Table("conversation_members AS m").
+		Joins(
+			"JOIN conversations AS c ON c.id = m.conversation_id",
+		).
+		Where(
+			"m.conversation_id = ? AND m.user_id = ? "+
+				"AND m.left_at IS NULL AND c.status = ?",
+			conversationID,
+			userID,
+			conversationStatusOpen,
+		).
+		Count(&activeCount).Error; err != nil {
+		return fmt.Errorf("确认会话置顶权限: %w", err)
+	}
+	if activeCount == 0 {
+		return ErrConversationNotFound
+	}
+	return nil
 }
 
 // InviteMembers 在锁住群会话后创建待审批的好友邀请。
@@ -946,6 +1021,7 @@ func (r *Repository) RemoveMember(
 			).
 			Updates(map[string]any{
 				"left_at":    now,
+				"pinned_at":  nil,
 				"updated_at": now,
 			}).Error; err != nil {
 			return fmt.Errorf("移除群成员: %w", err)

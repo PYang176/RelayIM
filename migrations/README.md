@@ -22,6 +22,7 @@
 | `00009_group_invitation_pagination_indexes.sql` | 群邀请状态列表 Keyset 分页索引 |
 | `00010_group_invitation_remark.sql` | 群邀请必填备注及数据库约束 |
 | `00011_group_invitation_response.sql` | 审批回复备注和群邀请历史分页索引 |
+| `00012_conversation_member_pinning.sql` | 会话成员个人置顶时间 |
 
 ## 执行迁移
 

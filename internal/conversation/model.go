@@ -75,6 +75,9 @@ type conversationMember struct {
 	// LastReadSeq 是用户已读到的会话消息序号。
 	LastReadSeq uint64 `gorm:"column:last_read_seq"`
 
+	// PinnedAt 是当前用户将会话置顶的 UTC 时间，空表示未置顶。
+	PinnedAt *time.Time `gorm:"column:pinned_at"`
+
 	// JoinedAt 是首次加入会话的 UTC 时间。
 	JoinedAt time.Time `gorm:"column:joined_at"`
 
@@ -187,6 +190,9 @@ type conversationSummary struct {
 
 	// LastReadSeq 是当前用户最后已读序号。
 	LastReadSeq uint64 `gorm:"column:last_read_seq"`
+
+	// Pinned 表示当前用户是否将会话置顶。
+	Pinned bool `gorm:"column:pinned"`
 
 	// MemberCount 是当前有效成员数量。
 	MemberCount uint64 `gorm:"column:member_count"`

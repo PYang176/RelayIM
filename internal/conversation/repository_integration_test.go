@@ -104,9 +104,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	summaries, hasMore, err := repository.ListForUser(
 		context.Background(),
 		userA,
-		defaultPageSize,
-		time.Time{},
-		0,
+		ConversationPageQuery{Limit: defaultPageSize},
 	)
 	if err != nil {
 		t.Fatalf("查询用户会话失败: %v", err)
@@ -166,6 +164,19 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		len(remarked.Conversations) != 1 ||
 		remarked.Conversations[0].Title != "好友备注" {
 		t.Fatalf("好友备注会话标题 = %+v, err=%v", remarked, err)
+	}
+	searched, err := service.List(
+		context.Background(),
+		userA,
+		ConversationPageQuery{
+			Limit:  defaultPageSize,
+			Search: "好友备注",
+		},
+	)
+	if err != nil ||
+		len(searched.Conversations) != 1 ||
+		searched.Conversations[0].ID != first.ID {
+		t.Fatalf("好友备注搜索 = %+v, err=%v", searched, err)
 	}
 
 	group, err := service.CreateGroup(
@@ -528,6 +539,57 @@ func TestConversationPaginationIntegration(t *testing.T) {
 	}
 
 	service := NewService(NewRepository(db))
+	if err := service.SetPinned(
+		context.Background(),
+		userID,
+		conversationIDs[0],
+		true,
+	); err != nil {
+		t.Fatalf("置顶会话失败: %v", err)
+	}
+	if err := service.SetPinned(
+		context.Background(),
+		userID,
+		conversationIDs[0],
+		true,
+	); err != nil {
+		t.Fatalf("重复置顶会话应保持幂等: %v", err)
+	}
+	if err := service.SetPinned(
+		context.Background(),
+		peerID,
+		conversationIDs[0],
+		true,
+	); !errors.Is(err, ErrConversationNotFound) {
+		t.Fatalf("非成员置顶会话错误 = %v，期望 ErrConversationNotFound", err)
+	}
+	pinnedBoundary, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{Limit: 1},
+	)
+	if err != nil ||
+		len(pinnedBoundary.Conversations) != 1 ||
+		pinnedBoundary.Conversations[0].ID != conversationIDs[0] ||
+		!pinnedBoundary.Conversations[0].Pinned ||
+		!pinnedBoundary.NextPinned {
+		t.Fatalf("置顶会话边界页 = %+v, err=%v", pinnedBoundary, err)
+	}
+	unpinnedBoundary, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{
+			Limit:           1,
+			BeforePinned:    pinnedBoundary.NextPinned,
+			BeforeUpdatedAt: pinnedBoundary.NextUpdatedAt,
+			BeforeID:        pinnedBoundary.NextID,
+		},
+	)
+	if err != nil ||
+		len(unpinnedBoundary.Conversations) != 1 ||
+		unpinnedBoundary.Conversations[0].ID != conversationIDs[4] {
+		t.Fatalf("置顶优先分页跨界 = %+v, err=%v", unpinnedBoundary, err)
+	}
 	first, err := service.List(
 		context.Background(),
 		userID,
@@ -539,8 +601,8 @@ func TestConversationPaginationIntegration(t *testing.T) {
 		first.NextID == 0 {
 		t.Fatalf("会话第一页 = %+v, err=%v", first, err)
 	}
-	if first.Conversations[0].ID != conversationIDs[4] ||
-		first.Conversations[1].ID != conversationIDs[3] {
+	if first.Conversations[0].ID != conversationIDs[0] ||
+		first.Conversations[1].ID != conversationIDs[4] {
 		t.Fatalf("会话第一页顺序 = %+v", first.Conversations)
 	}
 	second, err := service.List(
@@ -548,6 +610,7 @@ func TestConversationPaginationIntegration(t *testing.T) {
 		userID,
 		ConversationPageQuery{
 			Limit:           2,
+			BeforePinned:    first.NextPinned,
 			BeforeUpdatedAt: first.NextUpdatedAt,
 			BeforeID:        first.NextID,
 		},
@@ -557,8 +620,8 @@ func TestConversationPaginationIntegration(t *testing.T) {
 		!second.HasMore {
 		t.Fatalf("会话第二页 = %+v, err=%v", second, err)
 	}
-	if second.Conversations[0].ID != conversationIDs[2] ||
-		second.Conversations[1].ID != conversationIDs[1] {
+	if second.Conversations[0].ID != conversationIDs[3] ||
+		second.Conversations[1].ID != conversationIDs[2] {
 		t.Fatalf("会话第二页顺序 = %+v", second.Conversations)
 	}
 	third, err := service.List(
@@ -566,6 +629,7 @@ func TestConversationPaginationIntegration(t *testing.T) {
 		userID,
 		ConversationPageQuery{
 			Limit:           2,
+			BeforePinned:    second.NextPinned,
 			BeforeUpdatedAt: second.NextUpdatedAt,
 			BeforeID:        second.NextID,
 		},
@@ -573,8 +637,50 @@ func TestConversationPaginationIntegration(t *testing.T) {
 	if err != nil ||
 		len(third.Conversations) != 1 ||
 		third.HasMore ||
-		third.Conversations[0].ID != conversationIDs[0] {
+		third.Conversations[0].ID != conversationIDs[1] {
 		t.Fatalf("会话第三页 = %+v, err=%v", third, err)
+	}
+	searchPage, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{
+			Limit:  2,
+			Search: "分页群2",
+		},
+	)
+	if err != nil ||
+		len(searchPage.Conversations) != 1 ||
+		searchPage.Conversations[0].ID != conversationIDs[2] {
+		t.Fatalf("会话搜索 = %+v, err=%v", searchPage, err)
+	}
+	searchFirst, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{
+			Limit:  2,
+			Search: "分页群",
+		},
+	)
+	if err != nil ||
+		len(searchFirst.Conversations) != 2 ||
+		!searchFirst.HasMore {
+		t.Fatalf("会话搜索第一页 = %+v, err=%v", searchFirst, err)
+	}
+	searchSecond, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{
+			Limit:           2,
+			Search:          "分页群",
+			BeforePinned:    searchFirst.NextPinned,
+			BeforeUpdatedAt: searchFirst.NextUpdatedAt,
+			BeforeID:        searchFirst.NextID,
+		},
+	)
+	if err != nil ||
+		len(searchSecond.Conversations) != 2 ||
+		!searchSecond.HasMore {
+		t.Fatalf("会话搜索第二页 = %+v, err=%v", searchSecond, err)
 	}
 
 	single, err := service.Get(
@@ -584,6 +690,22 @@ func TestConversationPaginationIntegration(t *testing.T) {
 	)
 	if err != nil || single.ID != conversationIDs[2] {
 		t.Fatalf("单会话查询 = %+v, err=%v", single, err)
+	}
+	if err := service.SetPinned(
+		context.Background(),
+		userID,
+		conversationIDs[0],
+		false,
+	); err != nil {
+		t.Fatalf("取消置顶会话失败: %v", err)
+	}
+	unpinned, err := service.Get(
+		context.Background(),
+		userID,
+		conversationIDs[0],
+	)
+	if err != nil || unpinned.Pinned {
+		t.Fatalf("取消置顶后的会话 = %+v, err=%v", unpinned, err)
 	}
 }
 

@@ -532,11 +532,12 @@ paths:
       summary: 分页查询当前用户会话列表
       operationId: listConversations
       parameters:
+        - $ref: "#/components/parameters/ConversationSearch"
         - $ref: "#/components/parameters/PageLimit"
         - $ref: "#/components/parameters/ConversationCursor"
       responses:
         "200":
-          description: 按最近更新时间倒序的会话
+          description: 置顶会话优先，同组按最近更新时间倒序
           content:
             application/json:
               schema:
@@ -619,6 +620,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Conversation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/pin:
+    put:
+      tags: [Conversation]
+      summary: 设置或取消当前用户的会话置顶
+      operationId: setConversationPinned
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetConversationPinnedRequest"
+      responses:
+        "204":
+          description: 置顶状态已更新
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1268,6 +1291,14 @@ components:
       description: 会话下一页复合游标；客户端应原样回传 next_cursor
       schema:
         type: string
+    ConversationSearch:
+      name: q
+      in: query
+      required: false
+      description: 按会话展示标题包含匹配；最多 64 个 Unicode 字符
+      schema:
+        type: string
+        maxLength: 64
   headers:
     RetryAfter:
       description: 建议等待的秒数
@@ -1625,6 +1656,7 @@ components:
           avatar_url,
           last_seq,
           last_read_seq,
+          pinned,
           unread_count,
           member_count,
           updated_at,
@@ -1654,6 +1686,9 @@ components:
           type: integer
           format: int64
           minimum: 0
+        pinned:
+          type: boolean
+          description: 当前用户是否置顶该会话
         unread_count:
           type: integer
           format: int64
@@ -1679,6 +1714,13 @@ components:
           description: 下一页复合游标；没有下一页时为空字符串
         has_more:
           type: boolean
+    SetConversationPinnedRequest:
+      type: object
+      required: [pinned]
+      properties:
+        pinned:
+          type: boolean
+          description: true 置顶，false 取消置顶
     CreateDirectRequest:
       type: object
       required: [peer_user_id]

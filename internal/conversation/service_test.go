@@ -91,6 +91,13 @@ func TestConversationPaginationValidation(t *testing.T) {
 			name: "分页大小超过上限",
 			page: ConversationPageQuery{Limit: maxPageSize + 1},
 		},
+		{
+			name: "搜索关键字过长",
+			page: ConversationPageQuery{
+				Limit:  defaultPageSize,
+				Search: strings.Repeat("搜", maxConversationSearchRunes+1),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -100,6 +107,30 @@ func TestConversationPaginationValidation(t *testing.T) {
 				test.page,
 			); !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("List() 错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
+func TestSetPinnedValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name           string
+		userID         uint64
+		conversationID uint64
+	}{
+		{name: "用户为空", conversationID: 1},
+		{name: "会话为空", userID: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := service.SetPinned(
+				context.Background(),
+				test.userID,
+				test.conversationID,
+				true,
+			); !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("SetPinned() 错误 = %v，期望 ErrInvalidInput", err)
 			}
 		})
 	}

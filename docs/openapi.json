@@ -60,6 +60,16 @@
           "type": "string"
         }
       },
+      "ConversationSearch": {
+        "description": "按会话展示标题包含匹配；最多 64 个 Unicode 字符",
+        "in": "query",
+        "name": "q",
+        "required": false,
+        "schema": {
+          "maxLength": 64,
+          "type": "string"
+        }
+      },
       "FriendRequestID": {
         "description": "Snowflake 好友申请 ID 字符串",
         "in": "path",
@@ -327,6 +337,10 @@
             "pattern": "^([1-9][0-9]*)?$",
             "type": "string"
           },
+          "pinned": {
+            "description": "当前用户是否置顶该会话",
+            "type": "boolean"
+          },
           "title": {
             "type": "string"
           },
@@ -349,6 +363,7 @@
           "avatar_url",
           "last_seq",
           "last_read_seq",
+          "pinned",
           "unread_count",
           "member_count",
           "updated_at"
@@ -1217,6 +1232,18 @@
         ],
         "type": "object"
       },
+      "SetConversationPinnedRequest": {
+        "properties": {
+          "pinned": {
+            "description": "true 置顶，false 取消置顶",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pinned"
+        ],
+        "type": "object"
+      },
       "SnowflakeID": {
         "example": "1839281749283749120",
         "pattern": "^[1-9][0-9]*$",
@@ -1726,6 +1753,9 @@
         "operationId": "listConversations",
         "parameters": [
           {
+            "$ref": "#/components/parameters/ConversationSearch"
+          },
+          {
             "$ref": "#/components/parameters/PageLimit"
           },
           {
@@ -1741,7 +1771,7 @@
                 }
               }
             },
-            "description": "按最近更新时间倒序的会话"
+            "description": "置顶会话优先，同组按最近更新时间倒序"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2397,6 +2427,44 @@
         "summary": "查询消息送达汇总",
         "tags": [
           "Message"
+        ]
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/pin": {
+      "put": {
+        "operationId": "setConversationPinned",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetConversationPinnedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "置顶状态已更新"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "设置或取消当前用户的会话置顶",
+        "tags": [
+          "Conversation"
         ]
       }
     },

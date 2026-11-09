@@ -7,10 +7,11 @@ import type {
 
 export function listConversations(
     token: string,
-    cursor = '',
+    options: {cursor?: string; query?: string} = {},
 ): Promise<ConversationPage> {
     const params = new URLSearchParams({limit: '20'})
-    if (cursor) params.set('cursor', cursor)
+    if (options.cursor) params.set('cursor', options.cursor)
+    if (options.query) params.set('q', options.query)
     return request<ConversationPage>(`/conversations?${params}`, {}, token)
 }
 
@@ -19,6 +20,21 @@ export function getConversation(
     conversationId: string,
 ): Promise<Conversation> {
     return request(`/conversations/${conversationId}`, {}, token)
+}
+
+export function setConversationPinned(
+    token: string,
+    conversationId: string,
+    pinned: boolean,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationId}/pin`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({pinned}),
+        },
+        token,
+    )
 }
 
 export function createDirect(

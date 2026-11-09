@@ -451,6 +451,47 @@ a:focus-visible {
     gap: 0.375rem;
 }
 
+.conversation-search {
+    position: relative;
+    display: block;
+    margin-bottom: 0.875rem;
+}
+
+.conversation-search input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.625rem 2.25rem 0.625rem 0.75rem;
+    color: var(--ink);
+    background: var(--surface);
+    font: inherit;
+    font-size: 0.8125rem;
+}
+
+.conversation-search input:focus {
+    border-color: var(--signal);
+    outline: 2px solid var(--signal-soft);
+    outline-offset: 1px;
+}
+
+.conversation-search button {
+    position: absolute;
+    top: 50%;
+    right: 0.375rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 0;
+    border-radius: 999px;
+    color: var(--muted);
+    background: transparent;
+    transform: translateY(-50%);
+}
+
+.conversation-search button:hover {
+    color: var(--ink);
+    background: var(--surface-muted);
+}
+
 .icon-button.group-button {
     color: var(--signal-strong);
     font-family: inherit;
@@ -469,14 +510,11 @@ a:focus-visible {
 .conversation-item {
     width: 100%;
     display: grid;
-    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.6875rem;
     border: 0;
     border-left: 3px solid transparent;
     border-radius: var(--radius-sm);
-    padding: 0.6875rem;
-    text-align: left;
     background: transparent;
 }
 
@@ -487,6 +525,43 @@ a:focus-visible {
 .conversation-item.active {
     border-left-color: var(--signal);
     background: var(--surface);
+}
+
+.conversation-open {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.6875rem;
+    border: 0;
+    padding: 0.6875rem;
+    text-align: left;
+    background: transparent;
+}
+
+.conversation-pin {
+    min-width: 2.25rem;
+    margin-right: 0.375rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 0.25rem 0.375rem;
+    color: var(--muted);
+    background: transparent;
+    font-size: 0.625rem;
+    opacity: 0.62;
+}
+
+.conversation-item:hover .conversation-pin,
+.conversation-pin:focus-visible,
+.conversation-item.pinned .conversation-pin {
+    opacity: 1;
+}
+
+.conversation-pin:hover,
+.conversation-item.pinned .conversation-pin {
+    border-color: var(--line);
+    color: var(--signal-strong);
+    background: var(--signal-soft);
 }
 
 .conversation-load-more {

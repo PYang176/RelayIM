@@ -29,6 +29,7 @@ export interface Conversation {
     avatar_url: string
     last_seq: number
     last_read_seq: number
+    pinned: boolean
     unread_count: number
     member_count: number
     updated_at: string

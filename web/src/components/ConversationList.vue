@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import {onBeforeUnmount, shallowRef, watch} from 'vue'
+
 import type {Conversation} from '@/types/api'
 
 const props = defineProps<{
@@ -7,6 +9,8 @@ const props = defineProps<{
     loading: boolean
     loadingMore: boolean
     hasMore: boolean
+    searchQuery: string
+    searching: boolean
 }>()
 
 const emit = defineEmits<{
@@ -14,7 +18,38 @@ const emit = defineEmits<{
     createGroup: []
     openFriends: []
     loadMore: []
+    search: [query: string]
+    clearSearch: []
+    togglePin: [conversationId: string, pinned: boolean]
 }>()
+
+const searchText = shallowRef(props.searchQuery)
+let searchTimer = 0
+
+watch(
+    () => props.searchQuery,
+    (query) => {
+        searchText.value = query
+    },
+)
+
+function scheduleSearch() {
+    window.clearTimeout(searchTimer)
+    const query = searchText.value.trim()
+    if (!query) {
+        emit('clearSearch')
+        return
+    }
+    searchTimer = window.setTimeout(() => {
+        emit('search', query)
+    }, 300)
+}
+
+function clearSearch() {
+    window.clearTimeout(searchTimer)
+    searchText.value = ''
+    emit('clearSearch')
+}
 
 function title(conversation: Conversation) {
     return conversation.title || conversation.name || '私聊'
@@ -26,6 +61,10 @@ function summary(conversation: Conversation) {
     }
     return '私聊'
 }
+
+onBeforeUnmount(() => {
+    window.clearTimeout(searchTimer)
+})
 </script>
 
 <template>
@@ -54,37 +93,105 @@ function summary(conversation: Conversation) {
             </div>
         </div>
 
+        <label class="conversation-search">
+            <span class="sr-only">搜索会话</span>
+            <input
+                    v-model="searchText"
+                    :aria-busy="searching"
+                    autocomplete="off"
+                    placeholder="搜索会话"
+                    type="search"
+                    @input="scheduleSearch"
+            />
+            <button
+                    v-if="searchText"
+                    aria-label="清除会话搜索"
+                    type="button"
+                    @click="clearSearch"
+            >
+                ×
+            </button>
+        </label>
+
         <p v-if="loading" class="panel-hint" role="status" aria-busy="true">
             加载会话中…
         </p>
-        <p v-else-if="conversations.length === 0" class="panel-hint" role="status">
+        <p v-else-if="searching" class="panel-hint" role="status" aria-busy="true">
+            搜索会话中…
+        </p>
+        <p
+                v-else-if="searchQuery && conversations.length === 0"
+                class="panel-hint"
+                role="status"
+        >
+            没有匹配“{{ searchQuery }}”的会话。
+        </p>
+        <p
+                v-else-if="!searchQuery && conversations.length === 0"
+                class="panel-hint"
+                role="status"
+        >
             还没有会话。打开好友列表，选择好友开始私聊或创建群聊。
         </p>
 
         <div class="conversation-list">
-            <button
+            <div
                     v-for="conversation in conversations"
                     :key="conversation.id"
-                    :class="{ active: conversation.id === activeId }"
-                    :aria-current="conversation.id === activeId ? 'true' : undefined"
+                    :class="{
+                        active: conversation.id === activeId,
+                        pinned: conversation.pinned,
+                    }"
                     class="conversation-item"
-                    type="button"
-                    @click="emit('select', conversation.id)"
             >
-        <span class="conversation-avatar">
-          {{ title(conversation).slice(0, 1) }}
-        </span>
-                <span class="conversation-copy">
-          <strong>{{ title(conversation) }}</strong>
-          <small>
-            {{ summary(conversation) }}
-            · 序号 {{ conversation.last_seq }}
-          </small>
-        </span>
-                <span v-if="conversation.unread_count > 0" class="unread-badge">
-          {{ conversation.unread_count > 99 ? '99+' : conversation.unread_count }}
-        </span>
-            </button>
+                <button
+                        :aria-current="conversation.id === activeId ? 'true' : undefined"
+                        class="conversation-open"
+                        type="button"
+                        @click="emit('select', conversation.id)"
+                >
+                    <span class="conversation-avatar">
+                        {{ title(conversation).slice(0, 1) }}
+                    </span>
+                    <span class="conversation-copy">
+                        <strong>{{ title(conversation) }}</strong>
+                        <small>
+                            <span v-if="conversation.pinned">置顶 · </span>
+                            {{ summary(conversation) }}
+                            · 序号 {{ conversation.last_seq }}
+                        </small>
+                    </span>
+                    <span
+                            v-if="conversation.unread_count > 0"
+                            class="unread-badge"
+                    >
+                        {{
+                            conversation.unread_count > 99
+                                ? '99+'
+                                : conversation.unread_count
+                        }}
+                    </span>
+                </button>
+                <button
+                        :aria-label="
+                            conversation.pinned
+                                ? `取消置顶${title(conversation)}`
+                                : `置顶${title(conversation)}`
+                        "
+                        :aria-pressed="conversation.pinned"
+                        class="conversation-pin"
+                        type="button"
+                        @click="
+                            emit(
+                                'togglePin',
+                                conversation.id,
+                                !conversation.pinned,
+                            )
+                        "
+                >
+                    {{ conversation.pinned ? '取消' : '置顶' }}
+                </button>
+            </div>
             <button
                     v-if="hasMore"
                     :disabled="loadingMore"
@@ -92,7 +199,13 @@ function summary(conversation: Conversation) {
                     type="button"
                     @click="emit('loadMore')"
             >
-                {{ loadingMore ? '加载中…' : '加载更多会话' }}
+                {{
+                    loadingMore
+                        ? '加载中…'
+                        : searchQuery
+                            ? '加载更多搜索结果'
+                            : '加载更多会话'
+                }}
             </button>
         </div>
     </aside>

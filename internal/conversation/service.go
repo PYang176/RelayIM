@@ -14,6 +14,7 @@ const (
 	maxGroupAvatarBytes        = 512
 	maxInvitationRemarkRunes   = 200
 	maxInvitationResponseRunes = 200
+	maxConversationSearchRunes = 64
 	defaultPageSize            = 20
 	maxPageSize                = 100
 	invitationTTL              = 7 * 24 * time.Hour
@@ -84,6 +85,12 @@ type InvitationPageQuery struct {
 type ConversationPageQuery struct {
 	// Limit 是本页最大记录数。
 	Limit int
+
+	// Search 是按会话展示标题匹配的关键字，空字符串表示不过滤。
+	Search string
+
+	// BeforePinned 是上一页最后一条会话是否位于置顶分组。
+	BeforePinned bool
 
 	// BeforeUpdatedAt 是上一页最后一条会话的 UTC 更新时间。
 	BeforeUpdatedAt time.Time
@@ -281,6 +288,9 @@ type Result struct {
 	// LastReadSeq 是当前用户最后已读序号。
 	LastReadSeq uint64
 
+	// Pinned 表示当前用户是否将会话置顶。
+	Pinned bool
+
 	// UnreadCount 是当前用户未读消息数。
 	UnreadCount uint64
 
@@ -293,8 +303,11 @@ type Result struct {
 
 // ConversationPage 是会话列表的一页。
 type ConversationPage struct {
-	// Conversations 是本页按最近活动时间倒序排列的会话。
+	// Conversations 是本页按置顶状态和最近活动时间排列的会话。
 	Conversations []Result
+
+	// NextPinned 是下一页游标中最后一条会话的置顶状态。
+	NextPinned bool
 
 	// NextUpdatedAt 是下一页游标中的最后活动时间。
 	NextUpdatedAt time.Time
@@ -688,19 +701,15 @@ func (s *Service) List(
 	userID uint64,
 	page ConversationPageQuery,
 ) (ConversationPage, error) {
+	page.Search = strings.TrimSpace(page.Search)
 	if userID == 0 ||
 		page.Limit <= 0 ||
-		page.Limit > maxPageSize {
+		page.Limit > maxPageSize ||
+		utf8.RuneCountInString(page.Search) > maxConversationSearchRunes {
 		return ConversationPage{}, ErrInvalidInput
 	}
 
-	records, hasMore, err := s.repo.ListForUser(
-		ctx,
-		userID,
-		page.Limit,
-		page.BeforeUpdatedAt,
-		page.BeforeID,
-	)
+	records, hasMore, err := s.repo.ListForUser(ctx, userID, page)
 	if err != nil {
 		return ConversationPage{}, err
 	}
@@ -720,6 +729,7 @@ func (s *Service) List(
 			AvatarURL:        stringValue(record.AvatarURL),
 			LastSeq:          record.LastSeq,
 			LastReadSeq:      record.LastReadSeq,
+			Pinned:           record.Pinned,
 			UnreadCount:      unread,
 			MemberCount:      record.MemberCount,
 			UpdatedAt:        record.UpdatedAt,
@@ -731,6 +741,7 @@ func (s *Service) List(
 	}
 	if hasMore && len(results) > 0 {
 		last := results[len(results)-1]
+		resultPage.NextPinned = last.Pinned
 		resultPage.NextUpdatedAt = last.UpdatedAt
 		resultPage.NextID = last.ID
 	}
@@ -763,10 +774,24 @@ func (s *Service) Get(
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
 		LastReadSeq:      record.LastReadSeq,
+		Pinned:           record.Pinned,
 		UnreadCount:      unread,
 		MemberCount:      record.MemberCount,
 		UpdatedAt:        record.UpdatedAt,
 	}, nil
+}
+
+// SetPinned 修改当前用户自己的会话置顶状态。
+func (s *Service) SetPinned(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+	pinned bool,
+) error {
+	if userID == 0 || conversationID == 0 {
+		return ErrInvalidInput
+	}
+	return s.repo.SetPinned(ctx, userID, conversationID, pinned)
 }
 
 func normalizeGroupMemberIDs(

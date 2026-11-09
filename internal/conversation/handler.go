@@ -73,6 +73,11 @@ type updateGroupProfileRequest struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
+type setPinnedRequest struct {
+	// Pinned 是目标置顶状态，true 置顶、false 取消置顶。
+	Pinned *bool `json:"pinned"`
+}
+
 // CreateDirect 处理 POST /api/v1/conversations/private。
 func (h *Handler) CreateDirect(c *gin.Context) {
 	userID, ok := currentUserID(c)
@@ -168,8 +173,12 @@ func (h *Handler) List(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"conversations": response,
-		"next_cursor":   encodeConversationCursor(result.NextUpdatedAt, result.NextID),
-		"has_more":      result.HasMore,
+		"next_cursor": encodeConversationCursor(
+			result.NextPinned,
+			result.NextUpdatedAt,
+			result.NextID,
+		),
+		"has_more": result.HasMore,
 	})
 }
 
@@ -189,6 +198,34 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, conversationResponse(result))
+}
+
+// SetPinned 处理 PUT /api/v1/conversations/:conversation_id/pin。
+func (h *Handler) SetPinned(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	var request setPinnedRequest
+	if err := c.ShouldBindJSON(&request); err != nil ||
+		request.Pinned == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return
+	}
+	if err := h.service.SetPinned(
+		c.Request.Context(),
+		userID,
+		conversationID,
+		*request.Pinned,
+	); err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // ListMembers 处理 GET /api/v1/conversations/:conversation_id/members。
@@ -610,6 +647,7 @@ func conversationResponse(result Result) gin.H {
 		"avatar_url":        result.AvatarURL,
 		"last_seq":          result.LastSeq,
 		"last_read_seq":     result.LastReadSeq,
+		"pinned":            result.Pinned,
 		"unread_count":      result.UnreadCount,
 		"member_count":      result.MemberCount,
 		"updated_at":        result.UpdatedAt,
@@ -620,6 +658,9 @@ func parseConversationPageQuery(
 	c *gin.Context,
 ) (ConversationPageQuery, bool) {
 	page := ConversationPageQuery{Limit: defaultPageSize}
+	if search := c.Query("q"); search != "" {
+		page.Search = search
+	}
 	if rawLimit := c.Query("limit"); rawLimit != "" {
 		limit, err := strconv.Atoi(rawLimit)
 		if err != nil || limit <= 0 || limit > maxPageSize {
@@ -632,45 +673,67 @@ func parseConversationPageQuery(
 		page.Limit = limit
 	}
 	if cursor := c.Query("cursor"); cursor != "" {
-		beforeUpdatedAt, beforeID, err := decodeConversationCursor(cursor)
+		beforePinned, beforeUpdatedAt, beforeID, err :=
+			decodeConversationCursor(cursor)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "cursor 格式错误"})
 			return ConversationPageQuery{}, false
 		}
+		page.BeforePinned = beforePinned
 		page.BeforeUpdatedAt = beforeUpdatedAt
 		page.BeforeID = beforeID
 	}
 	return page, true
 }
 
-func encodeConversationCursor(updatedAt time.Time, conversationID uint64) string {
+func encodeConversationCursor(
+	pinned bool,
+	updatedAt time.Time,
+	conversationID uint64,
+) string {
 	if updatedAt.IsZero() || conversationID == 0 {
 		return ""
 	}
-	raw := strconv.FormatInt(updatedAt.UnixMilli(), 10) +
+	pinnedValue := "0"
+	if pinned {
+		pinnedValue = "1"
+	}
+	raw := pinnedValue +
+		"|" +
+		strconv.FormatInt(updatedAt.UnixMilli(), 10) +
 		"|" +
 		strconv.FormatUint(conversationID, 10)
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func decodeConversationCursor(value string) (time.Time, uint64, error) {
+func decodeConversationCursor(
+	value string,
+) (bool, time.Time, uint64, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return time.Time{}, 0, err
+		return false, time.Time{}, 0, err
 	}
 	parts := strings.Split(string(decoded), "|")
-	if len(parts) != 2 {
-		return time.Time{}, 0, errors.New("游标字段数量错误")
+	if len(parts) != 3 {
+		return false, time.Time{}, 0, errors.New("游标字段数量错误")
 	}
-	milliseconds, err := strconv.ParseInt(parts[0], 10, 64)
+	var pinned bool
+	switch parts[0] {
+	case "0":
+	case "1":
+		pinned = true
+	default:
+		return false, time.Time{}, 0, errors.New("游标置顶状态错误")
+	}
+	milliseconds, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil || milliseconds <= 0 {
-		return time.Time{}, 0, errors.New("游标时间错误")
+		return false, time.Time{}, 0, errors.New("游标时间错误")
 	}
-	conversationID, err := strconv.ParseUint(parts[1], 10, 64)
+	conversationID, err := strconv.ParseUint(parts[2], 10, 64)
 	if err != nil || conversationID == 0 {
-		return time.Time{}, 0, errors.New("游标会话 ID 错误")
+		return false, time.Time{}, 0, errors.New("游标会话 ID 错误")
 	}
-	return time.UnixMilli(milliseconds).UTC(), conversationID, nil
+	return pinned, time.UnixMilli(milliseconds).UTC(), conversationID, nil
 }
 
 func parseConversationID(c *gin.Context) (uint64, bool) {

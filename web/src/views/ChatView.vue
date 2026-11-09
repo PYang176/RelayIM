@@ -400,14 +400,19 @@ onBeforeUnmount(() => {
         <section class="chat-layout">
             <ConversationList
                     :active-id="chat.activeConversationId"
-                    :conversations="chat.conversations"
-                    :has-more="chat.hasMoreConversations"
+                    :conversations="chat.displayedConversations"
+                    :has-more="chat.hasMoreDisplayedConversations"
                     :loading="chat.loadingConversations"
                     :loading-more="chat.loadingMoreConversations"
+                    :search-query="chat.conversationSearchQuery"
+                    :searching="chat.searchingConversations"
+                    @clear-search="chat.clearConversationSearch"
                     @create-group="openGroupCreator"
                     @load-more="chat.loadMoreConversations"
                     @open-friends="friendsOpen = true"
+                    @search="chat.searchConversations"
                     @select="selectConversation"
+                    @toggle-pin="chat.setConversationPinned"
             />
 
             <section class="conversation-main">

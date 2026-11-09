@@ -70,6 +70,7 @@ def conversation_payload(index: int) -> dict[str, Any]:
         "avatar_url": "",
         "last_seq": 100 - index,
         "last_read_seq": 100 - index,
+        "pinned": False,
         "unread_count": 0,
         "member_count": 2,
         "updated_at": updated_at.isoformat().replace("+00:00", "Z"),
@@ -212,7 +213,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
             selected = conversation_items.last
             selected_title = selected.locator(".conversation-copy strong").inner_text()
-            selected.click()
+            selected.locator(".conversation-open").click()
             expect(page.locator(".conversation-item.active")).to_contain_text(
                 selected_title
             )

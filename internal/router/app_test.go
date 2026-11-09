@@ -50,6 +50,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		"DELETE /api/v1/friends/:user_id",
 		"GET /api/v1/conversations",
 		"GET /api/v1/conversations/:conversation_id",
+		"PUT /api/v1/conversations/:conversation_id/pin",
 		"POST /api/v1/conversations/private",
 		"POST /api/v1/conversations/groups",
 		"GET /api/v1/conversations/:conversation_id/members",
