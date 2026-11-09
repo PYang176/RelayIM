@@ -114,6 +114,22 @@ export interface MessagePage {
     has_more: boolean
 }
 
+export interface MessageSearchResult {
+    message_id: string
+    conversation_id: string
+    sender_id: string
+    sender_name: string
+    seq: number
+    content: string
+    created_at: string
+}
+
+export interface MessageSearchPage {
+    messages: MessageSearchResult[]
+    next_before_seq: number
+    has_more: boolean
+}
+
 export interface SendMessageResponse {
     message_id: string
     conversation_id: string

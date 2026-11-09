@@ -29,6 +29,10 @@ type MessageSender interface {
 // MessageReader 是 Handler 查询历史消息所需的最小业务能力。
 type MessageReader interface {
 	ListMessages(ctx context.Context, command ListMessagesCommand) (MessagePage, error)
+	SearchMessages(
+		ctx context.Context,
+		command SearchMessagesCommand,
+	) (MessageSearchPage, error)
 	ListReadStates(
 		ctx context.Context,
 		userID uint64,
@@ -171,6 +175,29 @@ type messageHistoryResponse struct {
 
 	// RecalledBy 是执行撤回的用户 Snowflake ID 字符串。
 	RecalledBy string `json:"recalled_by,omitempty"`
+
+	// CreatedAt 是消息创建的 UTC 时间。
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type messageSearchResponse struct {
+	// MessageID 是消息 Snowflake ID 字符串。
+	MessageID string `json:"message_id"`
+
+	// ConversationID 是消息所属会话 Snowflake ID 字符串。
+	ConversationID string `json:"conversation_id"`
+
+	// SenderID 是发送者 Snowflake ID 字符串。
+	SenderID string `json:"sender_id"`
+
+	// SenderName 是发送者昵称或用户名。
+	SenderName string `json:"sender_name"`
+
+	// Seq 是消息在会话内的递增序号。
+	Seq uint64 `json:"seq"`
+
+	// Content 是命中的消息正文。
+	Content string `json:"content"`
 
 	// CreatedAt 是消息创建的 UTC 时间。
 	CreatedAt time.Time `json:"created_at"`
@@ -361,6 +388,65 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"messages": response,
 		"has_more": page.HasMore,
+	})
+}
+
+// SearchMessages 处理 GET /api/v1/conversations/:conversation_id/messages/search。
+func (h *Handler) SearchMessages(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	conversationID, err := strconv.ParseUint(
+		c.Param("conversation_id"),
+		10,
+		64,
+	)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return
+	}
+	beforeSeq, ok := parseOptionalUint64Query(c, "before_seq")
+	if !ok {
+		return
+	}
+	limit, ok := parseOptionalIntQuery(c, "limit")
+	if !ok {
+		return
+	}
+
+	page, err := h.reader.SearchMessages(
+		c.Request.Context(),
+		SearchMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         userID,
+			Query:          c.Query("q"),
+			BeforeSeq:      beforeSeq,
+			Limit:          limit,
+		},
+	)
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+
+	response := make([]messageSearchResponse, 0, len(page.Messages))
+	for _, message := range page.Messages {
+		response = append(response, messageSearchResponse{
+			MessageID:      strconv.FormatUint(message.ID, 10),
+			ConversationID: strconv.FormatUint(message.ConversationID, 10),
+			SenderID:       strconv.FormatUint(message.SenderID, 10),
+			SenderName:     message.SenderName,
+			Seq:            message.Seq,
+			Content:        message.Content,
+			CreatedAt:      message.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"messages":        response,
+		"next_before_seq": page.NextBeforeSeq,
+		"has_more":        page.HasMore,
 	})
 }
 
@@ -691,7 +777,9 @@ func parseOptionalIntQuery(c *gin.Context, key string) (int, bool) {
 
 func writeMessagingError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ErrInvalidMessage), errors.Is(err, ErrInvalidReply):
+	case errors.Is(err, ErrInvalidMessage),
+		errors.Is(err, ErrInvalidReply),
+		errors.Is(err, ErrInvalidSearchQuery):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrInvalidReadSequence):
 		c.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidReadSequence.Error()})

@@ -11,6 +11,8 @@ const (
 	maxTextContentRunes = 8000
 	defaultHistoryLimit = 20
 	maxHistoryLimit     = 100
+	minSearchQueryRunes = 2
+	maxSearchQueryRunes = 64
 	senderRecallWindow  = 2 * time.Minute
 	managerRecallWindow = 24 * time.Hour
 )
@@ -135,6 +137,60 @@ type MessagePage struct {
 	Messages []MessageResult
 
 	// HasMore 表示当前查询方向仍存在更多消息。
+	HasMore bool
+}
+
+// SearchMessagesCommand 是会话内消息正文搜索参数。
+type SearchMessagesCommand struct {
+	// ConversationID 是待搜索会话 Snowflake ID。
+	ConversationID uint64
+
+	// UserID 是当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// Query 是去除首尾空白后的全文搜索词。
+	Query string
+
+	// BeforeSeq 大于零时返回该序号之前的一页搜索结果。
+	BeforeSeq uint64
+
+	// Limit 是分页数量，默认 20，最大 100。
+	Limit int
+}
+
+// MessageSearchResult 是可安全展示的消息搜索结果。
+type MessageSearchResult struct {
+	// ID 是消息 Snowflake ID。
+	ID uint64
+
+	// ConversationID 是消息所属会话 Snowflake ID。
+	ConversationID uint64
+
+	// SenderID 是发送者 Snowflake ID。
+	SenderID uint64
+
+	// SenderName 是发送者昵称或用户名。
+	SenderName string
+
+	// Seq 是消息在会话内的递增序号。
+	Seq uint64
+
+	// Content 是命中的消息正文。
+	Content string
+
+	// CreatedAt 是消息创建的 UTC 时间。
+	CreatedAt time.Time
+}
+
+// MessageSearchPage 是一页消息搜索结果。
+type MessageSearchPage struct {
+	// Messages 按会话序号倒序返回。
+	Messages []MessageSearchResult
+
+	// NextBeforeSeq 是下一页游标，没有更多结果时为零。
+	NextBeforeSeq uint64
+
+	// HasMore 表示当前结果之后仍有更早的匹配消息。
 	HasMore bool
 }
 
@@ -319,6 +375,63 @@ func (s *Service) ListMessages(
 		Messages: results,
 		HasMore:  hasMore,
 	}, nil
+}
+
+// SearchMessages 返回当前会话成员可见的正文搜索结果。
+func (s *Service) SearchMessages(
+	ctx context.Context,
+	command SearchMessagesCommand,
+) (MessageSearchPage, error) {
+	command.Query = strings.TrimSpace(command.Query)
+	if command.ConversationID == 0 ||
+		command.UserID == 0 {
+		return MessageSearchPage{}, ErrInvalidMessage
+	}
+	queryRunes := utf8.RuneCountInString(command.Query)
+	if queryRunes < minSearchQueryRunes || queryRunes > maxSearchQueryRunes {
+		return MessageSearchPage{}, ErrInvalidSearchQuery
+	}
+	if command.Limit == 0 {
+		command.Limit = defaultHistoryLimit
+	}
+	if command.Limit < 0 || command.Limit > maxHistoryLimit {
+		return MessageSearchPage{}, ErrInvalidMessage
+	}
+
+	records, hasMore, err := s.repo.searchMessages(
+		ctx,
+		searchMessagesInput{
+			ConversationID: command.ConversationID,
+			UserID:         command.UserID,
+			Query:          command.Query,
+			BeforeSeq:      command.BeforeSeq,
+			Limit:          command.Limit,
+		},
+	)
+	if err != nil {
+		return MessageSearchPage{}, err
+	}
+
+	results := make([]MessageSearchResult, 0, len(records))
+	for _, record := range records {
+		results = append(results, MessageSearchResult{
+			ID:             record.ID,
+			ConversationID: record.ConversationID,
+			SenderID:       record.SenderID,
+			SenderName:     stringValue(record.SenderName),
+			Seq:            record.Seq,
+			Content:        record.Content,
+			CreatedAt:      record.CreatedAt,
+		})
+	}
+	page := MessageSearchPage{
+		Messages: results,
+		HasMore:  hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		page.NextBeforeSeq = results[len(results)-1].Seq
+	}
+	return page, nil
 }
 
 // RecallMessage 校验撤回时间窗和群权限后写入撤回状态与可靠事件。

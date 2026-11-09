@@ -14,6 +14,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - 群主可以修改群名称、群头像、转让群主或解散群。
 - 文本、图片和普通文件消息。
 - 消息幂等、会话内连续 `seq`、最新页重同步、历史懒加载和实时缺口补拉。
+- 聊天记录面板和会话内中文消息全文搜索，支持结果游标分页。
 - WebSocket 单写协程、有界队列、送达 ACK、已读游标和慢连接隔离。
 - Redis 多设备在线状态、批量查询和前端在线人数展示。
 - Redis 实例路由与 RabbitMQ 节点队列，支持跨 Go 实例 WebSocket 投递。
@@ -176,6 +177,12 @@ python scripts\conversation-pagination-e2e.py
 
 ```powershell
 python scripts\conversation-search-pin-e2e.py
+```
+
+聊天记录面板与会话内消息搜索可运行：
+
+```powershell
+python scripts\message-history-search-e2e.py
 ```
 
 群邀请审批链路可运行：

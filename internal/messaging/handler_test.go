@@ -25,12 +25,15 @@ type stubTextMessageSender struct {
 }
 
 type stubMessageReader struct {
-	page       MessagePage
-	readStates []ReadStateResult
-	delivery   DeliverySummary
-	err        error
-	calls      int
-	command    ListMessagesCommand
+	page          MessagePage
+	searchPage    MessageSearchPage
+	readStates    []ReadStateResult
+	delivery      DeliverySummary
+	err           error
+	calls         int
+	searchCalls   int
+	command       ListMessagesCommand
+	searchCommand SearchMessagesCommand
 }
 
 func (s *stubMessageReader) ListMessages(
@@ -48,6 +51,15 @@ func (s *stubMessageReader) ListReadStates(
 	_ uint64,
 ) ([]ReadStateResult, error) {
 	return s.readStates, s.err
+}
+
+func (s *stubMessageReader) SearchMessages(
+	_ context.Context,
+	command SearchMessagesCommand,
+) (MessageSearchPage, error) {
+	s.searchCalls++
+	s.searchCommand = command
+	return s.searchPage, s.err
 }
 
 func (s *stubMessageReader) GetDeliverySummary(
@@ -486,6 +498,64 @@ func TestHandlerListMessages(t *testing.T) {
 	}
 }
 
+func TestHandlerSearchMessages(t *testing.T) {
+	createdAt := time.Date(2026, time.November, 10, 9, 30, 0, 0, time.UTC)
+	reader := &stubMessageReader{
+		searchPage: MessageSearchPage{
+			Messages: []MessageSearchResult{
+				{
+					ID:             100,
+					ConversationID: 200,
+					SenderID:       42,
+					SenderName:     "北辰",
+					Seq:            18,
+					Content:        "并发消息搜索",
+					CreatedAt:      createdAt,
+				},
+			},
+			NextBeforeSeq: 18,
+			HasMore:       true,
+		},
+	}
+	router := newMessagingReaderRouter(reader, 42)
+
+	response := performSearchMessagesRequest(
+		router,
+		"200",
+		"q=%E5%B9%B6%E5%8F%91&before_seq=20&limit=2",
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d，期望 200，响应 = %s",
+			response.Code,
+			response.Body.String(),
+		)
+	}
+	if reader.searchCalls != 1 ||
+		reader.searchCommand.ConversationID != 200 ||
+		reader.searchCommand.UserID != 42 ||
+		reader.searchCommand.Query != "并发" ||
+		reader.searchCommand.BeforeSeq != 20 ||
+		reader.searchCommand.Limit != 2 {
+		t.Fatalf("消息搜索命令 = %+v", reader.searchCommand)
+	}
+
+	var body struct {
+		Messages      []messageSearchResponse `json:"messages"`
+		NextBeforeSeq uint64                  `json:"next_before_seq"`
+		HasMore       bool                    `json:"has_more"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析消息搜索响应失败: %v", err)
+	}
+	if len(body.Messages) != 1 ||
+		body.Messages[0].MessageID != "100" ||
+		body.Messages[0].SenderName != "北辰" ||
+		body.NextBeforeSeq != 18 ||
+		!body.HasMore {
+		t.Fatalf("消息搜索响应 = %+v", body)
+	}
+}
+
 func TestHandlerListMessagesRejectsInvalidRequest(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -645,6 +715,10 @@ func newMessagingReaderRouter(
 		handler.ListMessages,
 	)
 	router.GET(
+		"/api/v1/conversations/:conversation_id/messages/search",
+		handler.SearchMessages,
+	)
+	router.GET(
 		"/api/v1/conversations/:conversation_id/read-states",
 		handler.ListReadStates,
 	)
@@ -679,6 +753,21 @@ func performListMessagesRequest(
 	request := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/conversations/"+conversationID+"/messages?"+query,
+		nil,
+	)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	return response
+}
+
+func performSearchMessagesRequest(
+	router http.Handler,
+	conversationID string,
+	query string,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/conversations/"+conversationID+"/messages/search?"+query,
 		nil,
 	)
 	response := httptest.NewRecorder()

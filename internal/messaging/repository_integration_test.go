@@ -305,6 +305,54 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		t.Fatalf("非成员查询历史错误 = %v，期望 ErrNotMember", err)
 	}
 
+	searchPage, err := service.SearchMessages(
+		context.Background(),
+		SearchMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         memberID,
+			Query:          "并发",
+			Limit:          2,
+		},
+	)
+	if err != nil {
+		t.Fatalf("搜索会话消息失败: %v", err)
+	}
+	if len(searchPage.Messages) != 2 ||
+		searchPage.Messages[0].Seq != 6 ||
+		searchPage.Messages[1].Seq != 5 ||
+		!searchPage.HasMore ||
+		searchPage.NextBeforeSeq != 5 ||
+		searchPage.Messages[0].SenderName == "" {
+		t.Fatalf("消息搜索第一页 = %+v", searchPage)
+	}
+	searchNext, err := service.SearchMessages(
+		context.Background(),
+		SearchMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         memberID,
+			Query:          "并发",
+			BeforeSeq:      searchPage.NextBeforeSeq,
+			Limit:          2,
+		},
+	)
+	if err != nil ||
+		len(searchNext.Messages) != 2 ||
+		searchNext.Messages[0].Seq != 4 ||
+		searchNext.Messages[1].Seq != 3 {
+		t.Fatalf("消息搜索第二页 = %+v, err=%v", searchNext, err)
+	}
+	if _, err := service.SearchMessages(
+		context.Background(),
+		SearchMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         outsiderID,
+			Query:          "并发",
+			Limit:          2,
+		},
+	); !errors.Is(err, ErrNotMember) {
+		t.Fatalf("非成员搜索消息错误 = %v，期望 ErrNotMember", err)
+	}
+
 	if err := service.AcknowledgeMessage(
 		context.Background(),
 		memberID,

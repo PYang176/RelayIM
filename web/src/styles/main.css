@@ -977,7 +977,8 @@ a:focus-visible {
 }
 
 .group-dialog,
-.group-members-dialog {
+.group-members-dialog,
+.message-history-dialog {
     width: min(38rem, calc(100vw - 2rem));
     max-width: none;
     max-height: min(46rem, calc(100dvh - 2rem));
@@ -989,18 +990,118 @@ a:focus-visible {
 }
 
 .group-dialog::backdrop,
-.group-members-dialog::backdrop {
+.group-members-dialog::backdrop,
+.message-history-dialog::backdrop {
     background: rgba(21, 52, 59, 0.42);
 }
 
 .group-dialog-card,
-.group-members-card {
+.group-members-card,
+.message-history-card {
     max-height: inherit;
     display: flex;
     flex-direction: column;
     gap: 1.125rem;
     padding: 1.25rem;
     overflow-y: auto;
+}
+
+.message-history-card {
+    min-height: min(42rem, calc(100dvh - 2rem));
+    gap: 0.875rem;
+    overflow: hidden;
+}
+
+.message-history-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.message-history-header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.message-history-header p {
+    margin: 0.25rem 0 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.message-history-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.5rem;
+}
+
+.message-history-search input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.6875rem 0.75rem;
+    color: var(--ink);
+    background: white;
+    font: inherit;
+    font-size: 0.8125rem;
+}
+
+.message-history-search input:focus {
+    border-color: var(--focus);
+    outline: 2px solid var(--signal-soft);
+    outline-offset: 1px;
+}
+
+.message-history-results {
+    min-height: 12rem;
+    display: grid;
+    align-content: start;
+    gap: 0.5rem;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.message-history-entry {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    background: color-mix(in srgb, var(--surface-muted) 55%, white);
+}
+
+.message-history-entry header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+    font-size: 0.6875rem;
+}
+
+.message-history-entry header strong {
+    color: var(--ink);
+    font-size: 0.75rem;
+}
+
+.message-history-entry header time {
+    margin-left: auto;
+}
+
+.message-history-entry p {
+    margin: 0.5rem 0 0;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.message-history-footer {
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--line);
+    padding-top: 0.75rem;
 }
 
 .group-member-manage-list {
@@ -1504,7 +1605,8 @@ a:focus-visible {
     }
 
     .group-dialog,
-    .group-members-dialog {
+    .group-members-dialog,
+    .message-history-dialog {
         width: 100vw;
         height: 100dvh;
         max-height: none;
@@ -1514,9 +1616,22 @@ a:focus-visible {
     }
 
     .group-dialog-card,
-    .group-members-card {
+    .group-members-card,
+    .message-history-card {
         min-height: 100%;
         padding: 1rem;
+    }
+
+    .message-history-card {
+        height: 100%;
+    }
+
+    .message-history-search {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .message-history-search .ghost-button {
+        grid-column: 1 / -1;
     }
 
     .group-member-manage-row {

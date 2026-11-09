@@ -3,6 +3,7 @@ import type {
     AttachmentResponse,
     DeliverySummary,
     MessagePage,
+    MessageSearchPage,
     ReadState,
     SendMessageResponse,
 } from '@/types/api'
@@ -17,6 +18,25 @@ export function listMessages(
     if (query.beforeSeq) params.set('before_seq', String(query.beforeSeq))
     params.set('limit', String(query.limit ?? 30))
     return request(`/conversations/${conversationId}/messages?${params}`, {}, token)
+}
+
+export function searchMessages(
+    token: string,
+    conversationId: string,
+    query: string,
+    beforeSeq = 0,
+    limit = 20,
+): Promise<MessageSearchPage> {
+    const params = new URLSearchParams({
+        q: query,
+        limit: String(limit),
+    })
+    if (beforeSeq) params.set('before_seq', String(beforeSeq))
+    return request(
+        `/conversations/${conversationId}/messages/search?${params}`,
+        {},
+        token,
+    )
 }
 
 export function sendText(

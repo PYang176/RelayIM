@@ -44,6 +44,14 @@ type listMessagesInput struct {
 	Limit          int
 }
 
+type searchMessagesInput struct {
+	ConversationID uint64
+	UserID         uint64
+	Query          string
+	BeforeSeq      uint64
+	Limit          int
+}
+
 type readStateRecord struct {
 	UserID      uint64 `gorm:"column:user_id"`
 	LastReadSeq uint64 `gorm:"column:last_read_seq"`
@@ -313,30 +321,12 @@ func (r *Repository) listMessages(
 	ctx context.Context,
 	input listMessagesInput,
 ) ([]message, bool, error) {
-	var conversationRecord conversation
-	err := r.db.WithContext(ctx).
-		Where("id = ? AND status = ?", input.ConversationID, conversationStatusActive).
-		First(&conversationRecord).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, false, ErrConversationNotFound
-	}
-	if err != nil {
-		return nil, false, fmt.Errorf("查询历史消息会话: %w", err)
-	}
-
-	var member conversationMember
-	err = r.db.WithContext(ctx).
-		Where(
-			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
-			input.ConversationID,
-			input.UserID,
-		).
-		First(&member).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, false, ErrNotMember
-	}
-	if err != nil {
-		return nil, false, fmt.Errorf("校验历史消息成员: %w", err)
+	if err := r.ensureActiveMember(
+		ctx,
+		input.ConversationID,
+		input.UserID,
+	); err != nil {
+		return nil, false, err
 	}
 
 	ascending := input.AfterSeq > 0
@@ -369,6 +359,88 @@ func (r *Repository) listMessages(
 	if !ascending {
 		// 向前翻页和默认最近消息先倒序查询，再统一转成 seq 升序响应。
 		slices.Reverse(records)
+	}
+	return records, hasMore, nil
+}
+
+func (r *Repository) ensureActiveMember(
+	ctx context.Context,
+	conversationID uint64,
+	userID uint64,
+) error {
+	var conversationRecord conversation
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND status = ?", conversationID, conversationStatusActive).
+		First(&conversationRecord).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrConversationNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("查询消息会话: %w", err)
+	}
+
+	var member conversationMember
+	err = r.db.WithContext(ctx).
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			userID,
+		).
+		First(&member).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrNotMember
+	}
+	if err != nil {
+		return fmt.Errorf("校验消息成员: %w", err)
+	}
+	return nil
+}
+
+// searchMessages 在单个会话内使用 ngram 全文索引检索消息正文。
+func (r *Repository) searchMessages(
+	ctx context.Context,
+	input searchMessagesInput,
+) ([]message, bool, error) {
+	if err := r.ensureActiveMember(
+		ctx,
+		input.ConversationID,
+		input.UserID,
+	); err != nil {
+		return nil, false, err
+	}
+
+	query := r.db.WithContext(ctx).
+		Table("messages AS m").
+		Select(
+			"m.id, m.conversation_id, m.seq, m.sender_id, "+
+				"m.message_type, m.content, m.created_at, "+
+				"COALESCE(up.nickname, u.username, '未知用户') "+
+				"AS sender_name",
+		).
+		Joins("JOIN users AS u ON u.id = m.sender_id").
+		Joins("LEFT JOIN user_profiles AS up ON up.user_id = u.id").
+		Where(
+			"m.conversation_id = ? AND m.recalled_at IS NULL "+
+				"AND MATCH(m.content) AGAINST "+
+				"(? IN NATURAL LANGUAGE MODE)",
+			input.ConversationID,
+			input.Query,
+		)
+	if input.BeforeSeq > 0 {
+		query = query.Where("m.seq < ?", input.BeforeSeq)
+	}
+
+	records := make([]message, 0, input.Limit+1)
+	if err := query.
+		Order("m.seq DESC").
+		Limit(input.Limit + 1).
+		Find(&records).Error; err != nil {
+		return nil, false, fmt.Errorf("搜索会话消息: %w", err)
+	}
+
+	hasMore := len(records) > input.Limit
+	if hasMore {
+		records = records[:input.Limit]
 	}
 	return records, hasMore, nil
 }

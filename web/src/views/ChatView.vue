@@ -14,6 +14,7 @@ import FriendsDrawer from '@/components/FriendsDrawer.vue'
 import GroupInvitationsDialog from '@/components/GroupInvitationsDialog.vue'
 import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
+import MessageHistoryDialog from '@/components/MessageHistoryDialog.vue'
 import MessageList from '@/components/MessageList.vue'
 import ProfileDialog from '@/components/ProfileDialog.vue'
 import {useAuthStore} from '@/stores/auth'
@@ -37,6 +38,7 @@ const memberActionError = shallowRef('')
 const profileDialogOpen = shallowRef(false)
 const savingProfile = shallowRef(false)
 const profileError = shallowRef('')
+const messageHistoryOpen = shallowRef(false)
 let presenceTimer = 0
 
 const connectionLabel = computed(() => {
@@ -450,6 +452,13 @@ onBeforeUnmount(() => {
                                 </span>
                             </p>
                         </div>
+                        <button
+                                class="ghost-button"
+                                type="button"
+                                @click="messageHistoryOpen = true"
+                        >
+                            聊天记录
+                        </button>
                     </header>
 
                     <div
@@ -568,6 +577,13 @@ onBeforeUnmount(() => {
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"
                 @update-profile="updateGroupProfile"
+        />
+
+        <MessageHistoryDialog
+                :conversation-id="chat.activeConversationId"
+                :conversation-title="activeConversationTitle"
+                :open="messageHistoryOpen"
+                @close="messageHistoryOpen = false"
         />
 
         <ProfileDialog

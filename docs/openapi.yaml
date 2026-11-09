@@ -1062,6 +1062,52 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+  /api/v1/conversations/{conversation_id}/messages/search:
+    get:
+      tags: [Message]
+      summary: 搜索当前会话的文字消息
+      operationId: searchMessages
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - name: q
+          in: query
+          required: true
+          description: 全文搜索词，2 到 64 个 Unicode 字符
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 64
+        - name: before_seq
+          in: query
+          required: false
+          description: 返回该消息序号之前的更多搜索结果
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 按消息序号倒序返回的会话内全文搜索结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageSearchPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/conversations/{conversation_id}/messages/{message_id}:
     delete:
       tags: [Message]
@@ -1999,6 +2045,52 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MessageHistory"
+        has_more:
+          type: boolean
+    MessageSearchResult:
+      type: object
+      required:
+        [
+          message_id,
+          conversation_id,
+          sender_id,
+          sender_name,
+          seq,
+          content,
+          created_at,
+        ]
+      properties:
+        message_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        conversation_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        sender_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        sender_name:
+          type: string
+          description: 发送者昵称；没有昵称时使用用户名
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    MessageSearchPage:
+      type: object
+      required: [messages, next_before_seq, has_more]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageSearchResult"
+        next_before_seq:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 下一页搜索结果游标；没有下一页时为 0
         has_more:
           type: boolean
     ReadState:

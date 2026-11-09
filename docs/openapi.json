@@ -968,6 +968,70 @@
         ],
         "type": "object"
       },
+      "MessageSearchPage": {
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSearchResult"
+            },
+            "type": "array"
+          },
+          "next_before_seq": {
+            "description": "下一页搜索结果游标；没有下一页时为 0",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "messages",
+          "next_before_seq",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      "MessageSearchResult": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "conversation_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "sender_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "sender_name": {
+            "description": "发送者昵称；没有昵称时使用用户名",
+            "type": "string"
+          },
+          "seq": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message_id",
+          "conversation_id",
+          "sender_id",
+          "sender_name",
+          "seq",
+          "content",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "PresenceQuery": {
         "properties": {
           "user_ids": {
@@ -2344,6 +2408,77 @@
           }
         },
         "summary": "发送文本、图片或文件消息",
+        "tags": [
+          "Message"
+        ]
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/messages/search": {
+      "get": {
+        "operationId": "searchMessages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationID"
+          },
+          {
+            "description": "全文搜索词，2 到 64 个 Unicode 字符",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "返回该消息序号之前的更多搜索结果",
+            "in": "query",
+            "name": "before_seq",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSearchPage"
+                }
+              }
+            },
+            "description": "按消息序号倒序返回的会话内全文搜索结果"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "搜索当前会话的文字消息",
         "tags": [
           "Message"
         ]

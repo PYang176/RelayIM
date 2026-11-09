@@ -122,6 +122,64 @@ func TestServiceListMessagesValidation(t *testing.T) {
 	}
 }
 
+func TestServiceSearchMessagesValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command SearchMessagesCommand
+		wantErr error
+	}{
+		{
+			name:    "缺少会话 ID",
+			command: SearchMessagesCommand{UserID: 1, Query: "消息"},
+			wantErr: ErrInvalidMessage,
+		},
+		{
+			name: "搜索词过短",
+			command: SearchMessagesCommand{
+				ConversationID: 1,
+				UserID:         1,
+				Query:          "搜",
+			},
+			wantErr: ErrInvalidSearchQuery,
+		},
+		{
+			name: "搜索词过长",
+			command: SearchMessagesCommand{
+				ConversationID: 1,
+				UserID:         1,
+				Query:          strings.Repeat("搜", maxSearchQueryRunes+1),
+			},
+			wantErr: ErrInvalidSearchQuery,
+		},
+		{
+			name: "分页数量超过上限",
+			command: SearchMessagesCommand{
+				ConversationID: 1,
+				UserID:         1,
+				Query:          "消息",
+				Limit:          maxHistoryLimit + 1,
+			},
+			wantErr: ErrInvalidMessage,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.SearchMessages(
+				context.Background(),
+				test.command,
+			)
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf(
+					"SearchMessages() 错误 = %v，期望 %v",
+					err,
+					test.wantErr,
+				)
+			}
+		})
+	}
+}
+
 func TestServiceReceiptValidation(t *testing.T) {
 	service := NewService(nil)
 	if err := service.AcknowledgeMessage(

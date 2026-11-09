@@ -32,6 +32,13 @@ var (
 		GlobalLimit:  200,
 		Window:       time.Minute,
 	}
+	messageSearchRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "message_search",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 30,
+		GlobalLimit:  300,
+		Window:       time.Minute,
+	}
 )
 
 // Register 注册消息路由。
@@ -59,6 +66,15 @@ func Register(
 	)
 	group.GET("/:conversation_id/read-states", handler.ListReadStates)
 	group.GET("/:conversation_id/messages", handler.ListMessages)
+	group.GET(
+		"/:conversation_id/messages/search",
+		middleware.RateLimit(
+			requestLimiter,
+			messageSearchRateLimitPolicy,
+			metrics,
+		),
+		handler.SearchMessages,
+	)
 	group.POST(
 		"/:conversation_id/messages",
 		middleware.RateLimit(requestLimiter, messageRateLimitPolicy, metrics),

@@ -118,6 +118,9 @@ type message struct {
 	// AttachmentObjectKey 是查询历史消息时联表得到的对象键。
 	AttachmentObjectKey *string `gorm:"->;column:attachment_object_key"`
 
+	// SenderName 是消息搜索结果联表得到的发送者公开名称。
+	SenderName *string `gorm:"->;column:sender_name"`
+
 	// CreatedAt 是服务端接受消息的 UTC 时间。
 	CreatedAt time.Time `gorm:"column:created_at"`
 
