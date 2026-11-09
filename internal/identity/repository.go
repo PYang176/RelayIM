@@ -96,19 +96,22 @@ func (r *Repository) UpdateProfile(
 	ctx context.Context,
 	userID uint64,
 	nickname string,
-	avatarURL string,
+	avatarURL *string,
 	bio string,
 	updatedAt time.Time,
 ) error {
+	updates := map[string]any{
+		"nickname":   nickname,
+		"bio":        nullableString(bio),
+		"updated_at": updatedAt,
+	}
+	if avatarURL != nil {
+		updates["avatar_url"] = nullableString(*avatarURL)
+	}
 	result := r.db.WithContext(ctx).
 		Model(&userProfile{}).
 		Where("user_id = ?", userID).
-		Updates(map[string]any{
-			"nickname":   nickname,
-			"avatar_url": nullableString(avatarURL),
-			"bio":        nullableString(bio),
-			"updated_at": updatedAt,
-		})
+		Updates(updates)
 	if result.Error != nil {
 		return fmt.Errorf("更新用户资料: %w", result.Error)
 	}
@@ -127,6 +130,40 @@ func (r *Repository) UpdateProfile(
 	}
 	if count != 1 {
 		return ErrUserNotFound
+	}
+	return nil
+}
+
+// UpdateAvatar 原子更新头像对象键和对外展示地址。
+func (r *Repository) UpdateAvatar(
+	ctx context.Context,
+	userID uint64,
+	objectKey *string,
+	avatarURL string,
+	updatedAt time.Time,
+) error {
+	result := r.db.WithContext(ctx).
+		Model(&userProfile{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]any{
+			"avatar_object_key": objectKey,
+			"avatar_url":        nullableString(avatarURL),
+			"updated_at":        updatedAt,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("更新用户头像: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		var count int64
+		if err := r.db.WithContext(ctx).
+			Model(&userProfile{}).
+			Where("user_id = ?", userID).
+			Count(&count).Error; err != nil {
+			return fmt.Errorf("确认用户头像资料存在: %w", err)
+		}
+		if count != 1 {
+			return ErrUserNotFound
+		}
 	}
 	return nil
 }

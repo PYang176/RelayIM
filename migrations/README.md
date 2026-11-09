@@ -24,6 +24,7 @@
 | `00011_group_invitation_response.sql` | 审批回复备注和群邀请历史分页索引 |
 | `00012_conversation_member_pinning.sql` | 会话成员个人置顶时间 |
 | `00013_message_fulltext_search.sql` | 消息正文 ngram 全文索引 |
+| `00014_user_avatar_object.sql` | 用户上传头像对象键 |
 
 ## 执行迁移
 

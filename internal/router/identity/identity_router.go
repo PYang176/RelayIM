@@ -40,19 +40,31 @@ var (
 		GlobalLimit:  200,
 		Window:       time.Minute,
 	}
+	avatarUploadRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "profile_avatar_upload",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 10,
+		GlobalLimit:  100,
+		Window:       time.Minute,
+	}
 )
 
 // Register 注册用户认证路由。
 func Register(
 	r *gin.Engine,
 	db *gorm.DB,
+	avatars identityapp.AvatarStorage,
 	wsTicketLimiter middleware.WSTicketRateLimiter,
 	requestLimiter middleware.RateLimitChecker,
 	metrics *observability.Metrics,
 ) {
 	// 认证模块只依赖 users 和 user_profiles 表。
 	repo := identityapp.NewRepository(db)
-	identityService := identityapp.NewService(repo, authn.DefaultManager)
+	identityService := identityapp.NewServiceWithAvatarStorage(
+		repo,
+		authn.DefaultManager,
+		avatars,
+	)
 	handler := identityapp.NewHandler(identityService, authn.DefaultManager)
 
 	auth := r.Group("/api/v1/auth")
@@ -84,10 +96,21 @@ func Register(
 		),
 		handler.UpdateProfile,
 	)
+	protected.POST(
+		"/me/avatar",
+		middleware.RateLimit(
+			requestLimiter,
+			avatarUploadRateLimitPolicy,
+			metrics,
+		),
+		handler.UploadAvatar,
+	)
+	protected.DELETE("/me/avatar", handler.RemoveAvatar)
 	protected.POST("/auth/logout", handler.Logout)
 	protected.POST(
 		"/auth/ws-ticket",
 		middleware.WSTicketRateLimit(wsTicketLimiter, metrics),
 		handler.WSTicket,
 	)
+	r.GET("/api/v1/users/:user_id/avatar", handler.OpenAvatar)
 }

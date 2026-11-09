@@ -84,7 +84,7 @@ type updateProfileRequest struct {
 	Nickname string `json:"nickname"`
 
 	// AvatarURL 是可选头像地址，空字符串表示清除头像。
-	AvatarURL string `json:"avatar_url"`
+	AvatarURL *string `json:"avatar_url"`
 
 	// Bio 是可选个人简介，空字符串表示清除简介。
 	Bio string `json:"bio"`
@@ -274,6 +274,106 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, userResponse(result))
 }
 
+// UploadAvatar 处理 POST /api/v1/me/avatar。
+func (h *Handler) UploadAvatar(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(
+		c.Writer,
+		c.Request.Body,
+		maxAvatarBytes+(1<<20),
+	)
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择头像图片"})
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取头像图片失败"})
+		return
+	}
+	defer file.Close()
+
+	detectBuffer := make([]byte, 512)
+	n, readErr := io.ReadFull(file, detectBuffer)
+	if readErr != nil &&
+		!errors.Is(readErr, io.ErrUnexpectedEOF) &&
+		!errors.Is(readErr, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取头像图片失败"})
+		return
+	}
+	contentType := http.DetectContentType(detectBuffer[:n])
+	if _, supported := avatarExtensions[contentType]; !supported {
+		c.JSON(
+			http.StatusBadRequest,
+			gin.H{"error": "头像仅支持 JPEG、PNG、WebP 或 GIF"},
+		)
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "处理头像图片失败"})
+		return
+	}
+
+	result, err := h.service.UploadAvatar(
+		c.Request.Context(),
+		UploadAvatarCommand{
+			UserID:      userID,
+			ContentType: contentType,
+			Size:        fileHeader.Size,
+			Reader:      file,
+		},
+	)
+	if err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, userResponse(result))
+}
+
+// RemoveAvatar 处理 DELETE /api/v1/me/avatar。
+func (h *Handler) RemoveAvatar(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	result, err := h.service.RemoveAvatar(c.Request.Context(), userID)
+	if err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, userResponse(result))
+}
+
+// OpenAvatar 处理公开头像读取 GET /api/v1/users/:user_id/avatar。
+func (h *Handler) OpenAvatar(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	if err != nil || userID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 格式错误"})
+		return
+	}
+	result, err := h.service.OpenAvatar(c.Request.Context(), userID)
+	if err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	defer result.Reader.Close()
+	c.Header("Cache-Control", "public, max-age=300")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.DataFromReader(
+		http.StatusOK,
+		result.SizeBytes,
+		result.ContentType,
+		result.Reader,
+		nil,
+	)
+}
+
 // WSTicket 处理 POST /api/v1/auth/ws-ticket。
 func (h *Handler) WSTicket(c *gin.Context) {
 	userID, ok := middleware.CurrentUserID(c)
@@ -347,6 +447,15 @@ func writeIdentityError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrDeviceNotFound.Error()})
 	case errors.Is(err, ErrInvalidRefreshToken):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": ErrInvalidRefreshToken.Error()})
+	case errors.Is(err, ErrInvalidAvatar):
+		c.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidAvatar.Error()})
+	case errors.Is(err, ErrAvatarNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": ErrAvatarNotFound.Error()})
+	case errors.Is(err, ErrAvatarStorageUnavailable):
+		c.JSON(
+			http.StatusServiceUnavailable,
+			gin.H{"error": ErrAvatarStorageUnavailable.Error()},
+		)
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器内部错误"})
 	}

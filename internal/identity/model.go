@@ -41,6 +41,9 @@ type userProfile struct {
 	// AvatarURL 是用户头像地址，当前注册流程暂时为空。
 	AvatarURL *string `gorm:"column:avatar_url"`
 
+	// AvatarObjectKey 是用户上传头像在对象存储中的内部键。
+	AvatarObjectKey *string `gorm:"column:avatar_object_key"`
+
 	// Bio 是个人简介，当前注册流程暂时为空。
 	Bio *string `gorm:"column:bio"`
 

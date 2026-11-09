@@ -7,19 +7,24 @@ const props = defineProps<{
     open: boolean
     user: UserSummary | null
     busy: boolean
+    avatarBusy: boolean
     error: string
+    avatarError: string
 }>()
 
 const emit = defineEmits<{
     close: []
-    save: [payload: {nickname: string; avatarUrl: string; bio: string}]
+    save: [payload: {nickname: string; bio: string}]
+    uploadAvatar: [file: File]
+    removeAvatar: []
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
+const avatarInput = useTemplateRef<HTMLInputElement>('avatarInput')
 const nickname = shallowRef('')
-const avatarUrl = shallowRef('')
 const bio = shallowRef('')
+const avatarSelectionError = shallowRef('')
 
 const displayName = computed(
     () => props.user?.nickname || props.user?.username || '我',
@@ -34,8 +39,8 @@ watch(
             return
         }
         nickname.value = props.user?.nickname ?? ''
-        avatarUrl.value = props.user?.avatar_url ?? ''
         bio.value = props.user?.bio ?? ''
+        avatarSelectionError.value = ''
         dialog.value?.showModal()
         await nextTick()
         nicknameInput.value?.focus()
@@ -44,7 +49,7 @@ watch(
 )
 
 function close() {
-    if (!props.busy) {
+    if (!props.busy && !props.avatarBusy) {
         emit('close')
     }
 }
@@ -53,9 +58,37 @@ function submit() {
     if (props.busy || !nickname.value.trim()) return
     emit('save', {
         nickname: nickname.value.trim(),
-        avatarUrl: avatarUrl.value.trim(),
         bio: bio.value.trim(),
     })
+}
+
+function chooseAvatar() {
+    if (!props.avatarBusy) {
+        avatarInput.value?.click()
+    }
+}
+
+function handleAvatar(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    const allowedTypes = new Set([
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+    ])
+    if (!allowedTypes.has(file.type)) {
+        avatarSelectionError.value = '请选择 JPEG、PNG、WebP 或 GIF 图片'
+        return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+        avatarSelectionError.value = '头像图片不能超过 5 MB'
+        return
+    }
+    avatarSelectionError.value = ''
+    emit('uploadAvatar', file)
 }
 </script>
 
@@ -70,14 +103,21 @@ function submit() {
         <form class="profile-card" @submit.prevent="submit">
             <header class="profile-header">
                 <div class="profile-identity">
-                    <span class="profile-avatar">{{ avatarLetter }}</span>
+                    <span class="profile-avatar">
+                        <img
+                                v-if="user?.avatar_url"
+                                :alt="`${displayName}的头像`"
+                                :src="user.avatar_url"
+                        />
+                        <template v-else>{{ avatarLetter }}</template>
+                    </span>
                     <div>
                         <h2 id="profile-dialog-title">个人资料</h2>
                         <p>@{{ user?.username }}</p>
                     </div>
                 </div>
                 <button
-                        :disabled="busy"
+                        :disabled="busy || avatarBusy"
                         class="icon-button"
                         type="button"
                         aria-label="关闭个人资料"
@@ -88,6 +128,9 @@ function submit() {
             </header>
 
             <p v-if="error" class="profile-error" role="alert">{{ error }}</p>
+            <p v-if="avatarError || avatarSelectionError" class="profile-error" role="alert">
+                {{ avatarError || avatarSelectionError }}
+            </p>
 
             <label class="profile-field">
                 <span>昵称</span>
@@ -101,16 +144,38 @@ function submit() {
                 <small>{{ nickname.trim().length }}/64</small>
             </label>
 
-            <label class="profile-field">
-                <span>头像地址</span>
-                <input
-                        v-model="avatarUrl"
-                        maxlength="512"
-                        placeholder="https://example.com/avatar.png"
-                        type="url"
-                />
-                <small>支持 HTTP 或 HTTPS；留空表示清除头像。</small>
-            </label>
+            <div class="profile-avatar-field">
+                <div>
+                    <strong>头像</strong>
+                    <small>支持 JPEG、PNG、WebP、GIF，最大 5 MB。</small>
+                </div>
+                <div class="profile-avatar-actions">
+                    <input
+                            ref="avatarInput"
+                            class="sr-only"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            type="file"
+                            @change="handleAvatar"
+                    />
+                    <button
+                            :disabled="avatarBusy"
+                            class="ghost-button"
+                            type="button"
+                            @click="chooseAvatar"
+                    >
+                        {{ avatarBusy ? '上传中…' : '上传图片' }}
+                    </button>
+                    <button
+                            v-if="user?.avatar_url"
+                            :disabled="avatarBusy"
+                            class="text-button danger-text"
+                            type="button"
+                            @click="emit('removeAvatar')"
+                    >
+                        移除头像
+                    </button>
+                </div>
+            </div>
 
             <label class="profile-field">
                 <span>个人简介</span>
@@ -125,7 +190,7 @@ function submit() {
 
             <footer class="profile-actions">
                 <button
-                        :disabled="busy"
+                        :disabled="busy || avatarBusy"
                         class="ghost-button"
                         type="button"
                         @click="close"
@@ -133,7 +198,7 @@ function submit() {
                     取消
                 </button>
                 <button
-                        :disabled="busy || !nickname.trim()"
+                        :disabled="busy || avatarBusy || !nickname.trim()"
                         class="primary-button compact"
                         type="submit"
                 >
@@ -191,6 +256,13 @@ function submit() {
     color: var(--signal-strong);
     background: var(--signal-soft);
     font-weight: 800;
+    overflow: hidden;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .profile-header h2,
@@ -247,6 +319,37 @@ function submit() {
     font-size: 0.625rem;
 }
 
+.profile-avatar-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    background: var(--surface-muted);
+}
+
+.profile-avatar-field > div:first-child {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.profile-avatar-field strong {
+    font-size: 0.75rem;
+}
+
+.profile-avatar-field small {
+    color: var(--muted);
+    font-size: 0.625rem;
+}
+
+.profile-avatar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .profile-actions {
     border-top: 1px solid var(--line);
     padding-top: 1rem;
@@ -264,6 +367,16 @@ function submit() {
 
     .profile-card {
         min-height: 100%;
+    }
+
+    .profile-avatar-field {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .profile-avatar-actions {
+        width: 100%;
+        justify-content: flex-end;
     }
 }
 </style>

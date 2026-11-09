@@ -7,7 +7,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 ## 已实现能力
 
 - 账号注册、登录、Refresh Token 原子轮换、服务端退出登录。
-- 个人昵称、头像和个人简介编辑。
+- 个人昵称、头像上传/移除和个人简介编辑。
 - 好友申请理由、接受、拒绝、好友备注、拉黑、游标分页和私聊创建。
 - 私聊与群聊统一会话模型，支持会话标题搜索、个人置顶、复合游标分页和完整群权限矩阵。
 - 群主和管理员可填写邀请备注并发送入群邀请，受邀者带回复备注审批后入群；支持过期、取消、同意和拒绝记录。
@@ -183,6 +183,12 @@ python scripts\conversation-search-pin-e2e.py
 
 ```powershell
 python scripts\message-history-search-e2e.py
+```
+
+资料头像上传、保存后保留和移除可运行：
+
+```powershell
+python scripts\profile-avatar-e2e.py
 ```
 
 群邀请审批链路可运行：

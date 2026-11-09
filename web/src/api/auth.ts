@@ -15,8 +15,8 @@ interface RegisterInput {
 
 interface UpdateProfileInput {
     nickname: string
-    avatar_url: string
     bio: string
+    avatar_url?: string
 }
 
 export function register(input: RegisterInput): Promise<UserSummary> {
@@ -75,6 +75,46 @@ export function updateProfile(
             method: 'PUT',
             body: JSON.stringify(input),
         },
+        token,
+    )
+}
+
+export function uploadAvatar(token: string, file: File): Promise<UserSummary> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', '/api/v1/me/avatar')
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        xhr.onerror = () => reject(new Error('上传头像失败'))
+        xhr.onload = () => {
+            let body: unknown
+            try {
+                body = JSON.parse(xhr.responseText)
+            } catch {
+                body = null
+            }
+            if (xhr.status < 200 || xhr.status >= 300) {
+                const message =
+                    body &&
+                    typeof body === 'object' &&
+                    'error' in body &&
+                    typeof body.error === 'string'
+                        ? body.error
+                        : `上传头像失败（${xhr.status}）`
+                reject(new Error(message))
+                return
+            }
+            resolve(body as UserSummary)
+        }
+        const data = new FormData()
+        data.append('file', file)
+        xhr.send(data)
+    })
+}
+
+export function removeAvatar(token: string): Promise<UserSummary> {
+    return request(
+        '/me/avatar',
+        {method: 'DELETE'},
         token,
     )
 }

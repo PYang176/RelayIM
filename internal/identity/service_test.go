@@ -138,7 +138,7 @@ func TestUpdateProfileValidation(t *testing.T) {
 			command: UpdateProfileCommand{
 				UserID:    1,
 				Nickname:  "新昵称",
-				AvatarURL: "javascript:alert(1)",
+				AvatarURL: testStringPointer("javascript:alert(1)"),
 			},
 		},
 		{
@@ -146,7 +146,7 @@ func TestUpdateProfileValidation(t *testing.T) {
 			command: UpdateProfileCommand{
 				UserID:    1,
 				Nickname:  "新昵称",
-				AvatarURL: "https:///avatar.png",
+				AvatarURL: testStringPointer("https:///avatar.png"),
 			},
 		},
 	}
@@ -161,4 +161,8 @@ func TestUpdateProfileValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testStringPointer(value string) *string {
+	return &value
 }

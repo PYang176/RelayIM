@@ -24,4 +24,13 @@ var (
 
 	// ErrInvalidRefreshToken 表示 Refresh Token 不存在、过期或已撤销。
 	ErrInvalidRefreshToken = errors.New("Refresh Token 无效或已过期")
+
+	// ErrInvalidAvatar 表示头像文件类型、大小或内容不合法。
+	ErrInvalidAvatar = errors.New("头像图片不合法")
+
+	// ErrAvatarNotFound 表示用户没有已上传的头像。
+	ErrAvatarNotFound = errors.New("头像不存在")
+
+	// ErrAvatarStorageUnavailable 表示头像对象存储未配置或暂时不可用。
+	ErrAvatarStorageUnavailable = errors.New("头像存储服务暂不可用")
 )

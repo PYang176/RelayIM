@@ -1,10 +1,13 @@
 package identity
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,7 +67,12 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	username := fmt.Sprintf("it_%d", uint64(snowflake.Generate()))
 	const password = "password123"
 	tokenIssuer := &stubTokenIssuer{token: "test-token"}
-	service := NewService(NewRepository(db), tokenIssuer)
+	avatarStorage := newMemoryAvatarStorage()
+	service := NewServiceWithAvatarStorage(
+		NewRepository(db),
+		tokenIssuer,
+		avatarStorage,
+	)
 
 	registered, err := service.Register(context.Background(), RegisterCommand{
 		Username:        username,
@@ -134,7 +142,7 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 		UpdateProfileCommand{
 			UserID:    registered.ID,
 			Nickname:  "更新后的昵称",
-			AvatarURL: "https://example.com/avatar.png",
+			AvatarURL: testStringPointer("https://example.com/avatar.png"),
 			Bio:       "正在完善 GinChat",
 		},
 	)
@@ -299,5 +307,61 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	}
 	if switchedDeviceCount != 1 {
 		t.Fatalf("切换账号新设备数量 = %d，期望 1", switchedDeviceCount)
+	}
+
+	avatarBytes := []byte("avatar-png-bytes")
+	withAvatar, err := service.UploadAvatar(
+		context.Background(),
+		UploadAvatarCommand{
+			UserID:      registered.ID,
+			ContentType: "image/png",
+			Size:        int64(len(avatarBytes)),
+			Reader:      bytes.NewReader(avatarBytes),
+		},
+	)
+	if err != nil {
+		t.Fatalf("上传用户头像失败: %v", err)
+	}
+	if withAvatar.AvatarURL == "" ||
+		!strings.HasPrefix(
+			withAvatar.AvatarURL,
+			fmt.Sprintf("/api/v1/users/%d/avatar?v=", registered.ID),
+		) {
+		t.Fatalf("上传后头像地址 = %q", withAvatar.AvatarURL)
+	}
+	openedAvatar, err := service.OpenAvatar(
+		context.Background(),
+		registered.ID,
+	)
+	if err != nil {
+		t.Fatalf("读取用户头像失败: %v", err)
+	}
+	openedBytes, err := io.ReadAll(openedAvatar.Reader)
+	if err != nil {
+		t.Fatalf("读取头像内容失败: %v", err)
+	}
+	if err := openedAvatar.Reader.Close(); err != nil {
+		t.Fatalf("关闭头像内容失败: %v", err)
+	}
+	if !bytes.Equal(openedBytes, avatarBytes) ||
+		openedAvatar.ContentType != "image/png" {
+		t.Fatalf("头像内容 = %q，类型 = %q", openedBytes, openedAvatar.ContentType)
+	}
+
+	withoutAvatar, err := service.RemoveAvatar(
+		context.Background(),
+		registered.ID,
+	)
+	if err != nil {
+		t.Fatalf("移除用户头像失败: %v", err)
+	}
+	if withoutAvatar.AvatarURL != "" {
+		t.Fatalf("移除后头像地址 = %q，期望空字符串", withoutAvatar.AvatarURL)
+	}
+	if _, err := service.OpenAvatar(
+		context.Background(),
+		registered.ID,
+	); !errors.Is(err, ErrAvatarNotFound) {
+		t.Fatalf("移除后读取头像错误 = %v，期望 ErrAvatarNotFound", err)
 	}
 }

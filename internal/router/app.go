@@ -49,6 +49,7 @@ func Router(
 	identityrouter.Register(
 		r,
 		db,
+		storage,
 		wsTicketLimiter,
 		requestLimiter,
 		metrics,

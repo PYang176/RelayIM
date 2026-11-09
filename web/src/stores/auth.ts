@@ -137,14 +137,22 @@ export const useAuthStore = defineStore('auth', () => {
 
     async function updateProfile(input: {
         nickname: string
-        avatarUrl: string
         bio: string
     }) {
         user.value = await authApi.updateProfile(token.value, {
             nickname: input.nickname,
-            avatar_url: input.avatarUrl,
             bio: input.bio,
         })
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+    }
+
+    async function uploadAvatar(file: File) {
+        user.value = await authApi.uploadAvatar(token.value, file)
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+    }
+
+    async function removeAvatar() {
+        user.value = await authApi.removeAvatar(token.value)
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     }
 
@@ -178,6 +186,8 @@ export const useAuthStore = defineStore('auth', () => {
         refreshSession,
         restoreUser,
         updateProfile,
+        uploadAvatar,
+        removeAvatar,
         logout,
     }
 })

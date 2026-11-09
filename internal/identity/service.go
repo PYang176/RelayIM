@@ -44,8 +44,9 @@ type TokenIssuer interface {
 
 // Service 提供用户注册、登录和当前用户查询。
 type Service struct {
-	repo  *Repository
-	token TokenIssuer
+	repo    *Repository
+	token   TokenIssuer
+	avatars AvatarStorage
 }
 
 // NewService 创建用户认证服务。
@@ -77,7 +78,7 @@ type UpdateProfileCommand struct {
 	Nickname string
 
 	// AvatarURL 是可选头像地址；空字符串表示清除头像。
-	AvatarURL string
+	AvatarURL *string
 
 	// Bio 是可选个人简介；空字符串表示清除简介。
 	Bio string
@@ -447,13 +448,18 @@ func (s *Service) UpdateProfile(
 	command UpdateProfileCommand,
 ) (UserResult, error) {
 	command.Nickname = strings.TrimSpace(command.Nickname)
-	command.AvatarURL = strings.TrimSpace(command.AvatarURL)
 	command.Bio = strings.TrimSpace(command.Bio)
+	if command.AvatarURL != nil {
+		avatarURL := strings.TrimSpace(*command.AvatarURL)
+		if !validAvatarURL(avatarURL) {
+			return UserResult{}, ErrInvalidInput
+		}
+		command.AvatarURL = &avatarURL
+	}
 	if command.UserID == 0 ||
 		command.Nickname == "" ||
 		utf8.RuneCountInString(command.Nickname) > maxNicknameRunes ||
-		utf8.RuneCountInString(command.Bio) > maxBioRunes ||
-		!validAvatarURL(command.AvatarURL) {
+		utf8.RuneCountInString(command.Bio) > maxBioRunes {
 		return UserResult{}, ErrInvalidInput
 	}
 

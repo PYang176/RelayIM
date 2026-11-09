@@ -38,6 +38,8 @@ const memberActionError = shallowRef('')
 const profileDialogOpen = shallowRef(false)
 const savingProfile = shallowRef(false)
 const profileError = shallowRef('')
+const avatarBusy = shallowRef(false)
+const avatarError = shallowRef('')
 const messageHistoryOpen = shallowRef(false)
 let presenceTimer = 0
 
@@ -265,12 +267,12 @@ async function recallMessage(messageId: string) {
 
 function openProfile() {
     profileError.value = ''
+    avatarError.value = ''
     profileDialogOpen.value = true
 }
 
 async function saveProfile(payload: {
     nickname: string
-    avatarUrl: string
     bio: string
 }) {
     savingProfile.value = true
@@ -287,6 +289,40 @@ async function saveProfile(payload: {
             cause instanceof Error ? cause.message : '保存个人资料失败'
     } finally {
         savingProfile.value = false
+    }
+}
+
+async function uploadAvatar(file: File) {
+    avatarBusy.value = true
+    avatarError.value = ''
+    try {
+        await auth.uploadAvatar(file)
+        const conversationId = chat.activeConversationId
+        if (chat.activeConversation?.conversation_type === 2 && conversationId) {
+            await chat.loadMembers(conversationId, true)
+        }
+    } catch (cause) {
+        avatarError.value =
+            cause instanceof Error ? cause.message : '上传头像失败'
+    } finally {
+        avatarBusy.value = false
+    }
+}
+
+async function removeAvatar() {
+    avatarBusy.value = true
+    avatarError.value = ''
+    try {
+        await auth.removeAvatar()
+        const conversationId = chat.activeConversationId
+        if (chat.activeConversation?.conversation_type === 2 && conversationId) {
+            await chat.loadMembers(conversationId, true)
+        }
+    } catch (cause) {
+        avatarError.value =
+            cause instanceof Error ? cause.message : '移除头像失败'
+    } finally {
+        avatarBusy.value = false
     }
 }
 
@@ -363,10 +399,17 @@ onBeforeUnmount(() => {
             </div>
             <div class="current-user">
                 <span class="current-user-avatar" aria-hidden="true">
-                    {{
-                        (auth.user?.nickname || auth.user?.username || '我')
-                            .slice(0, 1)
-                    }}
+                    <img
+                            v-if="auth.user?.avatar_url"
+                            :alt="auth.user.nickname || auth.user.username"
+                            :src="auth.user.avatar_url"
+                    />
+                    <template v-else>
+                        {{
+                            (auth.user?.nickname || auth.user?.username || '我')
+                                .slice(0, 1)
+                        }}
+                    </template>
                 </span>
                 <span class="current-user-copy">
                     <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
@@ -587,12 +630,16 @@ onBeforeUnmount(() => {
         />
 
         <ProfileDialog
+                :avatar-busy="avatarBusy"
+                :avatar-error="avatarError"
                 :busy="savingProfile"
                 :error="profileError"
                 :open="profileDialogOpen"
                 :user="auth.user"
                 @close="profileDialogOpen = false"
+                @remove-avatar="removeAvatar"
                 @save="saveProfile"
+                @upload-avatar="uploadAvatar"
         />
     </main>
 </template>
