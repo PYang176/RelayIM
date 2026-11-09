@@ -17,6 +17,8 @@ export const useFriendshipStore = defineStore('friendships', () => {
     const sentNextCursor = shallowRef('')
     const sentHasMore = shallowRef(false)
     const blockedUsers = ref<BlockedUser[]>([])
+    const blockedNextCursor = shallowRef('')
+    const blockedHasMore = shallowRef(false)
     const searchResults = ref<FriendUser[]>([])
     const loading = shallowRef(false)
     const searching = shallowRef(false)
@@ -51,7 +53,9 @@ export const useFriendshipStore = defineStore('friendships', () => {
             sentRequests.value = sent.requests
             sentNextCursor.value = sent.next_cursor
             sentHasMore.value = sent.has_more
-            blockedUsers.value = blocked
+            blockedUsers.value = blocked.blocked_users
+            blockedNextCursor.value = blocked.next_cursor
+            blockedHasMore.value = blocked.has_more
         } catch (cause) {
             reportError(cause, '加载好友信息失败')
         } finally {
@@ -135,6 +139,26 @@ export const useFriendshipStore = defineStore('friendships', () => {
             sentHasMore.value = page.has_more
         } catch (cause) {
             reportError(cause, '加载更多发出申请失败')
+        } finally {
+            loadingMore.value = false
+        }
+    }
+
+    async function loadMoreBlockedUsers() {
+        if (!blockedHasMore.value || !blockedNextCursor.value || loadingMore.value) {
+            return
+        }
+        loadingMore.value = true
+        try {
+            const page = await friendApi.listBlockedUsers(
+                auth.token,
+                blockedNextCursor.value,
+            )
+            blockedUsers.value = [...blockedUsers.value, ...page.blocked_users]
+            blockedNextCursor.value = page.next_cursor
+            blockedHasMore.value = page.has_more
+        } catch (cause) {
+            reportError(cause, '加载更多拉黑用户失败')
         } finally {
             loadingMore.value = false
         }
@@ -246,6 +270,8 @@ export const useFriendshipStore = defineStore('friendships', () => {
         sentNextCursor.value = ''
         sentHasMore.value = false
         blockedUsers.value = []
+        blockedNextCursor.value = ''
+        blockedHasMore.value = false
         searchResults.value = []
         error.value = ''
     }
@@ -257,6 +283,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         friendHasMore,
         receivedHasMore,
         sentHasMore,
+        blockedHasMore,
         blockedUsers,
         searchResults,
         loading,
@@ -269,6 +296,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         loadMoreFriends,
         loadMoreReceivedRequests,
         loadMoreSentRequests,
+        loadMoreBlockedUsers,
         sendRequest,
         acceptRequest,
         rejectRequest,

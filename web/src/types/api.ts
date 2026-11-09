@@ -132,6 +132,12 @@ export interface BlockedUser {
     created_at: string
 }
 
+export interface BlockedUserPage {
+    blocked_users: BlockedUser[]
+    next_cursor: string
+    has_more: boolean
+}
+
 export interface FriendRequest {
     id: string
     user: FriendUser

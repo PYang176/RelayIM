@@ -94,6 +94,17 @@ func TestServiceValidation(t *testing.T) {
 				return err
 			},
 		},
+		{
+			name: "拉黑分页大小无效",
+			run: func() error {
+				_, err := service.ListBlockedUsers(
+					context.Background(),
+					1,
+					PageQuery{Limit: 0},
+				)
+				return err
+			},
+		},
 	}
 
 	for _, tt := range tests {

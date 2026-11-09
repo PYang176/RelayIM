@@ -422,6 +422,9 @@ paths:
       tags: [Friendship]
       summary: 查询当前用户拉黑的用户
       operationId: listBlockedUsers
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/BeforeID"
       responses:
         "200":
           description: 当前用户的拉黑列表
@@ -1407,12 +1410,17 @@ components:
           format: date-time
     BlockedUserList:
       type: object
-      required: [blocked_users]
+      required: [blocked_users, next_cursor, has_more]
       properties:
         blocked_users:
           type: array
           items:
             $ref: "#/components/schemas/BlockedUser"
+        next_cursor:
+          type: string
+          description: 下一页游标；没有下一页时为空字符串
+        has_more:
+          type: boolean
     RemarkRequest:
       type: object
       required: [remark]

@@ -84,6 +84,13 @@ def request_payload(index: int) -> dict[str, Any]:
     }
 
 
+def blocked_user_payload(index: int) -> dict[str, Any]:
+    return {
+        "user": user_payload(index),
+        "created_at": "2026-11-09T12:00:00Z",
+    }
+
+
 def page_response(
     route: Route,
     field: str,
@@ -105,6 +112,8 @@ def page_response(
                     str(8000000000000000000 + PAGE_SIZE)
                     if field == "friends" and has_more
                     else str(7000000000000000000 + PAGE_SIZE)
+                    if field == "requests" and has_more
+                    else str(9000000000000000000 + PAGE_SIZE)
                     if has_more
                     else ""
                 ),
@@ -162,11 +171,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 ),
             )
             page.route(
-                "**/api/v1/user-blocks",
-                lambda route: route.fulfill(
-                    status=200,
-                    content_type="application/json",
-                    body=json.dumps({"blocked_users": []}),
+                "**/api/v1/user-blocks?*",
+                lambda route: page_response(
+                    route,
+                    "blocked_users",
+                    blocked_user_payload,
                 ),
             )
 
@@ -200,13 +209,26 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ).click()
             expect(dialog.locator(".request-row")).to_have_count(TOTAL_SIZE)
 
+            dialog.locator(".friends-tabs button").filter(
+                has_text="拉黑"
+            ).click()
+            expect(dialog.locator(".request-row")).to_have_count(PAGE_SIZE)
+            dialog.get_by_role(
+                "button",
+                name="加载更多拉黑用户",
+                exact=True,
+            ).click()
+            expect(dialog.locator(".request-row")).to_have_count(TOTAL_SIZE)
+
             screenshot = report_dir / "friendship-pagination.png"
             page.screenshot(path=str(screenshot), full_page=True)
             result = {
                 "friend_page_sizes": [PAGE_SIZE, TOTAL_SIZE - PAGE_SIZE],
                 "request_page_sizes": [PAGE_SIZE, TOTAL_SIZE - PAGE_SIZE],
+                "blocked_user_page_sizes": [PAGE_SIZE, TOTAL_SIZE - PAGE_SIZE],
                 "rendered_friend_count": TOTAL_SIZE,
                 "rendered_request_count": TOTAL_SIZE,
+                "rendered_blocked_user_count": TOTAL_SIZE,
                 "screenshot": str(screenshot),
             }
             (report_dir / "result.json").write_text(

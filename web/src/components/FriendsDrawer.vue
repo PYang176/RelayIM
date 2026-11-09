@@ -121,7 +121,8 @@ async function submitRequest(userID: string) {
                         type="button"
                         @click="activeTab = 'blocked'"
                 >
-                    拉黑 {{ friendships.blockedUsers.length }}
+                    拉黑 {{ friendships.blockedUsers.length
+                    }}{{ friendships.blockedHasMore ? '+' : '' }}
                 </button>
             </div>
 
@@ -326,6 +327,15 @@ async function submitRequest(userID: string) {
                         取消拉黑
                     </button>
                 </article>
+                <button
+                        v-if="friendships.blockedHasMore"
+                        class="text-button"
+                        :disabled="friendships.loadingMore"
+                        type="button"
+                        @click="friendships.loadMoreBlockedUsers"
+                >
+                    {{ friendships.loadingMore ? '加载中…' : '加载更多拉黑用户' }}
+                </button>
             </section>
         </div>
     </dialog>

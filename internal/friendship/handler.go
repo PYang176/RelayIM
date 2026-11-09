@@ -205,19 +205,31 @@ func (h *Handler) ListBlockedUsers(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
 		return
 	}
-	results, err := h.service.ListBlockedUsers(c.Request.Context(), userID)
+	page, ok := parsePageQuery(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListBlockedUsers(
+		c.Request.Context(),
+		userID,
+		page,
+	)
 	if err != nil {
 		writeFriendshipError(c, err)
 		return
 	}
-	response := make([]blockedUserResponse, 0, len(results))
-	for _, result := range results {
+	response := make([]blockedUserResponse, 0, len(result.BlockedUsers))
+	for _, item := range result.BlockedUsers {
 		response = append(response, blockedUserResponse{
-			User:      toUserResponse(result.User),
-			CreatedAt: result.CreatedAt,
+			User:      toUserResponse(item.User),
+			CreatedAt: item.CreatedAt,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"blocked_users": response})
+	c.JSON(http.StatusOK, gin.H{
+		"blocked_users": response,
+		"next_cursor":   formatCursor(result.NextCursor),
+		"has_more":      result.HasMore,
+	})
 }
 
 // BlockUser 处理拉黑用户。

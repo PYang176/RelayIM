@@ -161,8 +161,14 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 	if err := service.BlockUser(context.Background(), userA, userB); err != nil {
 		t.Fatalf("重复拉黑应保持幂等: %v", err)
 	}
-	blockedUsers, err := service.ListBlockedUsers(context.Background(), userA)
-	if err != nil || len(blockedUsers) != 1 || blockedUsers[0].User.ID != userB {
+	blockedUsers, err := service.ListBlockedUsers(
+		context.Background(),
+		userA,
+		page,
+	)
+	if err != nil ||
+		len(blockedUsers.BlockedUsers) != 1 ||
+		blockedUsers.BlockedUsers[0].User.ID != userB {
 		t.Fatalf("拉黑列表 = %+v, err=%v", blockedUsers, err)
 	}
 	friends, err = service.ListFriends(context.Background(), userA, page)
@@ -242,6 +248,8 @@ func TestFriendshipPaginationIntegration(t *testing.T) {
 				"OR user_high_id IN (?, ?, ?, ?, ?, ?)",
 			"DELETE FROM friendships WHERE user_low_id IN (?, ?, ?, ?, ?, ?) " +
 				"OR user_high_id IN (?, ?, ?, ?, ?, ?)",
+			"DELETE FROM user_blocks WHERE blocker_id IN (?, ?, ?, ?, ?, ?) " +
+				"OR blocked_id IN (?, ?, ?, ?, ?, ?)",
 			"DELETE FROM user_profiles WHERE user_id IN (?, ?, ?, ?, ?, ?)",
 			"DELETE FROM users WHERE id IN (?, ?, ?, ?, ?, ?)",
 		}
@@ -249,6 +257,7 @@ func TestFriendshipPaginationIntegration(t *testing.T) {
 		args12 := append(append([]any{}, args...), args...)
 		argsList := [][]any{
 			args,
+			args12,
 			args12,
 			args12,
 			args,
@@ -323,6 +332,48 @@ func TestFriendshipPaginationIntegration(t *testing.T) {
 		thirdFriends.HasMore ||
 		thirdFriends.NextCursor != 0 {
 		t.Fatalf("好友第三页 = %+v, err=%v", thirdFriends, err)
+	}
+
+	for _, peerID := range userIDs[1:] {
+		if err := db.Exec(
+			"INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?)",
+			centralID,
+			peerID,
+		).Error; err != nil {
+			t.Fatalf("创建分页拉黑关系失败: %v", err)
+		}
+	}
+	firstBlocked, err := service.ListBlockedUsers(
+		context.Background(),
+		centralID,
+		query,
+	)
+	if err != nil ||
+		len(firstBlocked.BlockedUsers) != 2 ||
+		!firstBlocked.HasMore ||
+		firstBlocked.NextCursor == 0 {
+		t.Fatalf("拉黑第一页 = %+v, err=%v", firstBlocked, err)
+	}
+	secondBlocked, err := service.ListBlockedUsers(
+		context.Background(),
+		centralID,
+		PageQuery{Limit: 2, BeforeID: firstBlocked.NextCursor},
+	)
+	if err != nil ||
+		len(secondBlocked.BlockedUsers) != 2 ||
+		!secondBlocked.HasMore {
+		t.Fatalf("拉黑第二页 = %+v, err=%v", secondBlocked, err)
+	}
+	thirdBlocked, err := service.ListBlockedUsers(
+		context.Background(),
+		centralID,
+		PageQuery{Limit: 2, BeforeID: secondBlocked.NextCursor},
+	)
+	if err != nil ||
+		len(thirdBlocked.BlockedUsers) != 1 ||
+		thirdBlocked.HasMore ||
+		thirdBlocked.NextCursor != 0 {
+		t.Fatalf("拉黑第三页 = %+v, err=%v", thirdBlocked, err)
 	}
 
 	for _, peerID := range userIDs[1:] {

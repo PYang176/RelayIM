@@ -47,6 +47,13 @@ type BlockedUserResult struct {
 	CreatedAt time.Time
 }
 
+// BlockedUserPage 是拉黑列表的一页。
+type BlockedUserPage struct {
+	BlockedUsers []BlockedUserResult
+	NextCursor   uint64
+	HasMore      bool
+}
+
 // RequestResult 是好友申请列表项。
 type RequestResult struct {
 	ID        uint64
@@ -151,11 +158,12 @@ func (s *Service) ListFriends(
 func (s *Service) ListBlockedUsers(
 	ctx context.Context,
 	userID uint64,
-) ([]BlockedUserResult, error) {
-	if userID == 0 {
-		return nil, ErrInvalidInput
+	page PageQuery,
+) (BlockedUserPage, error) {
+	if userID == 0 || !validPageQuery(page) {
+		return BlockedUserPage{}, ErrInvalidInput
 	}
-	return s.repo.listBlockedUsers(ctx, userID)
+	return s.repo.listBlockedUsers(ctx, userID, page.Limit, page.BeforeID)
 }
 
 // BlockUser 创建当前用户到目标用户的方向性拉黑关系。

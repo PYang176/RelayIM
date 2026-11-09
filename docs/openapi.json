@@ -253,10 +253,19 @@
               "$ref": "#/components/schemas/BlockedUser"
             },
             "type": "array"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "description": "下一页游标；没有下一页时为空字符串",
+            "type": "string"
           }
         },
         "required": [
-          "blocked_users"
+          "blocked_users",
+          "next_cursor",
+          "has_more"
         ],
         "type": "object"
       },
@@ -2614,6 +2623,14 @@
     "/api/v1/user-blocks": {
       "get": {
         "operationId": "listBlockedUsers",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/BeforeID"
+          }
+        ],
         "responses": {
           "200": {
             "content": {

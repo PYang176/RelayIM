@@ -1,6 +1,6 @@
 import {request} from './http'
 import type {
-    BlockedUser,
+    BlockedUserPage,
     FriendPage,
     FriendRequestPage,
     FriendUser,
@@ -114,13 +114,12 @@ export function deleteFriend(token: string, friendUserID: string): Promise<void>
     )
 }
 
-export async function listBlockedUsers(token: string): Promise<BlockedUser[]> {
-    const response = await request<{ blocked_users: BlockedUser[] }>(
-        '/user-blocks',
-        {},
-        token,
-    )
-    return response.blocked_users
+export async function listBlockedUsers(
+    token: string,
+    beforeID = '',
+): Promise<BlockedUserPage> {
+    const params = pageParams(20, beforeID)
+    return request<BlockedUserPage>(`/user-blocks?${params}`, {}, token)
 }
 
 export function blockUser(token: string, targetUserID: string): Promise<void> {

@@ -356,22 +356,33 @@ func (r *Repository) listFriendsBySide(
 func (r *Repository) listBlockedUsers(
 	ctx context.Context,
 	userID uint64,
-) ([]BlockedUserResult, error) {
+	limit int,
+	beforeID uint64,
+) (BlockedUserPage, error) {
 	var records []blockedUserRecord
-	if err := r.db.WithContext(ctx).
-		Table("user_blocks AS b").
+	query := r.db.WithContext(ctx).
+		Table("user_blocks AS b USE INDEX (PRIMARY)").
 		Select(
 			"u.id AS user_id, u.username, p.nickname, "+
 				"p.avatar_url, b.created_at",
 		).
 		Joins("JOIN users AS u ON u.id = b.blocked_id").
 		Joins("JOIN user_profiles AS p ON p.user_id = u.id").
-		Where("b.blocker_id = ?", userID).
-		Order("b.created_at DESC").
+		Where("b.blocker_id = ?", userID)
+	if beforeID > 0 {
+		query = query.Where("b.blocked_id < ?", beforeID)
+	}
+	if err := query.
+		Order("b.blocked_id DESC").
+		Limit(limit + 1).
 		Scan(&records).Error; err != nil {
-		return nil, fmt.Errorf("查询拉黑列表: %w", err)
+		return BlockedUserPage{}, fmt.Errorf("查询拉黑列表: %w", err)
 	}
 
+	hasMore := len(records) > limit
+	if hasMore {
+		records = records[:limit]
+	}
 	results := make([]BlockedUserResult, 0, len(records))
 	for _, record := range records {
 		results = append(results, BlockedUserResult{
@@ -384,7 +395,14 @@ func (r *Repository) listBlockedUsers(
 			CreatedAt: record.CreatedAt,
 		})
 	}
-	return results, nil
+	page := BlockedUserPage{
+		BlockedUsers: results,
+		HasMore:      hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		page.NextCursor = results[len(results)-1].User.ID
+	}
+	return page, nil
 }
 
 func (r *Repository) blockUser(
