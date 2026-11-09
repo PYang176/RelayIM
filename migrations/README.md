@@ -16,6 +16,8 @@
 | `00003_reliable_messaging.sql` | Outbox 与消费幂等记录 |
 | `00004_attachment_filename.sql` | 附件原始文件名 |
 | `00005_unique_attachment_binding.sql` | 一个附件最多绑定一条消息 |
+| `00006_user_blocks.sql` | 用户方向性拉黑关系与双向检查索引 |
+| `00007_friendship_pagination_indexes.sql` | 好友与申请列表 Keyset 分页索引 |
 
 ## 执行迁移
 
