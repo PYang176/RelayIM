@@ -159,18 +159,35 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	}
 	accepted, err := service.AcceptInvitation(
 		context.Background(),
-		userB,
-		invitationPage.Invitations[0].InvitationID,
+		RespondInvitationCommand{
+			UserID:         userB,
+			InvitationID:   invitationPage.Invitations[0].InvitationID,
+			ResponseRemark: "愿意加入集成测试群",
+		},
 	)
 	if err != nil || accepted.MemberCount != 2 {
 		t.Fatalf("接受群邀请 = %+v, err=%v", accepted, err)
 	}
 	if _, err := service.AcceptInvitation(
 		context.Background(),
-		userB,
-		invitationPage.Invitations[0].InvitationID,
+		RespondInvitationCommand{
+			UserID:       userB,
+			InvitationID: invitationPage.Invitations[0].InvitationID,
+		},
 	); err != nil {
 		t.Fatalf("重复接受群邀请应保持幂等: %v", err)
+	}
+	groupInvitations, err := service.ListGroupInvitations(
+		context.Background(),
+		userA,
+		group.ID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil ||
+		len(groupInvitations.Invitations) != 1 ||
+		groupInvitations.Invitations[0].Status != invitationStatusAccepted ||
+		groupInvitations.Invitations[0].ResponseRemark != "愿意加入集成测试群" {
+		t.Fatalf("接受后的群邀请记录 = %+v, err=%v", groupInvitations, err)
 	}
 
 	updatedGroup, err := service.UpdateGroupProfile(
@@ -294,8 +311,10 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	}
 	if _, err := service.AcceptInvitation(
 		context.Background(),
-		userB,
-		invitationPage.Invitations[0].InvitationID,
+		RespondInvitationCommand{
+			UserID:       userB,
+			InvitationID: invitationPage.Invitations[0].InvitationID,
+		},
 	); err != nil {
 		t.Fatalf("重新接受群邀请失败: %v", err)
 	}
@@ -552,8 +571,10 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	invitationID := page.Invitations[0].InvitationID
 	if _, err := service.AcceptInvitation(
 		context.Background(),
-		ownerID,
-		invitationID,
+		RespondInvitationCommand{
+			UserID:       ownerID,
+			InvitationID: invitationID,
+		},
 	); !errors.Is(err, ErrInvitationForbidden) {
 		t.Fatalf("非接收者接受邀请错误 = %v", err)
 	}
@@ -568,8 +589,10 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	}
 	if _, err := service.AcceptInvitation(
 		context.Background(),
-		inviteeID,
-		invitationID,
+		RespondInvitationCommand{
+			UserID:       inviteeID,
+			InvitationID: invitationID,
+		},
 	); !errors.Is(err, ErrInvitationExpired) {
 		t.Fatalf("接受过期邀请错误 = %v", err)
 	}
@@ -588,8 +611,11 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	}
 	if err := service.RejectInvitation(
 		context.Background(),
-		inviteeID,
-		invitationID,
+		RespondInvitationCommand{
+			UserID:         inviteeID,
+			InvitationID:   invitationID,
+			ResponseRemark: "当前不参加",
+		},
 	); err != nil {
 		t.Fatalf("拒绝群邀请失败: %v", err)
 	}
@@ -600,6 +626,18 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	)
 	if err != nil || len(page.Invitations) != 0 {
 		t.Fatalf("拒绝后邀请列表 = %+v, err=%v", page, err)
+	}
+	groupInvitationHistory, err := service.ListGroupInvitations(
+		context.Background(),
+		ownerID,
+		group.ID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil ||
+		len(groupInvitationHistory.Invitations) != 1 ||
+		groupInvitationHistory.Invitations[0].Status != invitationStatusRejected ||
+		groupInvitationHistory.Invitations[0].ResponseRemark != "当前不参加" {
+		t.Fatalf("拒绝后的群邀请记录 = %+v, err=%v", groupInvitationHistory, err)
 	}
 	if _, err := service.InviteMembers(
 		context.Background(),
@@ -612,6 +650,36 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	); err != nil {
 		t.Fatalf("拒绝后重新邀请失败: %v", err)
 	}
+	if err := service.CancelInvitation(
+		context.Background(),
+		CancelInvitationCommand{
+			ActorID:        ownerID,
+			ConversationID: group.ID,
+			InvitationID:   invitationID,
+		},
+	); err != nil {
+		t.Fatalf("取消群邀请失败: %v", err)
+	}
+	if _, err := service.AcceptInvitation(
+		context.Background(),
+		RespondInvitationCommand{
+			UserID:       inviteeID,
+			InvitationID: invitationID,
+		},
+	); !errors.Is(err, ErrInvitationHandled) {
+		t.Fatalf("取消后接受邀请错误 = %v", err)
+	}
+	if _, err := service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        ownerID,
+			ConversationID: group.ID,
+			MemberUserIDs:  []uint64{inviteeID},
+			InviteRemark:   "取消后再次邀请",
+		},
+	); err != nil {
+		t.Fatalf("取消后再次邀请失败: %v", err)
+	}
 
 	const workers = 2
 	errs := make(chan error, workers)
@@ -622,8 +690,11 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 			defer waitGroup.Done()
 			_, err := service.AcceptInvitation(
 				context.Background(),
-				inviteeID,
-				invitationID,
+				RespondInvitationCommand{
+					UserID:         inviteeID,
+					InvitationID:   invitationID,
+					ResponseRemark: "并发接受",
+				},
 			)
 			errs <- err
 		}()
@@ -649,8 +720,11 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 		group.ID,
 		InvitationPageQuery{Limit: defaultPageSize},
 	)
-	if err != nil || len(managedInvitations.Invitations) != 0 {
-		t.Fatalf("接受后待审批邀请 = %+v, err=%v", managedInvitations, err)
+	if err != nil ||
+		len(managedInvitations.Invitations) != 1 ||
+		managedInvitations.Invitations[0].Status != invitationStatusAccepted ||
+		managedInvitations.Invitations[0].ResponseRemark != "并发接受" {
+		t.Fatalf("接受后群邀请记录 = %+v, err=%v", managedInvitations, err)
 	}
 	if _, err := service.ListGroupInvitations(
 		context.Background(),

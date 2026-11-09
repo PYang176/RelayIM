@@ -692,6 +692,12 @@ paths:
       operationId: acceptGroupInvitation
       parameters:
         - $ref: "#/components/parameters/GroupInvitationID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationResponseRequest"
       responses:
         "200":
           description: 已加入群聊
@@ -725,6 +731,12 @@ paths:
       operationId: rejectGroupInvitation
       parameters:
         - $ref: "#/components/parameters/GroupInvitationID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationResponseRequest"
       responses:
         "200":
           description: 群邀请已拒绝
@@ -741,7 +753,7 @@ paths:
   /api/v1/conversations/{conversation_id}/invitations:
     get:
       tags: [Conversation]
-      summary: 群主或管理员查询待处理邀请
+      summary: 群主或管理员查询群邀请记录
       operationId: listGroupInvitations
       parameters:
         - $ref: "#/components/parameters/ConversationID"
@@ -762,6 +774,25 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/invitations/{invitation_id}:
+    delete:
+      tags: [Conversation]
+      summary: 群主或管理员取消待处理邀请
+      operationId: cancelGroupInvitation
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/GroupInvitationID"
+      responses:
+        "204":
+          description: 群邀请已取消
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/v1/conversations/{conversation_id}/members/{user_id}:
     delete:
       tags: [Conversation]
@@ -1707,7 +1738,7 @@ components:
           type: boolean
     GroupPendingInvitation:
       type: object
-      required: [invitation_id, invitee, inviter_id, invite_remark, created_at, expires_at]
+      required: [invitation_id, invitee, inviter_id, invite_remark, status, response_remark, created_at, expires_at]
       properties:
         invitation_id:
           $ref: "#/components/schemas/SnowflakeID"
@@ -1717,12 +1748,23 @@ components:
           $ref: "#/components/schemas/SnowflakeID"
         invite_remark:
           type: string
+        status:
+          type: integer
+          enum: [1, 2, 3, 4, 5]
+          description: 1 待处理、2 已接受、3 已拒绝、4 已过期、5 已取消
+        response_remark:
+          type: string
+          description: 被邀请人的审批回复；未填写时为空字符串
         created_at:
           type: string
           format: date-time
         expires_at:
           type: string
           format: date-time
+        responded_at:
+          type: string
+          format: date-time
+          nullable: true
     GroupPendingInvitationList:
       type: object
       required: [invitations, next_cursor, has_more]
@@ -1735,6 +1777,13 @@ components:
           type: string
         has_more:
           type: boolean
+    InvitationResponseRequest:
+      type: object
+      properties:
+        response_remark:
+          type: string
+          maxLength: 200
+          description: 可选审批回复
     MemberRoleRequest:
       type: object
       required: [role]

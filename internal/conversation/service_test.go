@@ -197,14 +197,20 @@ func TestGroupInvitationValidation(t *testing.T) {
 		{
 			name: "接受邀请参数为空",
 			run: func() error {
-				_, err := service.AcceptInvitation(context.Background(), 0, 1)
+				_, err := service.AcceptInvitation(
+					context.Background(),
+					RespondInvitationCommand{InvitationID: 1},
+				)
 				return err
 			},
 		},
 		{
 			name: "拒绝邀请参数为空",
 			run: func() error {
-				return service.RejectInvitation(context.Background(), 1, 0)
+				return service.RejectInvitation(
+					context.Background(),
+					RespondInvitationCommand{UserID: 1},
+				)
 			},
 		},
 		{
@@ -228,6 +234,29 @@ func TestGroupInvitationValidation(t *testing.T) {
 					InvitationPageQuery{Limit: 0},
 				)
 				return err
+			},
+		},
+		{
+			name: "审批回复过长",
+			run: func() error {
+				_, err := service.AcceptInvitation(
+					context.Background(),
+					RespondInvitationCommand{
+						UserID:         1,
+						InvitationID:   2,
+						ResponseRemark: strings.Repeat("复", maxInvitationResponseRunes+1),
+					},
+				)
+				return err
+			},
+		},
+		{
+			name: "取消邀请参数为空",
+			run: func() error {
+				return service.CancelInvitation(
+					context.Background(),
+					CancelInvitationCommand{},
+				)
 			},
 		},
 	}

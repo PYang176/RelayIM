@@ -573,6 +573,26 @@
           },
           "inviter_id": {
             "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "responded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "response_remark": {
+            "description": "被邀请人的审批回复；未填写时为空字符串",
+            "type": "string"
+          },
+          "status": {
+            "description": "1 待处理、2 已接受、3 已拒绝、4 已过期、5 已取消",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "type": "integer"
           }
         },
         "required": [
@@ -580,6 +600,8 @@
           "invitee",
           "inviter_id",
           "invite_remark",
+          "status",
+          "response_remark",
           "created_at",
           "expires_at"
         ],
@@ -646,6 +668,16 @@
       },
       "HealthResponse": {
         "additionalProperties": true,
+        "type": "object"
+      },
+      "InvitationResponseRequest": {
+        "properties": {
+          "response_remark": {
+            "description": "可选审批回复",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "InviteMembersRequest": {
@@ -1851,7 +1883,41 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "summary": "群主或管理员查询待处理邀请",
+        "summary": "群主或管理员查询群邀请记录",
+        "tags": [
+          "Conversation"
+        ]
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/invitations/{invitation_id}": {
+      "delete": {
+        "operationId": "cancelGroupInvitation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationID"
+          },
+          {
+            "$ref": "#/components/parameters/GroupInvitationID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "群邀请已取消"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "summary": "群主或管理员取消待处理邀请",
         "tags": [
           "Conversation"
         ]
@@ -2734,6 +2800,16 @@
             "$ref": "#/components/parameters/GroupInvitationID"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationResponseRequest"
+              }
+            }
+          },
+          "required": false
+        },
         "responses": {
           "200": {
             "content": {
@@ -2792,6 +2868,16 @@
             "$ref": "#/components/parameters/GroupInvitationID"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationResponseRequest"
+              }
+            }
+          },
+          "required": false
+        },
         "responses": {
           "200": {
             "description": "群邀请已拒绝"

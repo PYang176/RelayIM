@@ -133,6 +133,15 @@ function loadMoreGroupInvitations() {
     }
 }
 
+async function cancelGroupInvitation(invitationID: string) {
+    if (chat.activeConversationId) {
+        await groupInvitations.cancelInvitation(
+            chat.activeConversationId,
+            invitationID,
+        )
+    }
+}
+
 async function handleGroupInvitationAccepted(conversationID: string) {
     groupInvitationsOpen.value = false
     await chat.loadConversations()
@@ -534,10 +543,10 @@ onBeforeUnmount(() => {
                 :loading-more-friends="friendships.loadingMore"
                 :members="chat.activeMembers"
                 :open="groupMembersOpen"
-                :pending-invitations="
-                    groupInvitations.groupPending[chat.activeConversationId] ?? []
+                :invitation-history="
+                    groupInvitations.groupHistory[chat.activeConversationId] ?? []
                 "
-                :pending-invitations-has-more="
+                :invitation-history-has-more="
                     groupInvitations.groupHasMore[chat.activeConversationId] ?? false
                 "
                 :loading-more-invitations="groupInvitations.loadingMore"
@@ -546,6 +555,7 @@ onBeforeUnmount(() => {
                 @invite="inviteMembers"
                 @load-more-friends="friendships.loadMoreFriends"
                 @load-more-invitations="loadMoreGroupInvitations"
+                @cancel-invitation="cancelGroupInvitation"
                 @remove="removeMember"
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"

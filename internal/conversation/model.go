@@ -14,6 +14,7 @@ const (
 	invitationStatusAccepted    = 2
 	invitationStatusRejected    = 3
 	invitationStatusExpired     = 4
+	invitationStatusCancelled   = 5
 )
 
 type conversation struct {
@@ -104,6 +105,9 @@ type groupInvitation struct {
 	// InviteeID 是被邀请人 Snowflake ID。
 	InviteeID uint64 `gorm:"column:invitee_id"`
 
+	// ResponseRemark 是被邀请人同意或拒绝时填写的回复。
+	ResponseRemark *string `gorm:"column:response_remark"`
+
 	// Status 表示邀请状态，1 待处理、2 已接受、3 已拒绝、4 已过期、5 已取消。
 	Status int `gorm:"column:status"`
 
@@ -134,15 +138,18 @@ type receivedInvitationRecord struct {
 }
 
 type groupInvitationRecord struct {
-	InvitationID uint64    `gorm:"column:invitation_id"`
-	InviteeID    uint64    `gorm:"column:invitee_id"`
-	Username     string    `gorm:"column:username"`
-	Nickname     string    `gorm:"column:nickname"`
-	AvatarURL    *string   `gorm:"column:avatar_url"`
-	InviterID    uint64    `gorm:"column:inviter_id"`
-	InviteRemark string    `gorm:"column:invite_remark"`
-	ExpiresAt    time.Time `gorm:"column:expires_at"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
+	InvitationID   uint64     `gorm:"column:invitation_id"`
+	InviteeID      uint64     `gorm:"column:invitee_id"`
+	Username       string     `gorm:"column:username"`
+	Nickname       string     `gorm:"column:nickname"`
+	AvatarURL      *string    `gorm:"column:avatar_url"`
+	InviterID      uint64     `gorm:"column:inviter_id"`
+	InviteRemark   string     `gorm:"column:invite_remark"`
+	Status         int        `gorm:"column:status"`
+	ResponseRemark *string    `gorm:"column:response_remark"`
+	ExpiresAt      time.Time  `gorm:"column:expires_at"`
+	CreatedAt      time.Time  `gorm:"column:created_at"`
+	RespondedAt    *time.Time `gorm:"column:responded_at"`
 }
 
 type conversationSummary struct {

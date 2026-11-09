@@ -3,6 +3,7 @@ package conversation
 import (
 	"errors"
 	"ginChatProject/internal/middleware"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -44,6 +45,11 @@ type inviteMembersRequest struct {
 
 	// InviteRemark 是邀请人填写的入群理由。
 	InviteRemark string `json:"invite_remark"`
+}
+
+type respondInvitationRequest struct {
+	// ResponseRemark 是可选审批回复。
+	ResponseRemark string `json:"response_remark"`
 }
 
 type setMemberRoleRequest struct {
@@ -284,11 +290,19 @@ func (h *Handler) respondInvitation(c *gin.Context, accept bool) {
 	if !ok {
 		return
 	}
+	responseRemark, ok := parseInvitationResponse(c)
+	if !ok {
+		return
+	}
+	command := RespondInvitationCommand{
+		UserID:         userID,
+		InvitationID:   invitationID,
+		ResponseRemark: responseRemark,
+	}
 	if !accept {
 		if err := h.service.RejectInvitation(
 			c.Request.Context(),
-			userID,
-			invitationID,
+			command,
 		); err != nil {
 			writeConversationError(c, err)
 			return
@@ -298,8 +312,7 @@ func (h *Handler) respondInvitation(c *gin.Context, accept bool) {
 	}
 	result, err := h.service.AcceptInvitation(
 		c.Request.Context(),
-		userID,
-		invitationID,
+		command,
 	)
 	if err != nil {
 		writeConversationError(c, err)
@@ -346,10 +359,13 @@ func (h *Handler) ListGroupInvitations(c *gin.Context) {
 				"nickname":   invitation.Invitee.Nickname,
 				"avatar_url": invitation.Invitee.AvatarURL,
 			},
-			"inviter_id":    strconv.FormatUint(invitation.InviterID, 10),
-			"invite_remark": invitation.InviteRemark,
-			"created_at":    invitation.CreatedAt,
-			"expires_at":    invitation.ExpiresAt,
+			"inviter_id":      strconv.FormatUint(invitation.InviterID, 10),
+			"invite_remark":   invitation.InviteRemark,
+			"status":          invitation.Status,
+			"response_remark": invitation.ResponseRemark,
+			"created_at":      invitation.CreatedAt,
+			"expires_at":      invitation.ExpiresAt,
+			"responded_at":    invitation.RespondedAt,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -357,6 +373,34 @@ func (h *Handler) ListGroupInvitations(c *gin.Context) {
 		"next_cursor": formatInvitationCursor(result.NextCursor),
 		"has_more":    result.HasMore,
 	})
+}
+
+// CancelInvitation 处理群主或管理员取消待处理邀请。
+func (h *Handler) CancelInvitation(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	invitationID, ok := parsePathUserID(c, "invitation_id")
+	if !ok {
+		return
+	}
+	if err := h.service.CancelInvitation(
+		c.Request.Context(),
+		CancelInvitationCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			InvitationID:   invitationID,
+		},
+	); err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // RemoveMember 处理 DELETE /api/v1/conversations/:conversation_id/members/:user_id。
@@ -606,6 +650,21 @@ func parseInvitationPageQuery(
 	return page, true
 }
 
+func parseInvitationResponse(c *gin.Context) (string, bool) {
+	if c.Request.ContentLength == 0 {
+		return "", true
+	}
+	var request respondInvitationRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		if errors.Is(err, io.EOF) {
+			return "", true
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数格式错误"})
+		return "", false
+	}
+	return request.ResponseRemark, true
+}
+
 func formatInvitationCursor(cursor uint64) string {
 	if cursor == 0 {
 		return ""
@@ -641,6 +700,8 @@ func writeConversationError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrInvitationNotFound.Error()})
 	case errors.Is(err, ErrInvitationForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrInvitationForbidden.Error()})
+	case errors.Is(err, ErrInvitationManageForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrInvitationManageForbidden.Error()})
 	case errors.Is(err, ErrInvitationHandled),
 		errors.Is(err, ErrInvitationExpired),
 		errors.Is(err, ErrInvitationUnavailable):

@@ -65,8 +65,11 @@ export interface GroupPendingInvitation {
     invitee: FriendUser
     inviter_id: string
     invite_remark: string
+    status: number
+    response_remark: string
     created_at: string
     expires_at: string
+    responded_at?: string
 }
 
 export interface GroupPendingInvitationPage {

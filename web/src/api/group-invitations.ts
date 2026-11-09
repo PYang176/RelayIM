@@ -26,10 +26,14 @@ export function listReceivedInvitations(
 export function acceptInvitation(
     token: string,
     invitationID: string,
+    responseRemark: string,
 ): Promise<InvitationAcceptance> {
     return request(
         `/group-invitations/${invitationID}/accept`,
-        {method: 'POST'},
+        {
+            method: 'POST',
+            body: JSON.stringify({response_remark: responseRemark}),
+        },
         token,
     )
 }
@@ -37,10 +41,26 @@ export function acceptInvitation(
 export function rejectInvitation(
     token: string,
     invitationID: string,
+    responseRemark: string,
 ): Promise<void> {
     return request(
         `/group-invitations/${invitationID}/reject`,
-        {method: 'POST'},
+        {
+            method: 'POST',
+            body: JSON.stringify({response_remark: responseRemark}),
+        },
+        token,
+    )
+}
+
+export function cancelInvitation(
+    token: string,
+    conversationID: string,
+    invitationID: string,
+): Promise<void> {
+    return request(
+        `/conversations/${conversationID}/invitations/${invitationID}`,
+        {method: 'DELETE'},
         token,
     )
 }

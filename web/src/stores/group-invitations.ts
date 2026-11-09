@@ -12,7 +12,7 @@ import type {
 export const useGroupInvitationStore = defineStore('group-invitations', () => {
     const auth = useAuthStore()
     const invitations = ref<ReceivedGroupInvitation[]>([])
-    const groupPending = ref<Record<string, GroupPendingInvitation[]>>({})
+    const groupHistory = ref<Record<string, GroupPendingInvitation[]>>({})
     const nextCursor = shallowRef('')
     const hasMore = shallowRef(false)
     const groupHasMore = ref<Record<string, boolean>>({})
@@ -64,8 +64,8 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         reset = true,
     ) {
         if (reset) {
-            groupPending.value = {
-                ...groupPending.value,
+            groupHistory.value = {
+                ...groupHistory.value,
                 [conversationID]: [],
             }
         }
@@ -75,12 +75,12 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
                 conversationID,
                 reset ? '' : (groupNextCursor.value[conversationID] ?? ''),
             )
-            groupPending.value = {
-                ...groupPending.value,
+            groupHistory.value = {
+                ...groupHistory.value,
                 [conversationID]: reset
                     ? page.invitations
                     : [
-                        ...(groupPending.value[conversationID] ?? []),
+                        ...(groupHistory.value[conversationID] ?? []),
                         ...page.invitations,
                     ],
             }
@@ -99,6 +99,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
 
     async function acceptInvitation(
         invitationID: string,
+        responseRemark = '',
     ): Promise<InvitationAcceptance | null> {
         actionBusy.value = true
         clearError()
@@ -106,6 +107,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
             const result = await invitationApi.acceptInvitation(
                 auth.token,
                 invitationID,
+                responseRemark,
             )
             invitations.value = invitations.value.filter(
                 (item) => item.invitation_id !== invitationID,
@@ -119,16 +121,43 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
-    async function rejectInvitation(invitationID: string) {
+    async function rejectInvitation(
+        invitationID: string,
+        responseRemark = '',
+    ) {
         actionBusy.value = true
         clearError()
         try {
-            await invitationApi.rejectInvitation(auth.token, invitationID)
+            await invitationApi.rejectInvitation(
+                auth.token,
+                invitationID,
+                responseRemark,
+            )
             invitations.value = invitations.value.filter(
                 (item) => item.invitation_id !== invitationID,
             )
         } catch (cause) {
             reportError(cause, '拒绝群邀请失败')
+        } finally {
+            actionBusy.value = false
+        }
+    }
+
+    async function cancelInvitation(
+        conversationID: string,
+        invitationID: string,
+    ) {
+        actionBusy.value = true
+        clearError()
+        try {
+            await invitationApi.cancelInvitation(
+                auth.token,
+                conversationID,
+                invitationID,
+            )
+            await loadGroupInvitations(conversationID, true)
+        } catch (cause) {
+            reportError(cause, '取消群邀请失败')
         } finally {
             actionBusy.value = false
         }
@@ -140,7 +169,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
 
     function reset() {
         invitations.value = []
-        groupPending.value = {}
+        groupHistory.value = {}
         nextCursor.value = ''
         hasMore.value = false
         groupNextCursor.value = {}
@@ -150,7 +179,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
 
     return {
         invitations,
-        groupPending,
+        groupHistory,
         hasMore,
         groupHasMore,
         loading,
@@ -162,6 +191,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         loadGroupInvitations,
         acceptInvitation,
         rejectInvitation,
+        cancelInvitation,
         clearError,
         reset,
     }

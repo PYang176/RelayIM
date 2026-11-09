@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {nextTick, useTemplateRef, watch} from 'vue'
+import {nextTick, reactive, useTemplateRef, watch} from 'vue'
 
 import {useGroupInvitationStore} from '@/stores/group-invitations'
 
@@ -15,11 +15,15 @@ const emit = defineEmits<{
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const closeButton = useTemplateRef<HTMLButtonElement>('closeButton')
 const invitations = useGroupInvitationStore()
+const responseRemarks = reactive<Record<string, string>>({})
 
 watch(
     () => props.open,
     async (open) => {
         if (open) {
+            for (const key of Object.keys(responseRemarks)) {
+                delete responseRemarks[key]
+            }
             dialog.value?.showModal()
             await invitations.loadReceived()
             await nextTick()
@@ -45,10 +49,20 @@ function formatExpiry(value: string) {
 }
 
 async function accept(invitationID: string) {
-    const result = await invitations.acceptInvitation(invitationID)
+    const result = await invitations.acceptInvitation(
+        invitationID,
+        responseRemarks[invitationID] ?? '',
+    )
     if (result) {
         emit('accepted', result.conversation_id)
     }
+}
+
+async function reject(invitationID: string) {
+    await invitations.rejectInvitation(
+        invitationID,
+        responseRemarks[invitationID] ?? '',
+    )
 }
 </script>
 
@@ -113,6 +127,16 @@ async function accept(invitationID: string) {
                         <p v-if="invitation.invite_remark">
                             {{ invitation.invite_remark }}
                         </p>
+                        <label class="friend-inline-form">
+                            <span class="sr-only">
+                                审批回复备注
+                            </span>
+                            <input
+                                    v-model="responseRemarks[invitation.invitation_id]"
+                                    maxlength="200"
+                                    placeholder="审批回复（选填）"
+                            />
+                        </label>
                     </div>
                     <div class="friend-actions">
                         <button
@@ -125,11 +149,7 @@ async function accept(invitationID: string) {
                         <button
                                 :disabled="invitations.actionBusy"
                                 type="button"
-                                @click="
-                                    invitations.rejectInvitation(
-                                        invitation.invitation_id,
-                                    )
-                                "
+                                @click="reject(invitation.invitation_id)"
                         >
                             拒绝
                         </button>

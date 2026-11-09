@@ -392,6 +392,7 @@ func (r *Repository) respondToInvitation(
 	userID uint64,
 	invitationID uint64,
 	accept bool,
+	responseRemark string,
 ) (*groupInvitation, uint64, error) {
 	now := time.Now().UTC()
 	var invitation groupInvitation
@@ -443,8 +444,9 @@ func (r *Repository) respondToInvitation(
 			return tx.Model(&groupInvitation{}).
 				Where("id = ?", invitation.ID).
 				Updates(map[string]any{
-					"status":       invitationStatusRejected,
-					"responded_at": now,
+					"status":          invitationStatusRejected,
+					"response_remark": nullableString(responseRemark),
+					"responded_at":    now,
 				}).Error
 		}
 
@@ -525,8 +527,9 @@ func (r *Repository) respondToInvitation(
 		if err := tx.Model(&groupInvitation{}).
 			Where("id = ?", invitation.ID).
 			Updates(map[string]any{
-				"status":       invitationStatusAccepted,
-				"responded_at": now,
+				"status":          invitationStatusAccepted,
+				"response_remark": nullableString(responseRemark),
+				"responded_at":    now,
 			}).Error; err != nil {
 			return fmt.Errorf("更新群邀请接受状态: %w", err)
 		}
@@ -536,6 +539,74 @@ func (r *Repository) respondToInvitation(
 		return nil, 0, err
 	}
 	return &invitation, memberCount, nil
+}
+
+func (r *Repository) cancelInvitation(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	invitationID uint64,
+) error {
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conversationRecord conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND status = ? AND conversation_type = ?",
+				conversationID,
+				conversationStatusOpen,
+				conversationTypeGroup,
+			).
+			First(&conversationRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return fmt.Errorf("锁定取消邀请群会话: %w", err)
+		}
+		var actor conversationMember
+		if err := tx.Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			actorID,
+		).First(&actor).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInvitationManageForbidden
+			}
+			return fmt.Errorf("校验群邀请管理权限: %w", err)
+		}
+		if actor.Role < groupAdminRole {
+			return ErrInvitationManageForbidden
+		}
+
+		var invitation groupInvitation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND conversation_id = ?",
+				invitationID,
+				conversationID,
+			).
+			First(&invitation).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInvitationNotFound
+			}
+			return fmt.Errorf("锁定待取消群邀请: %w", err)
+		}
+		if invitation.Status != invitationStatusPending {
+			return ErrInvitationHandled
+		}
+		if !invitation.ExpiresAt.After(now) {
+			return ErrInvitationExpired
+		}
+		if err := tx.Model(&groupInvitation{}).
+			Where("id = ?", invitation.ID).
+			Updates(map[string]any{
+				"status":       invitationStatusCancelled,
+				"responded_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("取消群邀请: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *Repository) listReceivedInvitations(
@@ -627,27 +698,22 @@ func (r *Repository) listGroupInvitations(
 		return GroupInvitationPage{}, ErrPermissionDenied
 	}
 
-	now := time.Now().UTC()
 	var records []groupInvitationRecord
 	query := r.db.WithContext(ctx).
 		Table(
 			"group_invitations AS gi "+
-				"USE INDEX (idx_group_invitations_conversation_status_id)",
+				"USE INDEX (idx_group_invitations_conversation_id)",
 		).
 		Select(
 			"gi.id AS invitation_id, gi.invitee_id, "+
 				"u.username, p.nickname, p.avatar_url, "+
 				"gi.inviter_id, gi.invite_remark, "+
-				"gi.created_at, gi.expires_at",
+				"gi.status, gi.response_remark, "+
+				"gi.created_at, gi.expires_at, gi.responded_at",
 		).
 		Joins("JOIN users AS u ON u.id = gi.invitee_id").
 		Joins("LEFT JOIN user_profiles AS p ON p.user_id = u.id").
-		Where(
-			"gi.conversation_id = ? AND gi.status = ? AND gi.expires_at > ?",
-			conversationID,
-			invitationStatusPending,
-			now,
-		)
+		Where("gi.conversation_id = ?", conversationID)
 	if beforeID > 0 {
 		query = query.Where("gi.id < ?", beforeID)
 	}
@@ -663,6 +729,11 @@ func (r *Repository) listGroupInvitations(
 	}
 	results := make([]GroupInvitationResult, 0, len(records))
 	for _, record := range records {
+		status := record.Status
+		if status == invitationStatusPending &&
+			!record.ExpiresAt.After(time.Now().UTC()) {
+			status = invitationStatusExpired
+		}
 		results = append(results, GroupInvitationResult{
 			InvitationID: record.InvitationID,
 			Invitee: MemberResult{
@@ -671,10 +742,13 @@ func (r *Repository) listGroupInvitations(
 				Nickname:  record.Nickname,
 				AvatarURL: stringValue(record.AvatarURL),
 			},
-			InviterID:    record.InviterID,
-			InviteRemark: record.InviteRemark,
-			CreatedAt:    record.CreatedAt,
-			ExpiresAt:    record.ExpiresAt,
+			InviterID:      record.InviterID,
+			InviteRemark:   record.InviteRemark,
+			Status:         status,
+			ResponseRemark: stringValue(record.ResponseRemark),
+			CreatedAt:      record.CreatedAt,
+			ExpiresAt:      record.ExpiresAt,
+			RespondedAt:    record.RespondedAt,
 		})
 	}
 	page := GroupInvitationPage{

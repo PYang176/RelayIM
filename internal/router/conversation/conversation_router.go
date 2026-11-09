@@ -62,4 +62,8 @@ func Register(
 		"/conversations/:conversation_id/invitations",
 		handler.ListGroupInvitations,
 	)
+	invitations.DELETE(
+		"/conversations/:conversation_id/invitations/:invitation_id",
+		handler.CancelInvitation,
+	)
 }

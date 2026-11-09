@@ -17,8 +17,8 @@ const props = defineProps<{
     friends: Friend[]
     friendsHasMore: boolean
     loadingMoreFriends: boolean
-    pendingInvitations: GroupPendingInvitation[]
-    pendingInvitationsHasMore: boolean
+    invitationHistory: GroupPendingInvitation[]
+    invitationHistoryHasMore: boolean
     loadingMoreInvitations: boolean
     currentUserId: string
     loading: boolean
@@ -30,6 +30,7 @@ const emit = defineEmits<{
     close: []
     loadMoreFriends: []
     loadMoreInvitations: []
+    cancelInvitation: [invitationID: string]
     invite: [userIds: string[], inviteRemark: string]
     remove: [userId: string]
     setRole: [userId: string, role: 1 | 2]
@@ -55,9 +56,9 @@ const activeMemberIDs = computed(
 )
 const pendingInviteeIDs = computed(
     () => new Set(
-        props.pendingInvitations.map(
-            (invitation) => invitation.invitee.id,
-        ),
+        props.invitationHistory
+            .filter((invitation) => invitation.status === 1)
+            .map((invitation) => invitation.invitee.id),
     ),
 )
 const availableFriends = computed(() =>
@@ -98,6 +99,17 @@ function roleLabel(role: number) {
     if (role === 3) return '群主'
     if (role === 2) return '管理员'
     return '成员'
+}
+
+function invitationStatusLabel(status: number) {
+    const labels: Record<number, string> = {
+        1: '等待审批',
+        2: '已同意',
+        3: '已拒绝',
+        4: '已过期',
+        5: '已取消',
+    }
+    return labels[status] ?? '未知状态'
 }
 
 function canRemove(member: ConversationMember) {
@@ -246,16 +258,16 @@ function leave() {
             </div>
 
             <section
-                    v-if="canManage && pendingInvitations.length > 0"
+                    v-if="canManage && invitationHistory.length > 0"
                     class="group-member-picker invite-picker"
-                    aria-label="待审批群邀请"
+                    aria-label="群邀请记录"
             >
-                <h3>待审批邀请</h3>
+                <h3>群邀请记录</h3>
                 <div class="group-member-list">
                     <div
-                            v-for="invitation in pendingInvitations"
+                            v-for="invitation in invitationHistory"
                             :key="invitation.invitation_id"
-                            class="group-member-option"
+                            class="group-member-option invitation-history-row"
                     >
                         <span class="friend-avatar">
                             {{
@@ -273,16 +285,34 @@ function leave() {
                                 }}
                             </strong>
                             <small>
-                                @{{ invitation.invitee.username }} · 等待审批
+                                @{{ invitation.invitee.username }} ·
+                                {{ invitationStatusLabel(invitation.status) }}
                             </small>
-                            <p v-if="invitation.invite_remark">
-                                {{ invitation.invite_remark }}
+                            <p>
+                                邀请备注：{{ invitation.invite_remark }}
+                            </p>
+                            <p v-if="invitation.response_remark">
+                                回复备注：{{ invitation.response_remark }}
                             </p>
                         </span>
+                        <button
+                                v-if="invitation.status === 1"
+                                :disabled="busy"
+                                class="text-button danger-text"
+                                type="button"
+                                @click="
+                                    emit(
+                                        'cancelInvitation',
+                                        invitation.invitation_id,
+                                    )
+                                "
+                        >
+                            取消邀请
+                        </button>
                     </div>
                 </div>
                 <button
-                        v-if="pendingInvitationsHasMore"
+                        v-if="invitationHistoryHasMore"
                         class="text-button"
                         :disabled="loadingMoreInvitations"
                         type="button"
@@ -291,7 +321,7 @@ function leave() {
                     {{
                         loadingMoreInvitations
                             ? '加载中…'
-                            : '加载更多待审批邀请'
+                            : '加载更多邀请记录'
                     }}
                 </button>
             </section>

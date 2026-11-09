@@ -190,6 +190,20 @@ def list_received(
     return result["invitations"]
 
 
+def list_group_history(
+    api: APIRequestContext,
+    owner: dict[str, Any],
+    conversation_id: str,
+) -> list[dict[str, Any]]:
+    result = api_ok(
+        api,
+        "GET",
+        f"/conversations/{conversation_id}/invitations?limit=20",
+        token=owner["token"],
+    )
+    return result["invitations"]
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     suffix = (
         datetime.now(UTC).strftime("%m%d%H%M%S")
@@ -252,6 +266,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             expect(
                 invitation_row.get_by_text(accepted_remark, exact=True)
             ).to_be_visible()
+            accept_response = "同意加入，稍后查看群消息"
+            invitation_row.get_by_label("审批回复备注").fill(accept_response)
             dialog_screenshot = report_dir / "group-invitation-pending.png"
             page.screenshot(path=str(dialog_screenshot), full_page=True)
             invitation_row.get_by_role(
@@ -274,6 +290,22 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 for item in accepted_conversations["conversations"]
             ):
                 raise AssertionError("接受邀请后会话列表缺少目标群")
+            accepted_history = list_group_history(
+                api,
+                owner,
+                accepted_group_id,
+            )
+            accepted_record = next(
+                item
+                for item in accepted_history
+                if item["invitation_id"]
+                == accepted_invitation["invitation_id"]
+            )
+            if (
+                accepted_record["status"] != 2
+                or accepted_record["response_remark"] != accept_response
+            ):
+                raise AssertionError("接受邀请后的审批记录不正确")
             accepted_screenshot = report_dir / "group-invitation-accepted.png"
             page.screenshot(path=str(accepted_screenshot), full_page=True)
 
@@ -292,6 +324,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 has_text=rejected_group_name
             )
             expect(rejected_row).to_be_visible()
+            reject_response = "最近较忙，暂时不参加"
+            rejected_row.get_by_label("审批回复备注").fill(reject_response)
             rejected_row.get_by_role(
                 "button",
                 name="拒绝",
@@ -310,6 +344,78 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 for item in final_conversations["conversations"]
             ):
                 raise AssertionError("拒绝邀请后仍然出现在群会话列表")
+            rejected_history = list_group_history(
+                api,
+                owner,
+                rejected_group_id,
+            )
+            rejected_record = rejected_history[0]
+            if (
+                rejected_record["status"] != 3
+                or rejected_record["response_remark"] != reject_response
+            ):
+                raise AssertionError("拒绝邀请后的审批记录不正确")
+
+            canceled_group_name = f"邀请取消群 {suffix}"
+            canceled_group_id = create_group_with_invitation(
+                api,
+                owner,
+                invitee,
+                canceled_group_name,
+            )
+            canceled_invitation = next(
+                item
+                for item in list_received(api, invitee)
+                if item["conversation_id"] == canceled_group_id
+            )
+            api_ok(
+                api,
+                "DELETE",
+                "/conversations/"
+                f"{canceled_group_id}/invitations/"
+                f"{canceled_invitation['invitation_id']}",
+                token=owner["token"],
+            )
+            canceled_history = list_group_history(
+                api,
+                owner,
+                canceled_group_id,
+            )
+            if canceled_history[0]["status"] != 5:
+                raise AssertionError("取消邀请后的状态不是已取消")
+            if any(
+                item["conversation_id"] == canceled_group_id
+                for item in list_received(api, invitee)
+            ):
+                raise AssertionError("取消后邀请仍在接收箱")
+
+            owner_page = browser.new_page(base_url=args.frontend_url)
+            owner_page.goto("/login", wait_until="networkidle")
+            owner_page.get_by_label("用户名").fill(owner["username"])
+            owner_page.get_by_label("密码").fill(PASSWORD)
+            owner_page.get_by_role("button", name="进入 GinChat").click()
+            owner_page.wait_for_url("**/")
+            owner_page.locator(".conversation-item").filter(
+                has_text=rejected_group_name
+            ).click()
+            owner_page.get_by_role(
+                "button",
+                name="管理成员",
+                exact=True,
+            ).click()
+            member_dialog = owner_page.locator(".group-members-dialog")
+            expect(member_dialog).to_be_visible()
+            expect(
+                member_dialog.get_by_text("群邀请记录", exact=True)
+            ).to_be_visible()
+            expect(
+                member_dialog.get_by_text(reject_response, exact=False)
+            ).to_be_visible()
+            history_screenshot = report_dir / "group-invitation-history.png"
+            owner_page.screenshot(
+                path=str(history_screenshot),
+                full_page=True,
+            )
 
             result = {
                 "accepted_invitation_id": accepted_invitation["invitation_id"],
@@ -318,6 +424,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "remaining_invitations": len(list_received(api, invitee)),
                 "pending_screenshot": str(dialog_screenshot),
                 "accepted_screenshot": str(accepted_screenshot),
+                "history_screenshot": str(history_screenshot),
+                "canceled_invitation_id": canceled_invitation["invitation_id"],
             }
             (report_dir / "result.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),

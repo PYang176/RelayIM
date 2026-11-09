@@ -42,6 +42,9 @@ var (
 	// ErrInvitationForbidden 表示当前用户不是邀请接收者。
 	ErrInvitationForbidden = errors.New("无权处理该群邀请")
 
+	// ErrInvitationManageForbidden 表示当前用户无权取消群邀请。
+	ErrInvitationManageForbidden = errors.New("无权管理该群邀请")
+
 	// ErrInvitationHandled 表示群邀请已经处理。
 	ErrInvitationHandled = errors.New("群邀请已处理")
 

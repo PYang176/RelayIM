@@ -9,13 +9,14 @@ import (
 )
 
 const (
-	maxGroupNameRunes        = 64
-	maxGroupMemberCount      = 500
-	maxGroupAvatarBytes      = 512
-	maxInvitationRemarkRunes = 200
-	defaultPageSize          = 20
-	maxPageSize              = 100
-	invitationTTL            = 7 * 24 * time.Hour
+	maxGroupNameRunes          = 64
+	maxGroupMemberCount        = 500
+	maxGroupAvatarBytes        = 512
+	maxInvitationRemarkRunes   = 200
+	maxInvitationResponseRunes = 200
+	defaultPageSize            = 20
+	maxPageSize                = 100
+	invitationTTL              = 7 * 24 * time.Hour
 )
 
 // Service 提供会话创建与列表查询。
@@ -79,6 +80,30 @@ type InvitationPageQuery struct {
 	BeforeID uint64
 }
 
+// RespondInvitationCommand 是接受或拒绝群邀请的参数。
+type RespondInvitationCommand struct {
+	// UserID 是被邀请人 Snowflake ID。
+	UserID uint64
+
+	// InvitationID 是群邀请 Snowflake ID。
+	InvitationID uint64
+
+	// ResponseRemark 是可选审批回复。
+	ResponseRemark string
+}
+
+// CancelInvitationCommand 是群管理员取消邀请的参数。
+type CancelInvitationCommand struct {
+	// ActorID 是执行取消的群主或管理员 Snowflake ID。
+	ActorID uint64
+
+	// ConversationID 是群会话 Snowflake ID。
+	ConversationID uint64
+
+	// InvitationID 是待取消邀请 Snowflake ID。
+	InvitationID uint64
+}
+
 // ReceivedInvitationResult 是当前用户收到的一条群邀请。
 type ReceivedInvitationResult struct {
 	// InvitationID 是邀请 Snowflake ID。
@@ -116,14 +141,17 @@ type ReceivedInvitationPage struct {
 	HasMore     bool
 }
 
-// GroupInvitationResult 是群管理员看到的待处理邀请。
+// GroupInvitationResult 是群管理员看到的邀请记录。
 type GroupInvitationResult struct {
-	InvitationID uint64
-	Invitee      MemberResult
-	InviterID    uint64
-	InviteRemark string
-	CreatedAt    time.Time
-	ExpiresAt    time.Time
+	InvitationID   uint64
+	Invitee        MemberResult
+	InviterID      uint64
+	InviteRemark   string
+	Status         int
+	ResponseRemark string
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	RespondedAt    *time.Time
 }
 
 // GroupInvitationPage 是群待处理邀请的一页。
@@ -401,17 +429,23 @@ func (s *Service) ListReceivedInvitations(
 // AcceptInvitation 接受群邀请并在事务中加入群。
 func (s *Service) AcceptInvitation(
 	ctx context.Context,
-	userID uint64,
-	invitationID uint64,
+	command RespondInvitationCommand,
 ) (InvitationAcceptanceResult, error) {
-	if userID == 0 || invitationID == 0 {
+	if command.UserID == 0 || command.InvitationID == 0 {
 		return InvitationAcceptanceResult{}, ErrInvalidInput
+	}
+	responseRemark, err := normalizeInvitationResponse(
+		command.ResponseRemark,
+	)
+	if err != nil {
+		return InvitationAcceptanceResult{}, err
 	}
 	record, memberCount, err := s.repo.respondToInvitation(
 		ctx,
-		userID,
-		invitationID,
+		command.UserID,
+		command.InvitationID,
 		true,
+		responseRemark,
 	)
 	if err != nil {
 		return InvitationAcceptanceResult{}, err
@@ -426,19 +460,43 @@ func (s *Service) AcceptInvitation(
 // RejectInvitation 拒绝群邀请。
 func (s *Service) RejectInvitation(
 	ctx context.Context,
-	userID uint64,
-	invitationID uint64,
+	command RespondInvitationCommand,
 ) error {
-	if userID == 0 || invitationID == 0 {
+	if command.UserID == 0 || command.InvitationID == 0 {
 		return ErrInvalidInput
 	}
-	_, _, err := s.repo.respondToInvitation(
+	responseRemark, err := normalizeInvitationResponse(
+		command.ResponseRemark,
+	)
+	if err != nil {
+		return err
+	}
+	_, _, err = s.repo.respondToInvitation(
 		ctx,
-		userID,
-		invitationID,
+		command.UserID,
+		command.InvitationID,
 		false,
+		responseRemark,
 	)
 	return err
+}
+
+// CancelInvitation 由群主或管理员取消待处理邀请。
+func (s *Service) CancelInvitation(
+	ctx context.Context,
+	command CancelInvitationCommand,
+) error {
+	if command.ActorID == 0 ||
+		command.ConversationID == 0 ||
+		command.InvitationID == 0 {
+		return ErrInvalidInput
+	}
+	return s.repo.cancelInvitation(
+		ctx,
+		command.ActorID,
+		command.ConversationID,
+		command.InvitationID,
+	)
 }
 
 // ListGroupInvitations 返回群主或管理员可见的待处理邀请。
@@ -671,6 +729,14 @@ func normalizeInvitationRemark(value string) (string, error) {
 		return "", ErrInvitationRemarkRequired
 	}
 	if utf8.RuneCountInString(value) > maxInvitationRemarkRunes {
+		return "", ErrInvalidInput
+	}
+	return value, nil
+}
+
+func normalizeInvitationResponse(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if utf8.RuneCountInString(value) > maxInvitationResponseRunes {
 		return "", ErrInvalidInput
 	}
 	return value, nil
