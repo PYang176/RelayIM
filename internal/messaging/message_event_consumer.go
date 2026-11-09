@@ -37,23 +37,23 @@ type MessageEventMetrics interface {
 	)
 }
 
-// MessageEventConsumer 负责连接重建、事件解码和幂等业务处理。
-type MessageEventConsumer struct {
-	processor   *MessageEventProcessor
+// EventConsumer 负责连接重建、事件解码和幂等业务处理。
+type EventConsumer struct {
+	processor   *EventProcessor
 	config      config.RabbitMQConfig
 	consumerTag string
 	newConsumer consumerFactory
 	metrics     MessageEventMetrics
 }
 
-// NewMessageEventConsumer 创建消息领域事件消费者。
-func NewMessageEventConsumer(
-	processor *MessageEventProcessor,
+// NewEventConsumer 创建业务领域事件消费者。
+func NewEventConsumer(
+	processor *EventProcessor,
 	cfg config.RabbitMQConfig,
 	consumerTag string,
 	metrics MessageEventMetrics,
-) *MessageEventConsumer {
-	return &MessageEventConsumer{
+) *EventConsumer {
+	return &EventConsumer{
 		processor:   processor,
 		config:      cfg,
 		consumerTag: consumerTag,
@@ -65,7 +65,7 @@ func NewMessageEventConsumer(
 }
 
 // Run 持续消费消息领域事件，直到 Context 被取消。
-func (c *MessageEventConsumer) Run(ctx context.Context) {
+func (c *EventConsumer) Run(ctx context.Context) {
 	for {
 		if ctx.Err() != nil {
 			return
@@ -82,7 +82,7 @@ func (c *MessageEventConsumer) Run(ctx context.Context) {
 
 		err = consumer.Consume(
 			ctx,
-			rabbitmq.MessageFanoutQueue,
+			rabbitmq.EventsFanoutQueue,
 			c.consumerTag,
 			c.processDelivery,
 		)
@@ -99,7 +99,7 @@ func (c *MessageEventConsumer) Run(ctx context.Context) {
 	}
 }
 
-func (c *MessageEventConsumer) processDelivery(
+func (c *EventConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
 ) error {
@@ -131,7 +131,7 @@ func (c *MessageEventConsumer) processDelivery(
 	return err
 }
 
-func (c *MessageEventConsumer) recordMetrics(
+func (c *EventConsumer) recordMetrics(
 	eventType string,
 	result string,
 	startedAt time.Time,

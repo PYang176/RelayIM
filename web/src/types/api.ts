@@ -134,6 +134,11 @@ export interface WsMessage {
     url?: string
     file_name?: string
     recalled_at?: string
+    invitation_id?: string
+    conversation_name?: string
+    inviter_name?: string
+    invite_remark?: string
+    expires_at?: string
 }
 
 export interface ReadState {

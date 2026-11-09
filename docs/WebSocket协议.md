@@ -105,6 +105,35 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话全部有效�
 
 客户端收到后按 `message_id` 原地替换消息：清空正文和附件字段，显示“该消息已撤回”。如果事件乱序或重连，历史接口中的 `recalled=true` 是最终事实来源。
 
+## 4.1 群邀请实时通知
+
+群邀请创建或重新激活后，Outbox 事件经 RabbitMQ 消费并只推送给被邀请用户的所有在线设备：
+
+```json
+{
+  "action": "group_invitation",
+  "invitation_id": "2119838679353528320",
+  "conversation_id": "2119838679340945408",
+  "conversation_name": "项目联调群",
+  "inviter_id": "2119838679000000000",
+  "inviter_name": "群主阿岚",
+  "invite_remark": "邀请参与本周接口联调",
+  "expires_at": "2026-11-17T08:30:00Z"
+}
+```
+
+管理员取消待处理邀请后推送：
+
+```json
+{
+  "action": "group_invitation_cancelled",
+  "invitation_id": "2119838679353528320",
+  "conversation_id": "2119838679340945408"
+}
+```
+
+客户端收到事件后立即刷新 `GET /api/v1/group-invitations`。WebSocket 只承担低延迟提醒，HTTP 邀请列表是最终事实来源；30 秒轮询继续作为事件丢失或离线恢复的兜底。
+
 ## 5. 客户端回执
 
 收到消息后，客户端按设备发送送达回执：

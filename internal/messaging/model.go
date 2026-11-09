@@ -285,3 +285,14 @@ type messageRecalledPayload struct {
 	// RecalledAt 是撤回发生的 UTC 时间。
 	RecalledAt time.Time `json:"recalled_at"`
 }
+
+type groupInvitationEventPayload struct {
+	// InvitationID 是群邀请 Snowflake ID 字符串。
+	InvitationID string `json:"invitation_id"`
+
+	// ConversationID 是目标群会话 Snowflake ID 字符串。
+	ConversationID string `json:"conversation_id"`
+
+	// InviteeID 是被邀请用户 Snowflake ID 字符串。
+	InviteeID string `json:"invitee_id"`
+}

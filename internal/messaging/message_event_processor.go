@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const messageEventsConsumerName = "message-events-v1"
+const businessEventsConsumerName = "business-events-v1"
 
 type permanentEventError struct {
 	err error
@@ -31,8 +31,8 @@ func (e permanentEventError) Permanent() bool {
 	return true
 }
 
-// MessageEventProcessor 校验消息领域事件、记录幂等状态并推送到在线连接。
-type MessageEventProcessor struct {
+// EventProcessor 校验业务领域事件、记录幂等状态并推送到在线连接。
+type EventProcessor struct {
 	db           *gorm.DB
 	consumerName string
 	delivery     EventDeliveryRouter
@@ -43,20 +43,20 @@ type EventDeliveryRouter interface {
 	Route(ctx context.Context, userIDs []uint64, message []byte) error
 }
 
-// NewMessageEventProcessor 创建消息领域事件处理器。
-func NewMessageEventProcessor(
+// NewEventProcessor 创建业务领域事件处理器。
+func NewEventProcessor(
 	db *gorm.DB,
 	delivery EventDeliveryRouter,
-) *MessageEventProcessor {
-	return &MessageEventProcessor{
+) *EventProcessor {
+	return &EventProcessor{
 		db:           db,
-		consumerName: messageEventsConsumerName,
+		consumerName: businessEventsConsumerName,
 		delivery:     delivery,
 	}
 }
 
 // Process 按事件类型分发消息创建和撤回处理。
-func (p *MessageEventProcessor) Process(
+func (p *EventProcessor) Process(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
 ) error {
@@ -65,6 +65,10 @@ func (p *MessageEventProcessor) Process(
 		return p.processMessageCreated(ctx, envelope)
 	case rabbitmq.MessageRecalledRoutingKey:
 		return p.processMessageRecalled(ctx, envelope)
+	case rabbitmq.GroupInvitationCreatedRoutingKey:
+		return p.processGroupInvitationCreated(ctx, envelope)
+	case rabbitmq.GroupInvitationCancelledRoutingKey:
+		return p.processGroupInvitationCancelled(ctx, envelope)
 	default:
 		return permanentEventError{err: fmt.Errorf(
 			"%w: 不支持的事件类型 %s",
@@ -74,7 +78,7 @@ func (p *MessageEventProcessor) Process(
 	}
 }
 
-func (p *MessageEventProcessor) processMessageCreated(
+func (p *EventProcessor) processMessageCreated(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
 ) error {
@@ -237,7 +241,7 @@ func (p *MessageEventProcessor) processMessageCreated(
 	return nil
 }
 
-func (p *MessageEventProcessor) processMessageRecalled(
+func (p *EventProcessor) processMessageRecalled(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
 ) error {
@@ -363,6 +367,199 @@ func (p *MessageEventProcessor) processMessageRecalled(
 		}
 		return nil
 	})
+}
+
+func (p *EventProcessor) processGroupInvitationCreated(
+	ctx context.Context,
+	envelope rabbitmq.EventEnvelope,
+) error {
+	eventID, invitationID, conversationID, inviteeID, err := parseInvitationEvent(
+		envelope,
+	)
+	if err != nil {
+		return permanentEventError{err: err}
+	}
+
+	return p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(
+			"INSERT IGNORE INTO processed_events "+
+				"(event_id, consumer_name, processed_at) VALUES (?, ?, ?)",
+			eventID,
+			p.consumerName,
+			time.Now().UTC(),
+		)
+		if result.Error != nil {
+			return fmt.Errorf("记录群邀请消费者幂等事件: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+
+		var record struct {
+			ConversationName string    `gorm:"column:conversation_name"`
+			InviterID        uint64    `gorm:"column:inviter_id"`
+			InviterName      string    `gorm:"column:inviter_name"`
+			InviteRemark     string    `gorm:"column:invite_remark"`
+			ExpiresAt        time.Time `gorm:"column:expires_at"`
+		}
+		err := tx.Table("group_invitations AS gi").
+			Select(
+				"c.name AS conversation_name, gi.inviter_id, "+
+					"COALESCE(p.nickname, u.username) AS inviter_name, "+
+					"gi.invite_remark, gi.expires_at",
+			).
+			Joins("JOIN conversations AS c ON c.id = gi.conversation_id").
+			Joins("JOIN users AS u ON u.id = gi.inviter_id").
+			Joins("LEFT JOIN user_profiles AS p ON p.user_id = u.id").
+			Where(
+				"gi.id = ? AND gi.conversation_id = ? AND gi.invitee_id = ? "+
+					"AND gi.status = 1 AND gi.expires_at > ? "+
+					"AND c.status = 1",
+				invitationID,
+				conversationID,
+				inviteeID,
+				time.Now().UTC(),
+			).
+			Take(&record).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("读取群邀请实时通知事实: %w", err)
+		}
+		if p.delivery == nil {
+			return nil
+		}
+		payload, err := json.Marshal(ws.GroupInvitationMessage{
+			Action:           ws.ActionGroupInvitation,
+			InvitationID:     strconv.FormatUint(invitationID, 10),
+			ConversationID:   strconv.FormatUint(conversationID, 10),
+			ConversationName: record.ConversationName,
+			InviterID:        strconv.FormatUint(record.InviterID, 10),
+			InviterName:      record.InviterName,
+			InviteRemark:     record.InviteRemark,
+			ExpiresAt:        record.ExpiresAt.UTC().Format(time.RFC3339Nano),
+		})
+		if err != nil {
+			return fmt.Errorf("序列化群邀请实时通知: %w", err)
+		}
+		if err := p.delivery.Route(
+			ctx,
+			[]uint64{inviteeID},
+			payload,
+		); err != nil {
+			return fmt.Errorf("跨实例路由群邀请通知: %w", err)
+		}
+		return nil
+	})
+}
+
+func (p *EventProcessor) processGroupInvitationCancelled(
+	ctx context.Context,
+	envelope rabbitmq.EventEnvelope,
+) error {
+	eventID, invitationID, conversationID, inviteeID, err := parseInvitationEvent(
+		envelope,
+	)
+	if err != nil {
+		return permanentEventError{err: err}
+	}
+
+	return p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(
+			"INSERT IGNORE INTO processed_events "+
+				"(event_id, consumer_name, processed_at) VALUES (?, ?, ?)",
+			eventID,
+			p.consumerName,
+			time.Now().UTC(),
+		)
+		if result.Error != nil {
+			return fmt.Errorf("记录群邀请取消消费者幂等事件: %w", result.Error)
+		}
+		if result.RowsAffected == 0 || p.delivery == nil {
+			return nil
+		}
+
+		var count int64
+		if err := tx.Table("group_invitations").
+			Where(
+				"id = ? AND conversation_id = ? AND invitee_id = ? AND status = 5",
+				invitationID,
+				conversationID,
+				inviteeID,
+			).
+			Count(&count).Error; err != nil {
+			return fmt.Errorf("校验群邀请取消事实: %w", err)
+		}
+		if count == 0 {
+			return nil
+		}
+		payload, err := json.Marshal(ws.GroupInvitationMessage{
+			Action:         ws.ActionGroupInvitationCancelled,
+			InvitationID:   strconv.FormatUint(invitationID, 10),
+			ConversationID: strconv.FormatUint(conversationID, 10),
+		})
+		if err != nil {
+			return fmt.Errorf("序列化群邀请取消通知: %w", err)
+		}
+		if err := p.delivery.Route(
+			ctx,
+			[]uint64{inviteeID},
+			payload,
+		); err != nil {
+			return fmt.Errorf("跨实例路由群邀请取消通知: %w", err)
+		}
+		return nil
+	})
+}
+
+func parseInvitationEvent(
+	envelope rabbitmq.EventEnvelope,
+) (uint64, uint64, uint64, uint64, error) {
+	eventID, err := strconv.ParseUint(envelope.EventID, 10, 64)
+	if err != nil || eventID == 0 {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"%w: event_id 格式错误",
+			ErrInvalidEvent,
+		)
+	}
+	aggregateID, err := strconv.ParseUint(envelope.AggregateID, 10, 64)
+	if err != nil || aggregateID == 0 {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"%w: aggregate_id 格式错误",
+			ErrInvalidEvent,
+		)
+	}
+	var payload groupInvitationEventPayload
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"%w: 解析群邀请载荷: %v",
+			ErrInvalidEvent,
+			err,
+		)
+	}
+	invitationID, err := strconv.ParseUint(payload.InvitationID, 10, 64)
+	if err != nil || invitationID == 0 {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"%w: invitation_id 格式错误",
+			ErrInvalidEvent,
+		)
+	}
+	conversationID, err := strconv.ParseUint(payload.ConversationID, 10, 64)
+	if err != nil || conversationID == 0 || conversationID != aggregateID {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"%w: conversation_id 格式错误或与聚合 ID 不一致",
+			ErrInvalidEvent,
+		)
+	}
+	inviteeID, err := strconv.ParseUint(payload.InviteeID, 10, 64)
+	if err != nil || inviteeID == 0 {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"%w: invitee_id 格式错误",
+			ErrInvalidEvent,
+		)
+	}
+	return eventID, invitationID, conversationID, inviteeID, nil
 }
 
 func parseMessageCreatedPayload(

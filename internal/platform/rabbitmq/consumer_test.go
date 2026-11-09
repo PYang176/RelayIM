@@ -11,9 +11,9 @@ func TestRetryQueueForCount(t *testing.T) {
 		count int
 		want  string
 	}{
-		{count: 0, want: MessageRetry5sQueue},
-		{count: 1, want: MessageRetry30sQueue},
-		{count: 2, want: MessageRetry2mQueue},
+		{count: 0, want: EventsRetry5sQueue},
+		{count: 1, want: EventsRetry30sQueue},
+		{count: 2, want: EventsRetry2mQueue},
 	}
 	for _, tt := range tests {
 		if got := retryQueueForCount(tt.count); got != tt.want {

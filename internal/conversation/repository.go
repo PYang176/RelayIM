@@ -2,10 +2,12 @@ package conversation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"ginChatProject/internal/platform/rabbitmq"
 	"ginChatProject/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
@@ -332,6 +334,7 @@ func createGroupInvitations(
 
 	expiresAt := now.Add(invitationTTL)
 	created := make([]groupInvitation, 0, len(inviteeIDs))
+	notifications := make([]groupInvitation, 0, len(inviteeIDs))
 	invitedCount := 0
 	for _, inviteeID := range inviteeIDs {
 		if member, exists := memberByUserID[inviteeID]; exists &&
@@ -350,6 +353,9 @@ func createGroupInvitations(
 				}).Error; err != nil {
 				return 0, fmt.Errorf("更新待处理群邀请备注: %w", err)
 			}
+			existing.InviterID = inviterID
+			existing.InviteRemark = inviteRemark
+			notifications = append(notifications, existing)
 			continue
 		}
 		if exists {
@@ -365,8 +371,15 @@ func createGroupInvitations(
 				}).Error; err != nil {
 				return 0, fmt.Errorf("重新激活群邀请: %w", err)
 			}
+			existing.InviterID = inviterID
+			existing.InviteRemark = inviteRemark
+			existing.Status = invitationStatusPending
+			existing.CreatedAt = now
+			existing.ExpiresAt = expiresAt
+			existing.RespondedAt = nil
+			notifications = append(notifications, existing)
 		} else {
-			created = append(created, groupInvitation{
+			invitation := groupInvitation{
 				ID:             uint64(snowflake.Generate()),
 				ConversationID: conversationID,
 				InviterID:      inviterID,
@@ -375,7 +388,9 @@ func createGroupInvitations(
 				Status:         invitationStatusPending,
 				CreatedAt:      now,
 				ExpiresAt:      expiresAt,
-			})
+			}
+			created = append(created, invitation)
+			notifications = append(notifications, invitation)
 		}
 		invitedCount++
 	}
@@ -384,7 +399,48 @@ func createGroupInvitations(
 			return 0, fmt.Errorf("创建群邀请: %w", err)
 		}
 	}
+	for _, invitation := range notifications {
+		if err := createGroupInvitationOutboxEvent(
+			tx,
+			invitation,
+			rabbitmq.GroupInvitationCreatedRoutingKey,
+			now,
+		); err != nil {
+			return 0, err
+		}
+	}
 	return invitedCount, nil
+}
+
+func createGroupInvitationOutboxEvent(
+	tx *gorm.DB,
+	invitation groupInvitation,
+	eventType string,
+	now time.Time,
+) error {
+	payload, err := json.Marshal(groupInvitationEventPayload{
+		InvitationID:   fmt.Sprintf("%d", invitation.ID),
+		ConversationID: fmt.Sprintf("%d", invitation.ConversationID),
+		InviteeID:      fmt.Sprintf("%d", invitation.InviteeID),
+	})
+	if err != nil {
+		return fmt.Errorf("序列化群邀请事件: %w", err)
+	}
+	if err := tx.Exec(
+		`INSERT INTO outbox_events
+			(event_id, aggregate_type, aggregate_id, event_type, payload,
+			 status, attempt_count, available_at, created_at)
+		 VALUES (?, 'conversation', ?, ?, ?, 0, 0, ?, ?)`,
+		uint64(snowflake.Generate()),
+		invitation.ConversationID,
+		eventType,
+		string(payload),
+		now,
+		now,
+	).Error; err != nil {
+		return fmt.Errorf("保存群邀请事件: %w", err)
+	}
+	return nil
 }
 
 func (r *Repository) respondToInvitation(
@@ -605,7 +661,12 @@ func (r *Repository) cancelInvitation(
 			}).Error; err != nil {
 			return fmt.Errorf("取消群邀请: %w", err)
 		}
-		return nil
+		return createGroupInvitationOutboxEvent(
+			tx,
+			invitation,
+			rabbitmq.GroupInvitationCancelledRoutingKey,
+			now,
+		)
 	})
 }
 

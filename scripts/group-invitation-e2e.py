@@ -232,7 +232,27 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
             make_friends(api, owner, invitee)
 
+            for pending in list_received(api, invitee):
+                api_ok(
+                    api,
+                    "POST",
+                    f"/group-invitations/{pending['invitation_id']}/reject",
+                    token=invitee["token"],
+                    payload={"response_remark": "清理历史验收邀请"},
+                )
+
+            page.goto("/login", wait_until="networkidle")
+            page.get_by_label("用户名").fill(invitee["username"])
+            page.get_by_label("密码").fill(PASSWORD)
+            page.get_by_role("button", name="进入 GinChat").click()
+            page.wait_for_url("**/")
+            invitation_button = page.locator(
+                ".current-user .ghost-button"
+            ).filter(has_text="群邀请")
+            expect(invitation_button).to_contain_text("群邀请", timeout=10_000)
+
             accepted_group_name = f"邀请同意群 {suffix}"
+            accepted_notification_started = time.monotonic()
             accepted_group_id = create_group_with_invitation(
                 api,
                 owner,
@@ -248,13 +268,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             accepted_remark = f"邀请加入 {accepted_group_name}"
             if accepted_invitation["invite_remark"] != accepted_remark:
                 raise AssertionError("群邀请备注与提交内容不一致")
-
-            page.goto("/login", wait_until="networkidle")
-            page.get_by_label("用户名").fill(invitee["username"])
-            page.get_by_label("密码").fill(PASSWORD)
-            page.get_by_role("button", name="进入 GinChat").click()
-            page.wait_for_url("**/")
-            page.get_by_role("button", name="群邀请", exact=False).click()
+            expect(invitation_button).to_contain_text("群邀请 1", timeout=5000)
+            accepted_notification_ms = round(
+                (time.monotonic() - accepted_notification_started) * 1000
+            )
+            invitation_button.click()
 
             dialog = page.locator(".friends-dialog").filter(
                 has_text="群邀请"
@@ -316,7 +334,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 invitee,
                 rejected_group_name,
             )
-            page.get_by_role("button", name="群邀请", exact=False).click()
+            expect(invitation_button).to_contain_text("群邀请 1", timeout=5000)
+            invitation_button.click()
             dialog = page.locator(".friends-dialog").filter(
                 has_text="群邀请"
             )
@@ -363,11 +382,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 invitee,
                 canceled_group_name,
             )
+            expect(invitation_button).to_contain_text("群邀请 1", timeout=5000)
             canceled_invitation = next(
                 item
                 for item in list_received(api, invitee)
                 if item["conversation_id"] == canceled_group_id
             )
+            cancellation_notification_started = time.monotonic()
             api_ok(
                 api,
                 "DELETE",
@@ -375,6 +396,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 f"{canceled_group_id}/invitations/"
                 f"{canceled_invitation['invitation_id']}",
                 token=owner["token"],
+            )
+            expect(invitation_button).to_contain_text("群邀请", timeout=5000)
+            expect(invitation_button).not_to_contain_text("群邀请 1")
+            cancellation_notification_ms = round(
+                (time.monotonic() - cancellation_notification_started) * 1000
             )
             canceled_history = list_group_history(
                 api,
@@ -426,6 +452,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "accepted_screenshot": str(accepted_screenshot),
                 "history_screenshot": str(history_screenshot),
                 "canceled_invitation_id": canceled_invitation["invitation_id"],
+                "invitation_realtime_ms": accepted_notification_ms,
+                "cancellation_realtime_ms": cancellation_notification_ms,
             }
             (report_dir / "result.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2),

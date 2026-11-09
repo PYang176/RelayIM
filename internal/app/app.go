@@ -152,8 +152,8 @@ func Run() error {
 			rabbitCfg,
 			serviceInstanceID,
 		)
-		messageConsumer := messaging.NewMessageEventConsumer(
-			messaging.NewMessageEventProcessor(db, deliveryRouter),
+		eventConsumer := messaging.NewEventConsumer(
+			messaging.NewEventProcessor(db, deliveryRouter),
 			rabbitCfg,
 			serviceInstanceID+"-message-events",
 			metrics,
@@ -161,7 +161,7 @@ func Run() error {
 		backgroundWorkers.Add(1)
 		go func() {
 			defer backgroundWorkers.Done()
-			messageConsumer.Run(ctx)
+			eventConsumer.Run(ctx)
 		}()
 
 		nodeConsumer := realtime.NewNodeConsumer(

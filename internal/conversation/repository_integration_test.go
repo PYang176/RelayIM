@@ -9,11 +9,27 @@ import (
 	"testing"
 	"time"
 
+	"ginChatProject/internal/platform/rabbitmq"
 	"ginChatProject/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+var (
+	conversationSnowflakeOnce sync.Once
+	conversationSnowflakeErr  error
+)
+
+func initConversationSnowflake(t *testing.T) {
+	t.Helper()
+	conversationSnowflakeOnce.Do(func() {
+		conversationSnowflakeErr = snowflake.Init(1)
+	})
+	if conversationSnowflakeErr != nil {
+		t.Fatalf("初始化 Snowflake 失败: %v", conversationSnowflakeErr)
+	}
+}
 
 func TestConversationRepositoryIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
@@ -27,9 +43,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("连接测试数据库失败: %v", err)
 	}
-	if err := snowflake.Init(1); err != nil {
-		t.Fatalf("初始化 Snowflake 失败: %v", err)
-	}
+	initConversationSnowflake(t)
 
 	userA, userB := insertConversationTestUsers(t, db)
 	repository := NewRepository(db)
@@ -439,9 +453,7 @@ func TestCreateDirectConcurrentIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("连接测试数据库失败: %v", err)
 	}
-	if err := snowflake.Init(1); err != nil {
-		t.Fatalf("初始化 Snowflake 失败: %v", err)
-	}
+	initConversationSnowflake(t)
 
 	userA, userB := insertConversationTestUsers(t, db)
 	t.Cleanup(func() {
@@ -515,9 +527,7 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("连接测试数据库失败: %v", err)
 	}
-	if err := snowflake.Init(1); err != nil {
-		t.Fatalf("初始化 Snowflake 失败: %v", err)
-	}
+	initConversationSnowflake(t)
 
 	ownerID, inviteeID := insertConversationTestUsers(t, db)
 	t.Cleanup(func() {
@@ -734,6 +744,22 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("普通成员查询群邀请错误 = %v", err)
 	}
+	var invitationEventCount int64
+	if err := db.Table("outbox_events").
+		Where(
+			"aggregate_id = ? AND event_type IN ?",
+			group.ID,
+			[]string{
+				rabbitmq.GroupInvitationCreatedRoutingKey,
+				rabbitmq.GroupInvitationCancelledRoutingKey,
+			},
+		).
+		Count(&invitationEventCount).Error; err != nil {
+		t.Fatalf("查询群邀请 Outbox 事件失败: %v", err)
+	}
+	if invitationEventCount < 2 {
+		t.Fatalf("群邀请 Outbox 事件数量 = %d，期望包含创建和取消", invitationEventCount)
+	}
 }
 
 func insertConversationTestUsers(t *testing.T, db *gorm.DB) (uint64, uint64) {
@@ -793,6 +819,10 @@ func cleanupConversationTestData(
 		"DELETE FROM conversation_members WHERE user_id IN (?, ?)",
 		"DELETE FROM group_invitations WHERE invitee_id IN (?, ?) " +
 			"OR inviter_id IN (?, ?)",
+		"DELETE FROM outbox_events WHERE aggregate_type = 'conversation' " +
+			"AND aggregate_id IN (SELECT id FROM conversations " +
+			"WHERE owner_id IN (?, ?) OR direct_low_user_id IN (?, ?) " +
+			"OR direct_high_user_id IN (?, ?))",
 		"DELETE FROM conversations WHERE owner_id IN (?, ?) " +
 			"OR direct_low_user_id IN (?, ?) OR direct_high_user_id IN (?, ?)",
 		"DELETE FROM user_blocks WHERE blocker_id IN (?, ?) OR blocked_id IN (?, ?)",
@@ -804,6 +834,7 @@ func cleanupConversationTestData(
 	args := [][]any{
 		{userA, userB},
 		{userA, userB, userA, userB},
+		{userA, userB, userA, userB, userA, userB},
 		{userA, userB, userA, userB, userA, userB},
 		{userA, userB, userA, userB},
 		{userA, userB},

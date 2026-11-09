@@ -17,6 +17,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - WebSocket 单写协程、有界队列、送达 ACK、已读游标和慢连接隔离。
 - Redis 多设备在线状态、批量查询和前端在线人数展示。
 - Redis 实例路由与 RabbitMQ 节点队列，支持跨 Go 实例 WebSocket 投递。
+- 群邀请创建、重新激活和取消通过 Outbox、RabbitMQ 与 WebSocket 实时通知。
 - 客户端连续序号水位、缺口补拉和防越级已读游标。
 - 消息撤回、群主转让和群解散。
 - Outbox + RabbitMQ Publisher Confirm + 手动 ACK + TTL 重试 + DLQ。
@@ -170,6 +171,8 @@ python scripts\friendship-pagination-e2e.py
 ```powershell
 python scripts\group-invitation-e2e.py
 ```
+
+该脚本同时验证在线用户无需等待轮询即可实时看到邀请和取消通知。
 
 启用真实依赖的 Go 集成测试需要：
 

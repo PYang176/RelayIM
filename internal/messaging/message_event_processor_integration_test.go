@@ -31,20 +31,29 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	baseID := uint64(time.Now().UnixNano())
 	userA := baseID
 	userB := baseID + 1
-	conversationID := baseID + 2
-	messageID := baseID + 3
-	eventID := baseID + 4
-	recallEventID := baseID + 5
+	userC := baseID + 2
+	conversationID := baseID + 3
+	messageID := baseID + 4
+	eventID := baseID + 5
+	recallEventID := baseID + 6
+	invitationID := baseID + 7
+	invitationEventID := baseID + 8
+	invitationCancelEventID := baseID + 9
 	t.Cleanup(func() {
 		statements := []struct {
 			query string
 			args  []any
 		}{
-			{"DELETE FROM processed_events WHERE event_id IN (?, ?)", []any{eventID, recallEventID}},
+			{
+				"DELETE FROM processed_events WHERE event_id IN (?, ?, ?)",
+				[]any{eventID, recallEventID, invitationEventID},
+			},
+			{"DELETE FROM processed_events WHERE event_id = ?", []any{invitationCancelEventID}},
+			{"DELETE FROM group_invitations WHERE id = ?", []any{invitationID}},
 			{"DELETE FROM messages WHERE id = ?", []any{messageID}},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
-			{"DELETE FROM users WHERE id IN (?, ?)", []any{userA, userB}},
+			{"DELETE FROM users WHERE id IN (?, ?, ?)", []any{userA, userB, userC}},
 		}
 		for _, statement := range statements {
 			if err := db.Exec(statement.query, statement.args...).Error; err != nil {
@@ -53,7 +62,7 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 		}
 	})
 
-	for _, userID := range []uint64{userA, userB} {
+	for _, userID := range []uint64{userA, userB, userC} {
 		if err := db.Exec(
 			"INSERT INTO users (id, username, password_hash, status) VALUES (?, ?, ?, 1)",
 			userID,
@@ -97,6 +106,21 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	).Error; err != nil {
 		t.Fatalf("创建消费测试消息失败: %v", err)
 	}
+	if err := db.Exec(
+		`INSERT INTO group_invitations
+			(id, conversation_id, inviter_id, invitee_id, invite_remark,
+			 status, created_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+		invitationID,
+		conversationID,
+		userA,
+		userC,
+		"邀请参与实时通知测试",
+		time.Now().UTC(),
+		time.Now().UTC().Add(24*time.Hour),
+	).Error; err != nil {
+		t.Fatalf("创建群邀请消费测试数据失败: %v", err)
+	}
 
 	payload, err := json.Marshal(messageCreatedPayload{
 		MessageID:      fmt.Sprintf("%d", messageID),
@@ -116,7 +140,7 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	}
 
 	delivery := &stubEventDeliveryRouter{}
-	processor := NewMessageEventProcessor(db, delivery)
+	processor := NewEventProcessor(db, delivery)
 	if err := processor.Process(context.Background(), envelope); err != nil {
 		t.Fatalf("首次处理消息事件失败: %v", err)
 	}
@@ -127,7 +151,7 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 
 	var processedCount int64
 	if err := db.Model(&processedEvent{}).
-		Where("event_id = ? AND consumer_name = ?", eventID, messageEventsConsumerName).
+		Where("event_id = ? AND consumer_name = ?", eventID, businessEventsConsumerName).
 		Count(&processedCount).Error; err != nil {
 		t.Fatalf("查询消费幂等记录失败: %v", err)
 	}
@@ -201,6 +225,63 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 		recalledPush.RecalledBy != fmt.Sprintf("%d", userA) ||
 		recalledPush.RecalledAt == "" {
 		t.Fatalf("实时撤回消息 = %+v", recalledPush)
+	}
+
+	invitationPayload, err := json.Marshal(groupInvitationEventPayload{
+		InvitationID:   fmt.Sprintf("%d", invitationID),
+		ConversationID: fmt.Sprintf("%d", conversationID),
+		InviteeID:      fmt.Sprintf("%d", userC),
+	})
+	if err != nil {
+		t.Fatalf("序列化群邀请事件载荷失败: %v", err)
+	}
+	invitationEnvelope := rabbitmq.EventEnvelope{
+		EventID:     fmt.Sprintf("%d", invitationEventID),
+		EventType:   rabbitmq.GroupInvitationCreatedRoutingKey,
+		OccurredAt:  time.Now().UTC(),
+		AggregateID: fmt.Sprintf("%d", conversationID),
+		Payload:     invitationPayload,
+	}
+	if err := processor.Process(
+		context.Background(),
+		invitationEnvelope,
+	); err != nil {
+		t.Fatalf("处理群邀请实时事件失败: %v", err)
+	}
+	if len(delivery.userIDs) != 1 || delivery.userIDs[0] != userC {
+		t.Fatalf("群邀请接收者 = %v，期望被邀请人", delivery.userIDs)
+	}
+	var invitationPush ws.GroupInvitationMessage
+	if err := json.Unmarshal(delivery.messages[2], &invitationPush); err != nil {
+		t.Fatalf("解析群邀请实时帧失败: %v", err)
+	}
+	if invitationPush.Action != ws.ActionGroupInvitation ||
+		invitationPush.InvitationID != fmt.Sprintf("%d", invitationID) ||
+		invitationPush.InviteRemark != "邀请参与实时通知测试" {
+		t.Fatalf("群邀请实时帧 = %+v", invitationPush)
+	}
+
+	if err := db.Table("group_invitations").
+		Where("id = ?", invitationID).
+		Updates(map[string]any{
+			"status":       5,
+			"responded_at": time.Now().UTC(),
+		}).Error; err != nil {
+		t.Fatalf("准备群邀请取消状态失败: %v", err)
+	}
+	cancelEnvelope := invitationEnvelope
+	cancelEnvelope.EventID = fmt.Sprintf("%d", invitationCancelEventID)
+	cancelEnvelope.EventType = rabbitmq.GroupInvitationCancelledRoutingKey
+	if err := processor.Process(context.Background(), cancelEnvelope); err != nil {
+		t.Fatalf("处理群邀请取消事件失败: %v", err)
+	}
+	var cancelPush ws.GroupInvitationMessage
+	if err := json.Unmarshal(delivery.messages[3], &cancelPush); err != nil {
+		t.Fatalf("解析群邀请取消实时帧失败: %v", err)
+	}
+	if cancelPush.Action != ws.ActionGroupInvitationCancelled ||
+		cancelPush.InvitationID != fmt.Sprintf("%d", invitationID) {
+		t.Fatalf("群邀请取消实时帧 = %+v", cancelPush)
 	}
 }
 

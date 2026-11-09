@@ -24,20 +24,26 @@ const (
 	// DeliveryNodeQueuePrefix 是每个 Go 实例独占的临时投递队列前缀。
 	DeliveryNodeQueuePrefix = "im.delivery.node."
 
-	// MessageFanoutQueue 消费消息领域事件并执行后续投递扇出。
-	MessageFanoutQueue = "im.message.fanout.v1"
+	// RetryReturnExchange 把 TTL 到期的事件返回统一领域事件队列。
+	RetryReturnExchange = "im.events.retry.return"
 
-	// MessageDeadLetterQueue 保存最终无法处理的事件。
-	MessageDeadLetterQueue = "im.message.dlq.v1"
+	// RetryReturnRoutingKey 是重试队列返回领域事件的固定路由键。
+	RetryReturnRoutingKey = "events.retry.return"
 
-	// MessageRetry5sQueue 保存第一次失败后延迟 5 秒重试的事件。
-	MessageRetry5sQueue = "im.message.retry.5s.v1"
+	// EventsFanoutQueue 消费业务领域事件并执行实时扇出。
+	EventsFanoutQueue = "im.events.fanout.v2"
 
-	// MessageRetry30sQueue 保存第二次失败后延迟 30 秒重试的事件。
-	MessageRetry30sQueue = "im.message.retry.30s.v1"
+	// EventsDeadLetterQueue 保存最终无法处理的事件。
+	EventsDeadLetterQueue = "im.events.dlq.v2"
 
-	// MessageRetry2mQueue 保存第三次失败后延迟 2 分钟重试的事件。
-	MessageRetry2mQueue = "im.message.retry.2m.v1"
+	// EventsRetry5sQueue 保存第一次失败后延迟 5 秒重试的事件。
+	EventsRetry5sQueue = "im.events.retry.5s.v2"
+
+	// EventsRetry30sQueue 保存第二次失败后延迟 30 秒重试的事件。
+	EventsRetry30sQueue = "im.events.retry.30s.v2"
+
+	// EventsRetry2mQueue 保存第三次失败后延迟 2 分钟重试的事件。
+	EventsRetry2mQueue = "im.events.retry.2m.v2"
 
 	// MessageCreatedRoutingKey 是文本消息创建完成后的领域事件路由键。
 	MessageCreatedRoutingKey = "message.created.v1"
@@ -45,8 +51,14 @@ const (
 	// MessageRecalledRoutingKey 是消息撤回完成后的领域事件路由键。
 	MessageRecalledRoutingKey = "message.recalled.v1"
 
-	// MessageDeadLetterRoutingKey 是消息事件进入死信队列时使用的路由键。
-	MessageDeadLetterRoutingKey = "im.message.dlq.v1"
+	// GroupInvitationCreatedRoutingKey 是群邀请创建事件的路由键。
+	GroupInvitationCreatedRoutingKey = "group.invitation.created.v1"
+
+	// GroupInvitationCancelledRoutingKey 是群邀请取消事件的路由键。
+	GroupInvitationCancelledRoutingKey = "group.invitation.cancelled.v1"
+
+	// EventsDeadLetterRoutingKey 是领域事件进入死信队列时使用的路由键。
+	EventsDeadLetterRoutingKey = "im.events.dlq.v2"
 )
 
 var (
@@ -113,38 +125,50 @@ func DeclareTopology(channel *amqp.Channel) error {
 		return fmt.Errorf("声明实时投递 Exchange: %w", err)
 	}
 
-	if _, err := channel.QueueDeclare(
-		MessageFanoutQueue,
-		true,
-		false,
-		false,
-		false,
-		amqp.Table{
-			"x-dead-letter-exchange":    DeadLetterExchange,
-			"x-dead-letter-routing-key": MessageDeadLetterRoutingKey,
-		},
-	); err != nil {
-		return fmt.Errorf("声明消息扇出队列: %w", err)
-	}
-
-	if _, err := channel.QueueDeclare(
-		MessageDeadLetterQueue,
+	if err := channel.ExchangeDeclare(
+		RetryReturnExchange,
+		amqp.ExchangeDirect,
 		true,
 		false,
 		false,
 		false,
 		nil,
 	); err != nil {
-		return fmt.Errorf("声明消息死信队列: %w", err)
+		return fmt.Errorf("声明事件重试返回 Exchange: %w", err)
+	}
+
+	if _, err := channel.QueueDeclare(
+		EventsFanoutQueue,
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{
+			"x-dead-letter-exchange":    DeadLetterExchange,
+			"x-dead-letter-routing-key": EventsDeadLetterRoutingKey,
+		},
+	); err != nil {
+		return fmt.Errorf("声明领域事件扇出队列: %w", err)
+	}
+
+	if _, err := channel.QueueDeclare(
+		EventsDeadLetterQueue,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("声明领域事件死信队列: %w", err)
 	}
 
 	retryQueues := []struct {
 		name string
 		ttl  int32
 	}{
-		{name: MessageRetry5sQueue, ttl: 5000},
-		{name: MessageRetry30sQueue, ttl: 30000},
-		{name: MessageRetry2mQueue, ttl: 120000},
+		{name: EventsRetry5sQueue, ttl: 5000},
+		{name: EventsRetry30sQueue, ttl: 30000},
+		{name: EventsRetry2mQueue, ttl: 120000},
 	}
 	for _, retryQueue := range retryQueues {
 		if _, err := channel.QueueDeclare(
@@ -155,16 +179,16 @@ func DeclareTopology(channel *amqp.Channel) error {
 			false,
 			amqp.Table{
 				"x-message-ttl":             retryQueue.ttl,
-				"x-dead-letter-exchange":    EventsExchange,
-				"x-dead-letter-routing-key": MessageCreatedRoutingKey,
+				"x-dead-letter-exchange":    RetryReturnExchange,
+				"x-dead-letter-routing-key": RetryReturnRoutingKey,
 			},
 		); err != nil {
-			return fmt.Errorf("声明消息重试队列 %s: %w", retryQueue.name, err)
+			return fmt.Errorf("声明领域事件重试队列 %s: %w", retryQueue.name, err)
 		}
 	}
 
 	if err := channel.QueueBind(
-		MessageFanoutQueue,
+		EventsFanoutQueue,
 		MessageCreatedRoutingKey,
 		EventsExchange,
 		false,
@@ -174,7 +198,7 @@ func DeclareTopology(channel *amqp.Channel) error {
 	}
 
 	if err := channel.QueueBind(
-		MessageFanoutQueue,
+		EventsFanoutQueue,
 		MessageRecalledRoutingKey,
 		EventsExchange,
 		false,
@@ -184,13 +208,43 @@ func DeclareTopology(channel *amqp.Channel) error {
 	}
 
 	if err := channel.QueueBind(
-		MessageDeadLetterQueue,
-		MessageDeadLetterRoutingKey,
+		EventsFanoutQueue,
+		GroupInvitationCreatedRoutingKey,
+		EventsExchange,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("绑定群邀请创建事件: %w", err)
+	}
+
+	if err := channel.QueueBind(
+		EventsFanoutQueue,
+		GroupInvitationCancelledRoutingKey,
+		EventsExchange,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("绑定群邀请取消事件: %w", err)
+	}
+
+	if err := channel.QueueBind(
+		EventsFanoutQueue,
+		RetryReturnRoutingKey,
+		RetryReturnExchange,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("绑定领域事件重试返回队列: %w", err)
+	}
+
+	if err := channel.QueueBind(
+		EventsDeadLetterQueue,
+		EventsDeadLetterRoutingKey,
 		DeadLetterExchange,
 		false,
 		nil,
 	); err != nil {
-		return fmt.Errorf("绑定消息死信队列: %w", err)
+		return fmt.Errorf("绑定领域事件死信队列: %w", err)
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import * as messageApi from '@/api/messages'
 import * as presenceApi from '@/api/presence'
 import {useChatSocket} from '@/composables/useChatSocket'
 import {useAuthStore} from '@/stores/auth'
+import {useGroupInvitationStore} from '@/stores/group-invitations'
 import {
     createSequenceCursor,
     needsLatestWindowSync,
@@ -41,6 +42,7 @@ interface ConversationSequenceState {
 
 export const useChatStore = defineStore('chat', () => {
     const auth = useAuthStore()
+    const groupInvitations = useGroupInvitationStore()
     const conversations = ref<Conversation[]>([])
     const messagesByConversation = ref<Record<string, ChatMessage[]>>({})
     const membersByConversation = ref<Record<string, ConversationMember[]>>({})
@@ -915,6 +917,13 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     function handleSocketMessage(payload: WsMessage) {
+        if (
+            payload.action === 'group_invitation' ||
+            payload.action === 'group_invitation_cancelled'
+        ) {
+            void groupInvitations.loadReceived()
+            return
+        }
         if (
             payload.action === 'message_recalled' &&
             payload.message_id &&

@@ -245,11 +245,11 @@ func DeliveryRetryCount(headers amqp.Table) int {
 func retryQueueForCount(retryCount int) string {
 	switch retryCount {
 	case 0:
-		return MessageRetry5sQueue
+		return EventsRetry5sQueue
 	case 1:
-		return MessageRetry30sQueue
+		return EventsRetry30sQueue
 	default:
-		return MessageRetry2mQueue
+		return EventsRetry2mQueue
 	}
 }
 

@@ -152,6 +152,17 @@ type groupInvitationRecord struct {
 	RespondedAt    *time.Time `gorm:"column:responded_at"`
 }
 
+type groupInvitationEventPayload struct {
+	// InvitationID 是群邀请 Snowflake ID 字符串。
+	InvitationID string `json:"invitation_id"`
+
+	// ConversationID 是目标群会话 Snowflake ID 字符串。
+	ConversationID string `json:"conversation_id"`
+
+	// InviteeID 是被邀请用户 Snowflake ID 字符串。
+	InviteeID string `json:"invitee_id"`
+}
+
 type conversationSummary struct {
 	// ID 是会话 Snowflake ID。
 	ID uint64 `gorm:"column:id"`
