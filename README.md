@@ -12,7 +12,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - 私聊与群聊统一会话模型，群成员、管理员、群主权限矩阵。
 - 群主可以修改群名称、群头像、转让群主或解散群。
 - 文本、图片和普通文件消息。
-- 消息幂等、会话内连续 `seq`、历史分页和断线 `after_seq` 补拉。
+- 消息幂等、会话内连续 `seq`、最新页重同步、历史懒加载和实时缺口补拉。
 - WebSocket 单写协程、有界队列、送达 ACK、已读游标和慢连接隔离。
 - Redis 多设备在线状态、批量查询和前端在线人数展示。
 - Redis 实例路由与 RabbitMQ 节点队列，支持跨 Go 实例 WebSocket 投递。
@@ -135,6 +135,14 @@ npm run typecheck
 npm run test:unit
 npm run build
 ```
+
+前后端和基础设施启动后，可执行真实浏览器验收：
+
+```powershell
+python scripts\latest-first-e2e.py
+```
+
+脚本先通过 API 创建两名用户、好友关系和 65 条私聊消息，再用本机 Chrome 的无头模式验证首次最新页、向上加载历史、在线实时消息和断线重连后的窗口替换。Chrome 不在默认路径时通过 `GINCHAT_E2E_CHROME_PATH` 指定。
 
 启用真实依赖的 Go 集成测试需要：
 
