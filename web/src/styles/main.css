@@ -927,6 +927,12 @@ a:focus-visible {
     line-height: 1.55;
 }
 
+.composer-error {
+    margin: 0.5rem 0 0;
+    color: var(--danger);
+    font-size: 0.75rem;
+}
+
 .composer-footer {
     display: flex;
     align-items: center;

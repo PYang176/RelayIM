@@ -191,6 +191,12 @@ python scripts\message-history-search-e2e.py
 python scripts\profile-avatar-e2e.py
 ```
 
+附件大小和空文件预检可运行：
+
+```powershell
+python scripts\attachment-size-limit-e2e.py
+```
+
 群邀请审批链路可运行：
 
 ```powershell

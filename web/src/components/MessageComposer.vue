@@ -14,8 +14,10 @@ const emit = defineEmits<{
 
 const content = shallowRef('')
 const sending = shallowRef(false)
+const attachmentError = shallowRef('')
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const remaining = computed(() => 8000 - [...content.value].length)
+const maxAttachmentBytes = 25 * 1024 * 1024
 
 async function submit() {
     const value = content.value.trim()
@@ -37,16 +39,25 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function chooseFile() {
+    attachmentError.value = ''
     fileInput.value?.click()
 }
 
 function handleFile(event: Event) {
     const input = event.target as HTMLInputElement
     const file = input.files?.[0]
-    if (file) {
-        emit('sendFile', file)
-    }
     input.value = ''
+    if (!file) return
+    if (file.size <= 0) {
+        attachmentError.value = '不能上传空文件'
+        return
+    }
+    if (file.size > maxAttachmentBytes) {
+        attachmentError.value = '附件不能超过 25 MB'
+        return
+    }
+    attachmentError.value = ''
+    emit('sendFile', file)
 }
 </script>
 
@@ -63,6 +74,9 @@ function handleFile(event: Event) {
                 rows="2"
                 @keydown="handleKeydown"
         />
+        <p v-if="attachmentError" class="composer-error" role="alert">
+            {{ attachmentError }}
+        </p>
         <div class="composer-footer">
             <span id="message-input-help">{{ remaining }} 字符</span>
             <div class="composer-actions">
@@ -75,6 +89,7 @@ function handleFile(event: Event) {
                 <button
                         class="ghost-button"
                         :disabled="disabled || uploading"
+                        title="图片或文件，最大 25 MB"
                         type="button"
                         @click="chooseFile"
                 >

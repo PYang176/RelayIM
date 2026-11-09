@@ -581,7 +581,26 @@ func (h *Handler) UploadAttachment(c *gin.Context) {
 	)
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			c.JSON(
+				http.StatusRequestEntityTooLarge,
+				gin.H{"error": "附件不能超过 25 MB"},
+			)
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要上传的文件"})
+		return
+	}
+	if fileHeader.Size <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不能上传空文件"})
+		return
+	}
+	if fileHeader.Size > maxAttachmentBytes {
+		c.JSON(
+			http.StatusRequestEntityTooLarge,
+			gin.H{"error": "附件不能超过 25 MB"},
+		)
 		return
 	}
 	file, err := fileHeader.Open()
