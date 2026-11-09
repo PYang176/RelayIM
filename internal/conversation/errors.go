@@ -15,6 +15,9 @@ var (
 	// ErrNotFriend 表示创建群聊时选择了非好友用户。
 	ErrNotFriend = errors.New("只能邀请好友加入群聊")
 
+	// ErrUserBlocked 表示双方存在拉黑关系，不能创建私聊。
+	ErrUserBlocked = errors.New("双方存在拉黑关系")
+
 	// ErrNotGroup 表示目标会话不是群聊。
 	ErrNotGroup = errors.New("目标会话不是群聊")
 

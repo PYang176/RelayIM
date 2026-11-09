@@ -4,6 +4,7 @@ import "time"
 
 const (
 	conversationStatusActive = 1
+	conversationTypeDirect   = 1
 	conversationTypeGroup    = 2
 	groupRoleAdmin           = 2
 	groupRoleOwner           = 3
@@ -29,6 +30,12 @@ type conversation struct {
 
 	// Status 表示会话状态，1 为正常，非 1 时当前发送流程会拒绝写入。
 	Status int `gorm:"column:status"`
+
+	// DirectLowUserID 是私聊用户对中较小的 Snowflake 用户 ID。
+	DirectLowUserID *uint64 `gorm:"column:direct_low_user_id"`
+
+	// DirectHighUserID 是私聊用户对中较大的 Snowflake 用户 ID。
+	DirectHighUserID *uint64 `gorm:"column:direct_high_user_id"`
 
 	// LastSeq 是会话已分配的最大消息序号，由发送事务持有行锁后递增。
 	LastSeq uint64 `gorm:"column:last_seq"`

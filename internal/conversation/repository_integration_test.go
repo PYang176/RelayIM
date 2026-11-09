@@ -64,6 +64,28 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		t.Fatalf("重复获取会话 ID = %d，期望 %d", second.ID, first.ID)
 	}
 
+	if err := db.Exec(
+		"INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?)",
+		userA,
+		userB,
+	).Error; err != nil {
+		t.Fatalf("创建私聊拉黑关系失败: %v", err)
+	}
+	if _, _, err := repository.CreateDirect(
+		context.Background(),
+		userA,
+		userB,
+	); !errors.Is(err, ErrUserBlocked) {
+		t.Fatalf("拉黑后获取私聊错误 = %v，期望 ErrUserBlocked", err)
+	}
+	if err := db.Exec(
+		"DELETE FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?",
+		userA,
+		userB,
+	).Error; err != nil {
+		t.Fatalf("清理私聊拉黑关系失败: %v", err)
+	}
+
 	summaries, err := repository.ListForUser(context.Background(), userA)
 	if err != nil {
 		t.Fatalf("查询用户会话失败: %v", err)
@@ -467,6 +489,7 @@ func cleanupConversationTestData(
 		"DELETE FROM conversation_members WHERE user_id IN (?, ?)",
 		"DELETE FROM conversations WHERE owner_id IN (?, ?) " +
 			"OR direct_low_user_id IN (?, ?) OR direct_high_user_id IN (?, ?)",
+		"DELETE FROM user_blocks WHERE blocker_id IN (?, ?) OR blocked_id IN (?, ?)",
 		"DELETE FROM friend_remarks WHERE user_id IN (?, ?)",
 		"DELETE FROM friendships WHERE user_low_id IN (?, ?) OR user_high_id IN (?, ?)",
 		"DELETE FROM user_profiles WHERE user_id IN (?, ?)",
@@ -475,6 +498,7 @@ func cleanupConversationTestData(
 	args := [][]any{
 		{userA, userB},
 		{userA, userB, userA, userB, userA, userB},
+		{userA, userB, userA, userB},
 		{userA, userB},
 		{userA, userB, userA, userB},
 		{userA, userB},

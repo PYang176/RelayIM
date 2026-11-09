@@ -37,6 +37,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	memberID := uint64(snowflake.Generate())
 	outsiderID := uint64(snowflake.Generate())
 	conversationID := uint64(snowflake.Generate())
+	directConversationID := uint64(snowflake.Generate())
 	memberDeviceID := uint64(snowflake.Generate())
 	attachmentID := uint64(snowflake.Generate())
 	userIDs := []uint64{ownerID, memberID, outsiderID}
@@ -49,11 +50,20 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		}{
 			{"DELETE FROM message_deliveries WHERE device_id = ?", []any{memberDeviceID}},
 			{"DELETE FROM outbox_events WHERE aggregate_id = ?", []any{conversationID}},
+			{"DELETE FROM outbox_events WHERE aggregate_id = ?", []any{directConversationID}},
 			{"DELETE FROM messages WHERE conversation_id = ?", []any{conversationID}},
+			{"DELETE FROM messages WHERE conversation_id = ?", []any{directConversationID}},
 			{"DELETE FROM attachments WHERE id = ?", []any{attachmentID}},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{conversationID}},
+			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{directConversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
+			{"DELETE FROM conversations WHERE id = ?", []any{directConversationID}},
 			{"DELETE FROM devices WHERE id = ?", []any{memberDeviceID}},
+			{
+				"DELETE FROM user_blocks WHERE blocker_id IN (?, ?, ?) " +
+					"OR blocked_id IN (?, ?, ?)",
+				[]any{ownerID, memberID, outsiderID, ownerID, memberID, outsiderID},
+			},
 			{"DELETE FROM users WHERE id IN (?, ?, ?)", []any{ownerID, memberID, outsiderID}},
 		}
 		for _, statement := range cleanupStatements {
@@ -120,6 +130,28 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	).Error; err != nil {
 		t.Fatalf("创建测试会话成员失败: %v", err)
 	}
+	lowID, highID := min(ownerID, memberID), max(ownerID, memberID)
+	if err := db.Exec(
+		`INSERT INTO conversations
+			(id, conversation_type, direct_low_user_id, direct_high_user_id, status, last_seq)
+		 VALUES (?, 1, ?, ?, 1, 0)`,
+		directConversationID,
+		lowID,
+		highID,
+	).Error; err != nil {
+		t.Fatalf("创建私聊测试会话失败: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO conversation_members
+			(conversation_id, user_id, role)
+		 VALUES (?, ?, 1), (?, ?, 1)`,
+		directConversationID,
+		ownerID,
+		directConversationID,
+		memberID,
+	).Error; err != nil {
+		t.Fatalf("创建私聊测试成员失败: %v", err)
+	}
 
 	repository := NewRepository(db)
 	service := NewService(repository)
@@ -160,6 +192,23 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	})
 	if !errors.Is(err, ErrNotMember) {
 		t.Fatalf("非成员发送错误 = %v，期望 ErrNotMember", err)
+	}
+
+	if err := db.Exec(
+		"INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?)",
+		ownerID,
+		memberID,
+	).Error; err != nil {
+		t.Fatalf("创建消息拉黑关系失败: %v", err)
+	}
+	_, err = service.SendText(context.Background(), SendTextCommand{
+		ConversationID:  directConversationID,
+		SenderID:        memberID,
+		ClientMessageID: "client-message-blocked",
+		Content:         "拉黑后消息",
+	})
+	if !errors.Is(err, ErrUserBlocked) {
+		t.Fatalf("拉黑后发送错误 = %v，期望 ErrUserBlocked", err)
 	}
 
 	// 场景 4：同一会话并发发送。会话行锁应让序号仍保持连续，不发生重复。

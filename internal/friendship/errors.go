@@ -23,4 +23,7 @@ var (
 
 	// ErrFriendshipNotFound 表示好友关系不存在。
 	ErrFriendshipNotFound = errors.New("好友关系不存在")
+
+	// ErrUserBlocked 表示双方存在拉黑关系，不能继续社交互动。
+	ErrUserBlocked = errors.New("双方存在拉黑关系")
 )

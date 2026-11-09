@@ -1,5 +1,5 @@
 import {request} from './http'
-import type {Friend, FriendRequest, FriendUser} from '@/types/api'
+import type {BlockedUser, Friend, FriendRequest, FriendUser} from '@/types/api'
 
 export async function searchUsers(
     token: string,
@@ -93,6 +93,31 @@ export function setFriendRemark(
 export function deleteFriend(token: string, friendUserID: string): Promise<void> {
     return request(
         `/friends/${friendUserID}`,
+        {method: 'DELETE'},
+        token,
+    )
+}
+
+export async function listBlockedUsers(token: string): Promise<BlockedUser[]> {
+    const response = await request<{ blocked_users: BlockedUser[] }>(
+        '/user-blocks',
+        {},
+        token,
+    )
+    return response.blocked_users
+}
+
+export function blockUser(token: string, targetUserID: string): Promise<void> {
+    return request(
+        `/users/${targetUserID}/block`,
+        {method: 'POST'},
+        token,
+    )
+}
+
+export function unblockUser(token: string, targetUserID: string): Promise<void> {
+    return request(
+        `/users/${targetUserID}/block`,
         {method: 'DELETE'},
         token,
     )

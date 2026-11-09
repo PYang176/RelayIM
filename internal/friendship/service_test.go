@@ -59,6 +59,18 @@ func TestServiceValidation(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "不能拉黑自己",
+			run: func() error {
+				return service.BlockUser(context.Background(), 1, 1)
+			},
+		},
+		{
+			name: "不能取消拉黑自己",
+			run: func() error {
+				return service.UnblockUser(context.Background(), 1, 1)
+			},
+		},
 	}
 
 	for _, tt := range tests {

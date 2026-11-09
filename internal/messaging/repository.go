@@ -117,6 +117,34 @@ func (r *Repository) sendMessage(
 			return fmt.Errorf("校验会话成员: %w", err)
 		}
 
+		// 拉黑是用户对级规则，历史私聊仍然可读，但不能继续写入新消息。
+		if conversationRecord.ConversationType == conversationTypeDirect {
+			if conversationRecord.DirectLowUserID == nil ||
+				conversationRecord.DirectHighUserID == nil {
+				return fmt.Errorf("私聊会话缺少用户对")
+			}
+			peerUserID := *conversationRecord.DirectLowUserID
+			if peerUserID == input.SenderID {
+				peerUserID = *conversationRecord.DirectHighUserID
+			}
+			var blockedCount int64
+			if err := tx.Table("user_blocks").
+				Where(
+					"(blocker_id = ? AND blocked_id = ?) OR "+
+						"(blocker_id = ? AND blocked_id = ?)",
+					input.SenderID,
+					peerUserID,
+					peerUserID,
+					input.SenderID,
+				).
+				Count(&blockedCount).Error; err != nil {
+				return fmt.Errorf("校验私聊拉黑关系: %w", err)
+			}
+			if blockedCount > 0 {
+				return ErrUserBlocked
+			}
+		}
+
 		// 引用消息必须属于当前会话。数据库自引用外键只能保证被引用消息
 		// 存在，无法表达“两条消息属于同一会话”这个跨行规则。
 		if input.ReplyToMessageID != nil {

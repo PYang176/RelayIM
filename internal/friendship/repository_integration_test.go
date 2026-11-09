@@ -38,6 +38,11 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 			args  []any
 		}{
 			{
+				"DELETE FROM user_blocks WHERE blocker_id IN (?, ?, ?) " +
+					"OR blocked_id IN (?, ?, ?)",
+				[]any{userA, userB, userC, userA, userB, userC},
+			},
+			{
 				"DELETE FROM friend_remarks WHERE user_id IN (?, ?, ?)",
 				[]any{userA, userB, userC},
 			},
@@ -147,12 +152,39 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		t.Fatalf("好友备注列表 = %+v, err=%v", friends, err)
 	}
 
+	if err := service.BlockUser(context.Background(), userA, userB); err != nil {
+		t.Fatalf("拉黑好友失败: %v", err)
+	}
+	if err := service.BlockUser(context.Background(), userA, userB); err != nil {
+		t.Fatalf("重复拉黑应保持幂等: %v", err)
+	}
+	blockedUsers, err := service.ListBlockedUsers(context.Background(), userA)
+	if err != nil || len(blockedUsers) != 1 || blockedUsers[0].User.ID != userB {
+		t.Fatalf("拉黑列表 = %+v, err=%v", blockedUsers, err)
+	}
+	friends, err = service.ListFriends(context.Background(), userA)
+	if err != nil || len(friends) != 1 || !friends[0].BlockedByMe {
+		t.Fatalf("拉黑后的好友列表 = %+v, err=%v", friends, err)
+	}
+
 	if err := service.DeleteFriend(context.Background(), userA, userB); err != nil {
 		t.Fatalf("删除好友失败: %v", err)
 	}
 	friends, err = service.ListFriends(context.Background(), userA)
 	if err != nil || len(friends) != 0 {
 		t.Fatalf("删除后好友列表 = %+v, err=%v", friends, err)
+	}
+
+	if err := service.SendRequest(
+		context.Background(),
+		userB,
+		userA,
+		"",
+	); !errors.Is(err, ErrUserBlocked) {
+		t.Fatalf("拉黑期间好友申请错误 = %v，期望 ErrUserBlocked", err)
+	}
+	if err := service.UnblockUser(context.Background(), userA, userB); err != nil {
+		t.Fatalf("取消拉黑失败: %v", err)
 	}
 
 	if err := service.SendRequest(context.Background(), userA, userB, "重新添加"); err != nil {

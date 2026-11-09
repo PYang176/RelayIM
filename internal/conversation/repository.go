@@ -30,6 +30,13 @@ func (r *Repository) CreateDirect(
 	peerUserID uint64,
 ) (*conversation, bool, error) {
 	lowID, highID := orderedUsers(userID, peerUserID)
+	blocked, err := hasBlockedPair(ctx, r.db, userID, peerUserID)
+	if err != nil {
+		return nil, false, err
+	}
+	if blocked {
+		return nil, false, ErrUserBlocked
+	}
 
 	existing, err := r.findDirect(ctx, lowID, highID)
 	if err == nil {
@@ -736,6 +743,29 @@ func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 		return first, second
 	}
 	return second, first
+}
+
+func hasBlockedPair(
+	ctx context.Context,
+	db *gorm.DB,
+	first uint64,
+	second uint64,
+) (bool, error) {
+	var count int64
+	if err := db.WithContext(ctx).
+		Table("user_blocks").
+		Where(
+			"(blocker_id = ? AND blocked_id = ?) OR "+
+				"(blocker_id = ? AND blocked_id = ?)",
+			first,
+			second,
+			second,
+			first,
+		).
+		Count(&count).Error; err != nil {
+		return false, fmt.Errorf("校验用户拉黑关系: %w", err)
+	}
+	return count > 0, nil
 }
 
 func (r *Repository) userDisplayName(

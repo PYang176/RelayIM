@@ -403,6 +403,50 @@ paths:
                       $ref: "#/components/schemas/Friend"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/user-blocks:
+    get:
+      tags: [Friendship]
+      summary: 查询当前用户拉黑的用户
+      operationId: listBlockedUsers
+      responses:
+        "200":
+          description: 当前用户的拉黑列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedUserList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/users/{user_id}/block:
+    post:
+      tags: [Friendship]
+      summary: 拉黑用户
+      description: 任一方向的拉黑都会暂停双方私聊和好友申请，但保留历史消息。
+      operationId: blockUser
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: 拉黑成功；重复拉黑保持幂等
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Friendship]
+      summary: 取消拉黑
+      operationId: unblockUser
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: 已取消拉黑；不存在的关系也保持幂等
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/v1/friends/{user_id}/remark:
     put:
       tags: [Friendship]
@@ -1303,7 +1347,7 @@ components:
             $ref: "#/components/schemas/FriendRequest"
     Friend:
       type: object
-      required: [friendship_id, user, remark]
+      required: [friendship_id, user, remark, blocked_by_me]
       properties:
         friendship_id:
           $ref: "#/components/schemas/SnowflakeID"
@@ -1311,6 +1355,26 @@ components:
           $ref: "#/components/schemas/PublicUser"
         remark:
           type: string
+        blocked_by_me:
+          type: boolean
+          description: 当前用户是否已拉黑该好友
+    BlockedUser:
+      type: object
+      required: [user, created_at]
+      properties:
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        created_at:
+          type: string
+          format: date-time
+    BlockedUserList:
+      type: object
+      required: [blocked_users]
+      properties:
+        blocked_users:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockedUser"
     RemarkRequest:
       type: object
       required: [remark]

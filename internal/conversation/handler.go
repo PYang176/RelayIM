@@ -444,6 +444,8 @@ func writeConversationError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrNotFriend):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotFriend.Error()})
+	case errors.Is(err, ErrUserBlocked):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrUserBlocked.Error()})
 	case errors.Is(err, ErrPermissionDenied):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrPermissionDenied.Error()})
 	case errors.Is(err, ErrNotGroup):

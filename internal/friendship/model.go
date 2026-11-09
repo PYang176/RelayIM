@@ -89,6 +89,21 @@ func (friendRemark) TableName() string {
 	return "friend_remarks"
 }
 
+type userBlock struct {
+	// BlockerID 是执行拉黑的用户 Snowflake ID。
+	BlockerID uint64 `gorm:"column:blocker_id;primaryKey"`
+
+	// BlockedID 是被拉黑的用户 Snowflake ID。
+	BlockedID uint64 `gorm:"column:blocked_id;primaryKey"`
+
+	// CreatedAt 是拉黑关系创建的 UTC 时间。
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+func (userBlock) TableName() string {
+	return "user_blocks"
+}
+
 type userSearchRecord struct {
 	ID        uint64  `gorm:"column:id"`
 	Username  string  `gorm:"column:username"`
@@ -103,6 +118,15 @@ type friendRecord struct {
 	Nickname     string  `gorm:"column:nickname"`
 	AvatarURL    *string `gorm:"column:avatar_url"`
 	Remark       string  `gorm:"column:remark"`
+	BlockedByMe  bool    `gorm:"column:blocked_by_me"`
+}
+
+type blockedUserRecord struct {
+	UserID    uint64    `gorm:"column:user_id"`
+	Username  string    `gorm:"column:username"`
+	Nickname  string    `gorm:"column:nickname"`
+	AvatarURL *string   `gorm:"column:avatar_url"`
+	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
 type requestRecord struct {

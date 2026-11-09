@@ -17,7 +17,7 @@ const emit = defineEmits<{
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const closeButton = useTemplateRef<HTMLButtonElement>('closeButton')
 const friendships = useFriendshipStore()
-const activeTab = shallowRef<'friends' | 'requests'>('friends')
+const activeTab = shallowRef<'friends' | 'requests' | 'blocked'>('friends')
 const searchQuery = shallowRef('')
 const requestMode = shallowRef<'received' | 'sent'>('received')
 
@@ -91,6 +91,14 @@ function sendRequest(userID: string) {
                 >
                     申请 {{ friendships.receivedRequests.length }}
                 </button>
+                <button
+                        :aria-pressed="activeTab === 'blocked'"
+                        :class="{ active: activeTab === 'blocked' }"
+                        type="button"
+                        @click="activeTab = 'blocked'"
+                >
+                    拉黑 {{ friendships.blockedUsers.length }}
+                </button>
             </div>
 
             <p v-if="friendships.error" class="form-error" role="alert">
@@ -136,6 +144,13 @@ function sendRequest(userID: string) {
                         >
                             添加
                         </button>
+                        <button
+                                :disabled="friendships.actionBusy"
+                                type="button"
+                                @click="friendships.blockUser(user.id)"
+                        >
+                            拉黑
+                        </button>
                     </article>
                 </section>
 
@@ -151,13 +166,15 @@ function sendRequest(userID: string) {
                             :busy="friendships.actionBusy"
                             :friend="friend"
                             @message="emit('openDirect', $event)"
+                            @block="friendships.blockUser(friend.user.id)"
                             @remove="friendships.removeFriend(friend.user.id)"
+                            @unblock="friendships.unblockUser(friend.user.id)"
                             @update-remark="friendships.updateRemark(friend.user.id, $event)"
                     />
                 </section>
             </template>
 
-            <template v-else>
+            <template v-else-if="activeTab === 'requests'">
                 <div class="friends-tabs compact" role="group" aria-label="申请方向">
                     <button
                             :aria-pressed="requestMode === 'received'"
@@ -201,6 +218,33 @@ function sendRequest(userID: string) {
                     />
                 </section>
             </template>
+
+            <section v-else class="drawer-section drawer-list" aria-live="polite">
+                <h3>已拉黑用户</h3>
+                <p v-if="friendships.blockedUsers.length === 0" role="status">
+                    当前没有拉黑用户。
+                </p>
+                <article
+                        v-for="item in friendships.blockedUsers"
+                        :key="item.user.id"
+                        class="request-row"
+                >
+                    <span class="friend-avatar">
+                        {{ (item.user.nickname || item.user.username).slice(0, 1) }}
+                    </span>
+                    <div class="friend-copy">
+                        <strong>{{ item.user.nickname || item.user.username }}</strong>
+                        <small>@{{ item.user.username }}</small>
+                    </div>
+                    <button
+                            :disabled="friendships.actionBusy"
+                            type="button"
+                            @click="friendships.unblockUser(item.user.id)"
+                    >
+                        取消拉黑
+                    </button>
+                </article>
+            </section>
         </div>
     </dialog>
 </template>

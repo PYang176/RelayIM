@@ -36,6 +36,13 @@ type FriendResult struct {
 	FriendshipID uint64
 	User         UserResult
 	Remark       string
+	BlockedByMe  bool
+}
+
+// BlockedUserResult 是当前用户拉黑列表项。
+type BlockedUserResult struct {
+	User      UserResult
+	CreatedAt time.Time
 }
 
 // RequestResult 是好友申请列表项。
@@ -112,6 +119,41 @@ func (s *Service) ListFriends(
 		return nil, ErrInvalidInput
 	}
 	return s.repo.listFriends(ctx, userID)
+}
+
+// ListBlockedUsers 返回当前用户主动拉黑的用户。
+func (s *Service) ListBlockedUsers(
+	ctx context.Context,
+	userID uint64,
+) ([]BlockedUserResult, error) {
+	if userID == 0 {
+		return nil, ErrInvalidInput
+	}
+	return s.repo.listBlockedUsers(ctx, userID)
+}
+
+// BlockUser 创建当前用户到目标用户的方向性拉黑关系。
+func (s *Service) BlockUser(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+) error {
+	if userID == 0 || targetUserID == 0 || userID == targetUserID {
+		return ErrInvalidInput
+	}
+	return s.repo.blockUser(ctx, userID, targetUserID)
+}
+
+// UnblockUser 删除当前用户到目标用户的拉黑关系。
+func (s *Service) UnblockUser(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+) error {
+	if userID == 0 || targetUserID == 0 || userID == targetUserID {
+		return ErrInvalidInput
+	}
+	return s.repo.unblockUser(ctx, userID, targetUserID)
 }
 
 // ListRequests 返回当前用户收到或发出的好友申请。

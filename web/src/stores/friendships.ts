@@ -3,13 +3,14 @@ import {ref, shallowRef} from 'vue'
 
 import * as friendApi from '@/api/friends'
 import {useAuthStore} from '@/stores/auth'
-import type {Friend, FriendRequest, FriendUser} from '@/types/api'
+import type {BlockedUser, Friend, FriendRequest, FriendUser} from '@/types/api'
 
 export const useFriendshipStore = defineStore('friendships', () => {
     const auth = useAuthStore()
     const friends = ref<Friend[]>([])
     const receivedRequests = ref<FriendRequest[]>([])
     const sentRequests = ref<FriendRequest[]>([])
+    const blockedUsers = ref<BlockedUser[]>([])
     const searchResults = ref<FriendUser[]>([])
     const loading = shallowRef(false)
     const searching = shallowRef(false)
@@ -28,14 +29,16 @@ export const useFriendshipStore = defineStore('friendships', () => {
         loading.value = true
         clearError()
         try {
-            const [friendList, received, sent] = await Promise.all([
+            const [friendList, received, sent, blocked] = await Promise.all([
                 friendApi.listFriends(auth.token),
                 friendApi.listReceivedRequests(auth.token),
                 friendApi.listSentRequests(auth.token),
+                friendApi.listBlockedUsers(auth.token),
             ])
             friends.value = friendList
             receivedRequests.value = received
             sentRequests.value = sent
+            blockedUsers.value = blocked
         } catch (cause) {
             reportError(cause, '加载好友信息失败')
         } finally {
@@ -124,10 +127,37 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    async function blockUser(targetUserID: string) {
+        actionBusy.value = true
+        clearError()
+        try {
+            await friendApi.blockUser(auth.token, targetUserID)
+            await loadAll()
+        } catch (cause) {
+            reportError(cause, '拉黑用户失败')
+        } finally {
+            actionBusy.value = false
+        }
+    }
+
+    async function unblockUser(targetUserID: string) {
+        actionBusy.value = true
+        clearError()
+        try {
+            await friendApi.unblockUser(auth.token, targetUserID)
+            await loadAll()
+        } catch (cause) {
+            reportError(cause, '取消拉黑失败')
+        } finally {
+            actionBusy.value = false
+        }
+    }
+
     function reset() {
         friends.value = []
         receivedRequests.value = []
         sentRequests.value = []
+        blockedUsers.value = []
         searchResults.value = []
         error.value = ''
     }
@@ -136,6 +166,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         friends,
         receivedRequests,
         sentRequests,
+        blockedUsers,
         searchResults,
         loading,
         searching,
@@ -148,6 +179,8 @@ export const useFriendshipStore = defineStore('friendships', () => {
         rejectRequest,
         updateRemark,
         removeFriend,
+        blockUser,
+        unblockUser,
         clearError,
         reset,
     }

@@ -171,9 +171,70 @@ func (h *Handler) ListFriends(c *gin.Context) {
 			FriendshipID: strconv.FormatUint(result.FriendshipID, 10),
 			User:         toUserResponse(result.User),
 			Remark:       result.Remark,
+			BlockedByMe:  result.BlockedByMe,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"friends": response})
+}
+
+// ListBlockedUsers 处理当前用户的拉黑列表。
+func (h *Handler) ListBlockedUsers(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	results, err := h.service.ListBlockedUsers(c.Request.Context(), userID)
+	if err != nil {
+		writeFriendshipError(c, err)
+		return
+	}
+	response := make([]blockedUserResponse, 0, len(results))
+	for _, result := range results {
+		response = append(response, blockedUserResponse{
+			User:      toUserResponse(result.User),
+			CreatedAt: result.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"blocked_users": response})
+}
+
+// BlockUser 处理拉黑用户。
+func (h *Handler) BlockUser(c *gin.Context) {
+	h.changeBlock(c, true)
+}
+
+// UnblockUser 处理取消拉黑。
+func (h *Handler) UnblockUser(c *gin.Context) {
+	h.changeBlock(c, false)
+}
+
+func (h *Handler) changeBlock(c *gin.Context, block bool) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	if err != nil || targetUserID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户 ID 格式错误"})
+		return
+	}
+
+	if block {
+		err = h.service.BlockUser(c.Request.Context(), userID, targetUserID)
+	} else {
+		err = h.service.UnblockUser(c.Request.Context(), userID, targetUserID)
+	}
+	if err != nil {
+		writeFriendshipError(c, err)
+		return
+	}
+	message := "已取消拉黑"
+	if block {
+		message = "已拉黑用户"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": message})
 }
 
 // SetRemark 处理好友备注更新。
@@ -251,6 +312,17 @@ type friendResponse struct {
 
 	// Remark 是当前用户设置的独立备注。
 	Remark string `json:"remark"`
+
+	// BlockedByMe 表示当前用户是否已拉黑该好友。
+	BlockedByMe bool `json:"blocked_by_me"`
+}
+
+type blockedUserResponse struct {
+	// User 是被拉黑用户公开资料。
+	User userResponse `json:"user"`
+
+	// CreatedAt 是拉黑关系创建的 UTC 时间。
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type requestResponse struct {
@@ -286,6 +358,8 @@ func writeFriendshipError(c *gin.Context, err error) {
 	case errors.Is(err, ErrUserNotFound), errors.Is(err, ErrRequestNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrRequestForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrUserBlocked):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrAlreadyFriends), errors.Is(err, ErrRequestPending):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})

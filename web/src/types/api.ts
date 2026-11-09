@@ -124,6 +124,12 @@ export interface Friend {
     friendship_id: string
     user: FriendUser
     remark: string
+    blocked_by_me: boolean
+}
+
+export interface BlockedUser {
+    user: FriendUser
+    created_at: string
 }
 
 export interface FriendRequest {

@@ -37,6 +37,13 @@ func (r *Repository) searchUsers(
 			"u.id <> ? AND u.status = 1 AND u.deleted_at IS NULL",
 			userID,
 		).
+		Where(
+			"NOT EXISTS (SELECT 1 FROM user_blocks AS ub "+
+				"WHERE (ub.blocker_id = ? AND ub.blocked_id = u.id) "+
+				"OR (ub.blocker_id = u.id AND ub.blocked_id = ?))",
+			userID,
+			userID,
+		).
 		Where("(u.username LIKE ? OR p.nickname LIKE ?)", like, like).
 		Order("u.username ASC").
 		Limit(20).
@@ -75,9 +82,16 @@ func (r *Repository) sendRequest(
 		if targetCount != 1 {
 			return ErrUserNotFound
 		}
+		blocked, err := isBlockedPair(tx, userID, targetUserID)
+		if err != nil {
+			return err
+		}
+		if blocked {
+			return ErrUserBlocked
+		}
 
 		var existingFriendship friendship
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where(
 				"user_low_id = ? AND user_high_id = ?",
 				lowID,
@@ -182,9 +196,20 @@ func (r *Repository) respondToRequest(
 		if !accept {
 			return nil
 		}
+		blocked, err := isBlockedPair(
+			tx,
+			request.UserLowID,
+			request.UserHighID,
+		)
+		if err != nil {
+			return err
+		}
+		if blocked {
+			return ErrUserBlocked
+		}
 
 		var relation friendship
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where(
 				"user_low_id = ? AND user_high_id = ?",
 				request.UserLowID,
@@ -224,7 +249,8 @@ func (r *Repository) listFriends(
 		Select(
 			"f.id AS friendship_id, u.id AS friend_user_id, "+
 				"u.username, p.nickname, p.avatar_url, "+
-				"COALESCE(r.remark, '') AS remark",
+				"COALESCE(r.remark, '') AS remark, "+
+				"(ub.blocker_id IS NOT NULL) AS blocked_by_me",
 		).
 		Joins(
 			"JOIN users AS u ON u.id = CASE "+
@@ -236,6 +262,11 @@ func (r *Repository) listFriends(
 		Joins(
 			"LEFT JOIN friend_remarks AS r "+
 				"ON r.friendship_id = f.id AND r.user_id = ?",
+			userID,
+		).
+		Joins(
+			"LEFT JOIN user_blocks AS ub "+
+				"ON ub.blocker_id = ? AND ub.blocked_id = u.id",
 			userID,
 		).
 		Where(
@@ -259,10 +290,93 @@ func (r *Repository) listFriends(
 				Nickname:  record.Nickname,
 				AvatarURL: stringValue(record.AvatarURL),
 			},
-			Remark: record.Remark,
+			Remark:      record.Remark,
+			BlockedByMe: record.BlockedByMe,
 		})
 	}
 	return results, nil
+}
+
+func (r *Repository) listBlockedUsers(
+	ctx context.Context,
+	userID uint64,
+) ([]BlockedUserResult, error) {
+	var records []blockedUserRecord
+	if err := r.db.WithContext(ctx).
+		Table("user_blocks AS b").
+		Select(
+			"u.id AS user_id, u.username, p.nickname, "+
+				"p.avatar_url, b.created_at",
+		).
+		Joins("JOIN users AS u ON u.id = b.blocked_id").
+		Joins("JOIN user_profiles AS p ON p.user_id = u.id").
+		Where("b.blocker_id = ?", userID).
+		Order("b.created_at DESC").
+		Scan(&records).Error; err != nil {
+		return nil, fmt.Errorf("查询拉黑列表: %w", err)
+	}
+
+	results := make([]BlockedUserResult, 0, len(records))
+	for _, record := range records {
+		results = append(results, BlockedUserResult{
+			User: UserResult{
+				ID:        record.UserID,
+				Username:  record.Username,
+				Nickname:  record.Nickname,
+				AvatarURL: stringValue(record.AvatarURL),
+			},
+			CreatedAt: record.CreatedAt,
+		})
+	}
+	return results, nil
+}
+
+func (r *Repository) blockUser(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var targetCount int64
+		if err := tx.Table("users").
+			Where(
+				"id = ? AND status = 1 AND deleted_at IS NULL",
+				targetUserID,
+			).
+			Count(&targetCount).Error; err != nil {
+			return fmt.Errorf("校验拉黑目标: %w", err)
+		}
+		if targetCount != 1 {
+			return ErrUserNotFound
+		}
+
+		record := userBlock{
+			BlockerID: userID,
+			BlockedID: targetUserID,
+			CreatedAt: time.Now().UTC(),
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "blocker_id"},
+				{Name: "blocked_id"},
+			},
+			DoNothing: true,
+		}).Create(&record).Error
+	})
+}
+
+func (r *Repository) unblockUser(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+) error {
+	return r.db.WithContext(ctx).
+		Where(
+			"blocker_id = ? AND blocked_id = ?",
+			userID,
+			targetUserID,
+		).
+		Delete(&userBlock{}).Error
 }
 
 func (r *Repository) listRequests(
@@ -425,6 +539,23 @@ func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 		return first, second
 	}
 	return second, first
+}
+
+func isBlockedPair(db *gorm.DB, first uint64, second uint64) (bool, error) {
+	var count int64
+	if err := db.Table("user_blocks").
+		Where(
+			"(blocker_id = ? AND blocked_id = ?) OR "+
+				"(blocker_id = ? AND blocked_id = ?)",
+			first,
+			second,
+			second,
+			first,
+		).
+		Count(&count).Error; err != nil {
+		return false, fmt.Errorf("校验用户拉黑关系: %w", err)
+	}
+	return count > 0, nil
 }
 
 func nullableString(value string) *string {

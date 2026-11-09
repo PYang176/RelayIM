@@ -11,11 +11,14 @@ const props = defineProps<{
 const emit = defineEmits<{
     message: [userID: string]
     updateRemark: [remark: string]
+    block: []
+    unblock: []
     remove: []
 }>()
 
 const editing = shallowRef(false)
 const confirmingDelete = shallowRef(false)
+const confirmingBlock = shallowRef(false)
 const remarkDraft = shallowRef(props.friend.remark)
 
 watch(
@@ -23,6 +26,15 @@ watch(
     (remark) => {
         if (!editing.value) {
             remarkDraft.value = remark
+        }
+    },
+)
+
+watch(
+    () => props.friend.blocked_by_me,
+    (blocked) => {
+        if (blocked) {
+            confirmingBlock.value = false
         }
     },
 )
@@ -71,11 +83,39 @@ function cancelEdit() {
             <button type="button" @click="confirmingDelete = false">取消</button>
         </div>
 
+        <div v-else-if="confirmingBlock" class="friend-inline-form">
+            <span>拉黑后双方将不能私聊或发送好友申请</span>
+            <button :disabled="busy" type="button" @click="emit('block')">确认拉黑</button>
+            <button type="button" @click="confirmingBlock = false">取消</button>
+        </div>
+
         <div v-else class="friend-actions">
-            <button :disabled="busy" type="button" @click="emit('message', friend.user.id)">
+            <button
+                    v-if="!friend.blocked_by_me"
+                    :disabled="busy"
+                    type="button"
+                    @click="emit('message', friend.user.id)"
+            >
                 发消息
             </button>
-            <button type="button" @click="editing = true">备注</button>
+            <button v-if="!friend.blocked_by_me" type="button" @click="editing = true">
+                备注
+            </button>
+            <button
+                    v-if="friend.blocked_by_me"
+                    :disabled="busy"
+                    type="button"
+                    @click="emit('unblock')"
+            >
+                取消拉黑
+            </button>
+            <button
+                    v-else
+                    type="button"
+                    @click="confirmingBlock = true"
+            >
+                拉黑
+            </button>
             <button type="button" @click="confirmingDelete = true">删除</button>
         </div>
     </article>
