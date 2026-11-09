@@ -8,7 +8,7 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 
 - 账号注册、登录、Refresh Token 原子轮换、服务端退出登录。
 - 个人昵称、头像和个人简介编辑。
-- 好友申请理由、接受、拒绝、好友备注、拉黑和私聊创建。
+- 好友申请理由、接受、拒绝、好友备注、拉黑、游标分页和私聊创建。
 - 私聊与群聊统一会话模型，群成员、管理员、群主权限矩阵。
 - 群主可以修改群名称、群头像、转让群主或解散群。
 - 文本、图片和普通文件消息。
@@ -156,6 +156,12 @@ python scripts\friend-block-e2e.py
 
 ```powershell
 python scripts\friend-request-reason-e2e.py
+```
+
+好友与申请列表分页可运行：
+
+```powershell
+python scripts\friendship-pagination-e2e.py
 ```
 
 启用真实依赖的 Go 集成测试需要：

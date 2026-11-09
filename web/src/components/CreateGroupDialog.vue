@@ -7,12 +7,15 @@ const props = defineProps<{
     open: boolean
     friends: Friend[]
     loading: boolean
+    loadingMore: boolean
+    hasMore: boolean
     busy: boolean
     error: string
 }>()
 
 const emit = defineEmits<{
     close: []
+    loadMore: []
     create: [payload: {name: string; memberUserIds: string[]}]
 }>()
 
@@ -123,6 +126,15 @@ function submit() {
                             <small>@{{ friend.user.username }}</small>
                         </span>
                     </label>
+                    <button
+                            v-if="hasMore"
+                            class="text-button"
+                            :disabled="loadingMore"
+                            type="button"
+                            @click="emit('loadMore')"
+                    >
+                        {{ loadingMore ? '加载中…' : '加载更多好友' }}
+                    </button>
                 </div>
             </fieldset>
 

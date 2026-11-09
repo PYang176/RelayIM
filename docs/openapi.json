@@ -31,6 +31,16 @@
           "type": "string"
         }
       },
+      "BeforeID": {
+        "description": "返回小于该 Snowflake 记录 ID 的下一页",
+        "in": "query",
+        "name": "before_id",
+        "required": false,
+        "schema": {
+          "pattern": "^[1-9][0-9]*$",
+          "type": "string"
+        }
+      },
       "ConversationID": {
         "description": "Snowflake 会话 ID 字符串",
         "in": "path",
@@ -59,6 +69,18 @@
         "schema": {
           "pattern": "^[1-9][0-9]*$",
           "type": "string"
+        }
+      },
+      "PageLimit": {
+        "description": "每页数量",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "default": 20,
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "UserID": {
@@ -484,6 +506,13 @@
       },
       "FriendRequestList": {
         "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "description": "下一页游标；没有下一页时为空字符串",
+            "type": "string"
+          },
           "requests": {
             "items": {
               "$ref": "#/components/schemas/FriendRequest"
@@ -492,7 +521,9 @@
           }
         },
         "required": [
-          "requests"
+          "requests",
+          "next_cursor",
+          "has_more"
         ],
         "type": "object"
       },
@@ -2220,6 +2251,14 @@
     "/api/v1/friend-requests/received": {
       "get": {
         "operationId": "listReceivedFriendRequests",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/BeforeID"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2244,6 +2283,14 @@
     "/api/v1/friend-requests/sent": {
       "get": {
         "operationId": "listSentFriendRequests",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/BeforeID"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2338,6 +2385,14 @@
     "/api/v1/friends": {
       "get": {
         "operationId": "listFriends",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/BeforeID"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2349,10 +2404,19 @@
                         "$ref": "#/components/schemas/Friend"
                       },
                       "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "description": "下一页游标；没有下一页时为空字符串",
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "friends"
+                    "friends",
+                    "next_cursor",
+                    "has_more"
                   ],
                   "type": "object"
                 }

@@ -103,7 +103,8 @@ async function submitRequest(userID: string) {
                         type="button"
                         @click="activeTab = 'friends'"
                 >
-                    好友 {{ friendships.friends.length }}
+                    好友 {{ friendships.friends.length
+                    }}{{ friendships.friendHasMore ? '+' : '' }}
                 </button>
                 <button
                         :aria-pressed="activeTab === 'requests'"
@@ -111,7 +112,8 @@ async function submitRequest(userID: string) {
                         type="button"
                         @click="activeTab = 'requests'"
                 >
-                    申请 {{ friendships.receivedRequests.length }}
+                    申请 {{ friendships.receivedRequests.length
+                    }}{{ friendships.receivedHasMore ? '+' : '' }}
                 </button>
                 <button
                         :aria-pressed="activeTab === 'blocked'"
@@ -225,6 +227,15 @@ async function submitRequest(userID: string) {
                             @unblock="friendships.unblockUser(friend.user.id)"
                             @update-remark="friendships.updateRemark(friend.user.id, $event)"
                     />
+                    <button
+                            v-if="friendships.friendHasMore"
+                            class="text-button"
+                            :disabled="friendships.loadingMore"
+                            type="button"
+                            @click="friendships.loadMoreFriends"
+                    >
+                        {{ friendships.loadingMore ? '加载中…' : '加载更多好友' }}
+                    </button>
                 </section>
             </template>
 
@@ -270,6 +281,23 @@ async function submitRequest(userID: string) {
                             @accept="friendships.acceptRequest(request.id)"
                             @reject="friendships.rejectRequest(request.id)"
                     />
+                    <button
+                            v-if="
+                                requestMode === 'received'
+                                    ? friendships.receivedHasMore
+                                    : friendships.sentHasMore
+                            "
+                            class="text-button"
+                            :disabled="friendships.loadingMore"
+                            type="button"
+                            @click="
+                                requestMode === 'received'
+                                    ? friendships.loadMoreReceivedRequests()
+                                    : friendships.loadMoreSentRequests()
+                            "
+                    >
+                        {{ friendships.loadingMore ? '加载中…' : '加载更多申请' }}
+                    </button>
                 </section>
             </template>
 

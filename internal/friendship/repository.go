@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"ginChatProject/internal/platform/snowflake"
@@ -242,44 +243,38 @@ func (r *Repository) respondToRequest(
 func (r *Repository) listFriends(
 	ctx context.Context,
 	userID uint64,
-) ([]FriendResult, error) {
-	var records []friendRecord
-	if err := r.db.WithContext(ctx).
-		Table("friendships AS f").
-		Select(
-			"f.id AS friendship_id, u.id AS friend_user_id, "+
-				"u.username, p.nickname, p.avatar_url, "+
-				"COALESCE(r.remark, '') AS remark, "+
-				"(ub.blocker_id IS NOT NULL) AS blocked_by_me",
-		).
-		Joins(
-			"JOIN users AS u ON u.id = CASE "+
-				"WHEN f.user_low_id = ? THEN f.user_high_id "+
-				"ELSE f.user_low_id END",
-			userID,
-		).
-		Joins("JOIN user_profiles AS p ON p.user_id = u.id").
-		Joins(
-			"LEFT JOIN friend_remarks AS r "+
-				"ON r.friendship_id = f.id AND r.user_id = ?",
-			userID,
-		).
-		Joins(
-			"LEFT JOIN user_blocks AS ub "+
-				"ON ub.blocker_id = ? AND ub.blocked_id = u.id",
-			userID,
-		).
-		Where(
-			"f.status = ? AND (f.user_low_id = ? OR f.user_high_id = ?)",
-			friendshipStatusNormal,
-			userID,
-			userID,
-		).
-		Order("p.nickname ASC, u.username ASC").
-		Scan(&records).Error; err != nil {
-		return nil, fmt.Errorf("查询好友列表: %w", err)
+	limit int,
+	beforeID uint64,
+) (FriendPage, error) {
+	lowRecords, err := r.listFriendsBySide(
+		ctx,
+		userID,
+		limit,
+		beforeID,
+		true,
+	)
+	if err != nil {
+		return FriendPage{}, err
 	}
+	highRecords, err := r.listFriendsBySide(
+		ctx,
+		userID,
+		limit,
+		beforeID,
+		false,
+	)
+	if err != nil {
+		return FriendPage{}, err
+	}
+	records := append(lowRecords, highRecords...)
+	sort.Slice(records, func(left int, right int) bool {
+		return records[left].FriendshipID > records[right].FriendshipID
+	})
 
+	hasMore := len(records) > limit
+	if hasMore {
+		records = records[:limit]
+	}
 	results := make([]FriendResult, 0, len(records))
 	for _, record := range records {
 		results = append(results, FriendResult{
@@ -294,7 +289,68 @@ func (r *Repository) listFriends(
 			BlockedByMe: record.BlockedByMe,
 		})
 	}
-	return results, nil
+	page := FriendPage{
+		Friends: results,
+		HasMore: hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		page.NextCursor = results[len(results)-1].FriendshipID
+	}
+	return page, nil
+}
+
+func (r *Repository) listFriendsBySide(
+	ctx context.Context,
+	userID uint64,
+	limit int,
+	beforeID uint64,
+	lowSide bool,
+) ([]friendRecord, error) {
+	peerJoin := "JOIN users AS u ON u.id = f.user_high_id"
+	sideCondition := "f.user_low_id = ?"
+	tableName := "friendships AS f USE INDEX (idx_friendships_low_status_id)"
+	if !lowSide {
+		peerJoin = "JOIN users AS u ON u.id = f.user_low_id"
+		sideCondition = "f.user_high_id = ?"
+		tableName = "friendships AS f USE INDEX (idx_friendships_high_status_id)"
+	}
+
+	var records []friendRecord
+	query := r.db.WithContext(ctx).
+		Table(tableName).
+		Select(
+			"f.id AS friendship_id, u.id AS friend_user_id, "+
+				"u.username, p.nickname, p.avatar_url, "+
+				"COALESCE(r.remark, '') AS remark, "+
+				"(ub.blocker_id IS NOT NULL) AS blocked_by_me",
+		).
+		Joins(peerJoin).
+		Joins("JOIN user_profiles AS p ON p.user_id = u.id").
+		Joins(
+			"LEFT JOIN friend_remarks AS r "+
+				"ON r.friendship_id = f.id AND r.user_id = ?",
+			userID,
+		).
+		Joins(
+			"LEFT JOIN user_blocks AS ub "+
+				"ON ub.blocker_id = ? AND ub.blocked_id = u.id",
+			userID,
+		).
+		Where(
+			"f.status = ? AND "+sideCondition,
+			friendshipStatusNormal,
+			userID,
+		)
+	if beforeID > 0 {
+		query = query.Where("f.id < ?", beforeID)
+	}
+	if err := query.
+		Order("f.id DESC").
+		Limit(limit + 1).
+		Scan(&records).Error; err != nil {
+		return nil, fmt.Errorf("查询好友列表: %w", err)
+	}
+	return records, nil
 }
 
 func (r *Repository) listBlockedUsers(
@@ -383,7 +439,9 @@ func (r *Repository) listRequests(
 	ctx context.Context,
 	userID uint64,
 	received bool,
-) ([]RequestResult, error) {
+	limit int,
+	beforeID uint64,
+) (RequestPage, error) {
 	var records []requestRecord
 	query := r.db.WithContext(ctx).Table("friend_requests AS fr")
 	if received {
@@ -425,10 +483,20 @@ func (r *Repository) listRequests(
 				userID,
 			)
 	}
-	if err := query.Order("fr.created_at DESC").Scan(&records).Error; err != nil {
-		return nil, fmt.Errorf("查询好友申请: %w", err)
+	if beforeID > 0 {
+		query = query.Where("fr.id < ?", beforeID)
+	}
+	if err := query.
+		Order("fr.id DESC").
+		Limit(limit + 1).
+		Scan(&records).Error; err != nil {
+		return RequestPage{}, fmt.Errorf("查询好友申请: %w", err)
 	}
 
+	hasMore := len(records) > limit
+	if hasMore {
+		records = records[:limit]
+	}
 	results := make([]RequestResult, 0, len(records))
 	for _, record := range records {
 		results = append(results, RequestResult{
@@ -444,7 +512,14 @@ func (r *Repository) listRequests(
 			CreatedAt: record.CreatedAt,
 		})
 	}
-	return results, nil
+	page := RequestPage{
+		Requests: results,
+		HasMore:  hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		page.NextCursor = results[len(results)-1].ID
+	}
+	return page, nil
 }
 
 func (r *Repository) setRemark(

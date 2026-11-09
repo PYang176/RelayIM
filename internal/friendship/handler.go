@@ -101,22 +101,35 @@ func (h *Handler) listRequests(c *gin.Context, received bool) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
 		return
 	}
-	results, err := h.service.ListRequests(c.Request.Context(), userID, received)
+	page, ok := parsePageQuery(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListRequests(
+		c.Request.Context(),
+		userID,
+		received,
+		page,
+	)
 	if err != nil {
 		writeFriendshipError(c, err)
 		return
 	}
-	response := make([]requestResponse, 0, len(results))
-	for _, result := range results {
+	response := make([]requestResponse, 0, len(result.Requests))
+	for _, item := range result.Requests {
 		response = append(response, requestResponse{
-			ID:        strconv.FormatUint(result.ID, 10),
-			User:      toUserResponse(result.User),
-			Status:    result.Status,
-			Remark:    result.Remark,
-			CreatedAt: result.CreatedAt,
+			ID:        strconv.FormatUint(item.ID, 10),
+			User:      toUserResponse(item.User),
+			Status:    item.Status,
+			Remark:    item.Remark,
+			CreatedAt: item.CreatedAt,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"requests": response})
+	c.JSON(http.StatusOK, gin.H{
+		"requests":    response,
+		"next_cursor": formatCursor(result.NextCursor),
+		"has_more":    result.HasMore,
+	})
 }
 
 // AcceptRequest 处理同意好友申请。
@@ -160,21 +173,29 @@ func (h *Handler) ListFriends(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
 		return
 	}
-	results, err := h.service.ListFriends(c.Request.Context(), userID)
+	page, ok := parsePageQuery(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListFriends(c.Request.Context(), userID, page)
 	if err != nil {
 		writeFriendshipError(c, err)
 		return
 	}
-	response := make([]friendResponse, 0, len(results))
-	for _, result := range results {
+	response := make([]friendResponse, 0, len(result.Friends))
+	for _, item := range result.Friends {
 		response = append(response, friendResponse{
-			FriendshipID: strconv.FormatUint(result.FriendshipID, 10),
-			User:         toUserResponse(result.User),
-			Remark:       result.Remark,
-			BlockedByMe:  result.BlockedByMe,
+			FriendshipID: strconv.FormatUint(item.FriendshipID, 10),
+			User:         toUserResponse(item.User),
+			Remark:       item.Remark,
+			BlockedByMe:  item.BlockedByMe,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"friends": response})
+	c.JSON(http.StatusOK, gin.H{
+		"friends":     response,
+		"next_cursor": formatCursor(result.NextCursor),
+		"has_more":    result.HasMore,
+	})
 }
 
 // ListBlockedUsers 处理当前用户的拉黑列表。
@@ -349,6 +370,34 @@ func toUserResponse(result UserResult) userResponse {
 		Nickname:  result.Nickname,
 		AvatarURL: result.AvatarURL,
 	}
+}
+
+func parsePageQuery(c *gin.Context) (PageQuery, bool) {
+	page := PageQuery{Limit: defaultPageSize}
+	if rawLimit := c.Query("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 || limit > maxPageSize {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit 必须在 1 到 100 之间"})
+			return PageQuery{}, false
+		}
+		page.Limit = limit
+	}
+	if rawCursor := c.Query("before_id"); rawCursor != "" {
+		cursor, err := strconv.ParseUint(rawCursor, 10, 64)
+		if err != nil || cursor == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "before_id 格式错误"})
+			return PageQuery{}, false
+		}
+		page.BeforeID = cursor
+	}
+	return page, true
+}
+
+func formatCursor(cursor uint64) string {
+	if cursor == 0 {
+		return ""
+	}
+	return strconv.FormatUint(cursor, 10)
 }
 
 func writeFriendshipError(c *gin.Context, err error) {

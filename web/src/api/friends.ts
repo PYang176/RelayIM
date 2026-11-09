@@ -1,5 +1,16 @@
 import {request} from './http'
-import type {BlockedUser, Friend, FriendRequest, FriendUser} from '@/types/api'
+import type {
+    BlockedUser,
+    FriendPage,
+    FriendRequestPage,
+    FriendUser,
+} from '@/types/api'
+
+function pageParams(limit = 20, beforeID = ''): URLSearchParams {
+    const params = new URLSearchParams({limit: String(limit)})
+    if (beforeID) params.set('before_id', beforeID)
+    return params
+}
 
 export async function searchUsers(
     token: string,
@@ -34,24 +45,26 @@ export function sendFriendRequest(
 
 export async function listReceivedRequests(
     token: string,
-): Promise<FriendRequest[]> {
-    const response = await request<{ requests: FriendRequest[] }>(
-        '/friend-requests/received',
+    beforeID = '',
+): Promise<FriendRequestPage> {
+    const params = pageParams(20, beforeID)
+    return request<FriendRequestPage>(
+        `/friend-requests/received?${params}`,
         {},
         token,
     )
-    return response.requests
 }
 
 export async function listSentRequests(
     token: string,
-): Promise<FriendRequest[]> {
-    const response = await request<{ requests: FriendRequest[] }>(
-        '/friend-requests/sent',
+    beforeID = '',
+): Promise<FriendRequestPage> {
+    const params = pageParams(20, beforeID)
+    return request<FriendRequestPage>(
+        `/friend-requests/sent?${params}`,
         {},
         token,
     )
-    return response.requests
 }
 
 export function acceptFriendRequest(token: string, requestID: string): Promise<void> {
@@ -70,9 +83,12 @@ export function rejectFriendRequest(token: string, requestID: string): Promise<v
     )
 }
 
-export async function listFriends(token: string): Promise<Friend[]> {
-    const response = await request<{ friends: Friend[] }>('/friends', {}, token)
-    return response.friends
+export async function listFriends(
+    token: string,
+    beforeID = '',
+): Promise<FriendPage> {
+    const params = pageParams(20, beforeID)
+    return request<FriendPage>(`/friends?${params}`, {}, token)
 }
 
 export function setFriendRemark(

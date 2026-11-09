@@ -320,6 +320,9 @@ paths:
       tags: [Friendship]
       summary: 查询收到的好友申请
       operationId: listReceivedFriendRequests
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/BeforeID"
       responses:
         "200":
           description: 待处理的收到申请
@@ -334,6 +337,9 @@ paths:
       tags: [Friendship]
       summary: 查询发出的好友申请
       operationId: listSentFriendRequests
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/BeforeID"
       responses:
         "200":
           description: 当前用户发出的申请
@@ -388,6 +394,9 @@ paths:
       tags: [Friendship]
       summary: 查询好友列表
       operationId: listFriends
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/BeforeID"
       responses:
         "200":
           description: 当前用户的好友
@@ -395,12 +404,17 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [friends]
+                required: [friends, next_cursor, has_more]
                 properties:
                   friends:
                     type: array
                     items:
                       $ref: "#/components/schemas/Friend"
+                  next_cursor:
+                    type: string
+                    description: 下一页游标；没有下一页时为空字符串
+                  has_more:
+                    type: boolean
         "401":
           $ref: "#/components/responses/Unauthorized"
   /api/v1/user-blocks:
@@ -1074,6 +1088,24 @@ components:
       schema:
         type: string
         pattern: "^[1-9][0-9]*$"
+    PageLimit:
+      name: limit
+      in: query
+      required: false
+      description: 每页数量
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    BeforeID:
+      name: before_id
+      in: query
+      required: false
+      description: 返回小于该 Snowflake 记录 ID 的下一页
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
   headers:
     RetryAfter:
       description: 建议等待的秒数
@@ -1340,12 +1372,17 @@ components:
           format: date-time
     FriendRequestList:
       type: object
-      required: [requests]
+      required: [requests, next_cursor, has_more]
       properties:
         requests:
           type: array
           items:
             $ref: "#/components/schemas/FriendRequest"
+        next_cursor:
+          type: string
+          description: 下一页游标；没有下一页时为空字符串
+        has_more:
+          type: boolean
     Friend:
       type: object
       required: [friendship_id, user, remark, blocked_by_me]

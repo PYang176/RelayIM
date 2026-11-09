@@ -71,6 +71,29 @@ func TestServiceValidation(t *testing.T) {
 				return service.UnblockUser(context.Background(), 1, 1)
 			},
 		},
+		{
+			name: "好友分页大小无效",
+			run: func() error {
+				_, err := service.ListFriends(
+					context.Background(),
+					1,
+					PageQuery{Limit: 0},
+				)
+				return err
+			},
+		},
+		{
+			name: "申请分页超过上限",
+			run: func() error {
+				_, err := service.ListRequests(
+					context.Background(),
+					1,
+					true,
+					PageQuery{Limit: maxPageSize + 1},
+				)
+				return err
+			},
+		},
 	}
 
 	for _, tt := range tests {

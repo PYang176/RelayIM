@@ -11,6 +11,8 @@ const props = defineProps<{
     groupAvatarUrl: string
     members: ConversationMember[]
     friends: Friend[]
+    friendsHasMore: boolean
+    loadingMoreFriends: boolean
     currentUserId: string
     loading: boolean
     busy: boolean
@@ -19,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     close: []
+    loadMoreFriends: []
     invite: [userIds: string[]]
     remove: [userId: string]
     setRole: [userId: string, role: 1 | 2]
@@ -219,10 +222,10 @@ function leave() {
                     邀请好友
                     <span>已选 {{ selectedInviteUserIds.length }} 人</span>
                 </legend>
-                <p v-if="availableFriends.length === 0">
+                <p v-if="availableFriends.length === 0 && !friendsHasMore">
                     你的好友已经都在群里。
                 </p>
-                <div v-else class="group-member-list">
+                <div v-else-if="availableFriends.length > 0" class="group-member-list">
                     <label
                             v-for="friend in availableFriends"
                             :key="friend.friendship_id"
@@ -242,6 +245,15 @@ function leave() {
                         </span>
                     </label>
                 </div>
+                <button
+                        v-if="friendsHasMore"
+                        class="text-button"
+                        :disabled="loadingMoreFriends"
+                        type="button"
+                        @click="emit('loadMoreFriends')"
+                >
+                    {{ loadingMoreFriends ? '加载中…' : '加载更多好友' }}
+                </button>
                 <button
                         class="primary-button compact invite-button"
                         :disabled="busy || selectedInviteUserIds.length === 0"

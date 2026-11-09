@@ -140,6 +140,18 @@ export interface FriendRequest {
     created_at: string
 }
 
+export interface FriendPage {
+    friends: Friend[]
+    next_cursor: string
+    has_more: boolean
+}
+
+export interface FriendRequestPage {
+    requests: FriendRequest[]
+    next_cursor: string
+    has_more: boolean
+}
+
 export interface ApiErrorBody {
     error?: string
 }
