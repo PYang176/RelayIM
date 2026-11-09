@@ -355,6 +355,8 @@ func writeFriendshipError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrRequestRemarkRequired):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrUserNotFound), errors.Is(err, ErrRequestNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrRequestForbidden):

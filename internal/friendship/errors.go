@@ -26,4 +26,7 @@ var (
 
 	// ErrUserBlocked 表示双方存在拉黑关系，不能继续社交互动。
 	ErrUserBlocked = errors.New("双方存在拉黑关系")
+
+	// ErrRequestRemarkRequired 表示好友申请没有填写理由。
+	ErrRequestRemarkRequired = errors.New("好友申请理由不能为空")
 )

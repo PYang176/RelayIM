@@ -80,6 +80,9 @@ func (s *Service) SendRequest(
 	if userID == 0 || targetUserID == 0 || userID == targetUserID {
 		return ErrInvalidInput
 	}
+	if remark == "" {
+		return ErrRequestRemarkRequired
+	}
 	if utf8.RuneCountInString(remark) > maxRequestRemarkRunes {
 		return ErrInvalidInput
 	}

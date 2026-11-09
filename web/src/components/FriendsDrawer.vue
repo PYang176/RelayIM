@@ -20,6 +20,9 @@ const friendships = useFriendshipStore()
 const activeTab = shallowRef<'friends' | 'requests' | 'blocked'>('friends')
 const searchQuery = shallowRef('')
 const requestMode = shallowRef<'received' | 'sent'>('received')
+const requestingUserID = shallowRef('')
+const requestRemark = shallowRef('')
+const requestReasonError = shallowRef('')
 
 watch(
     () => props.open,
@@ -44,8 +47,27 @@ function close() {
     emit('close')
 }
 
-function sendRequest(userID: string) {
-    void friendships.sendRequest(userID, '')
+function beginRequest(userID: string) {
+    requestingUserID.value = userID
+    requestRemark.value = ''
+    requestReasonError.value = ''
+}
+
+function cancelRequest() {
+    requestingUserID.value = ''
+    requestRemark.value = ''
+    requestReasonError.value = ''
+}
+
+async function submitRequest(userID: string) {
+    const remark = requestRemark.value.trim()
+    if (!remark) {
+        requestReasonError.value = '请填写好友申请理由'
+        return
+    }
+    if (await friendships.sendRequest(userID, remark)) {
+        cancelRequest()
+    }
 }
 </script>
 
@@ -137,20 +159,52 @@ function sendRequest(userID: string) {
                             <strong>{{ user.nickname || user.username }}</strong>
                             <small>@{{ user.username }}</small>
                         </div>
-                        <button
-                                :disabled="friendships.actionBusy"
-                                type="button"
-                                @click="sendRequest(user.id)"
+                        <div
+                                v-if="requestingUserID === user.id"
+                                class="friend-inline-form"
                         >
-                            添加
-                        </button>
-                        <button
-                                :disabled="friendships.actionBusy"
-                                type="button"
-                                @click="friendships.blockUser(user.id)"
-                        >
-                            拉黑
-                        </button>
+                            <label class="sr-only" :for="`request-remark-${user.id}`">
+                                好友申请理由
+                            </label>
+                            <input
+                                    :id="`request-remark-${user.id}`"
+                                    v-model="requestRemark"
+                                    maxlength="200"
+                                    placeholder="填写申请理由"
+                                    @keyup.enter="submitRequest(user.id)"
+                            />
+                            <button
+                                    :disabled="friendships.actionBusy"
+                                    type="button"
+                                    @click="submitRequest(user.id)"
+                            >
+                                发送申请
+                            </button>
+                            <button type="button" @click="cancelRequest">取消</button>
+                            <span
+                                    v-if="requestReasonError"
+                                    class="form-error"
+                                    role="alert"
+                            >
+                                {{ requestReasonError }}
+                            </span>
+                        </div>
+                        <div v-else class="friend-actions">
+                            <button
+                                    :disabled="friendships.actionBusy"
+                                    type="button"
+                                    @click="beginRequest(user.id)"
+                            >
+                                添加
+                            </button>
+                            <button
+                                    :disabled="friendships.actionBusy"
+                                    type="button"
+                                    @click="friendships.blockUser(user.id)"
+                            >
+                                拉黑
+                            </button>
+                        </div>
                     </article>
                 </section>
 

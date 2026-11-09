@@ -468,7 +468,8 @@
       "FriendRequestCreate": {
         "properties": {
           "remark": {
-            "maxLength": 255,
+            "maxLength": 200,
+            "minLength": 1,
             "type": "string"
           },
           "target_user_id": {
@@ -476,7 +477,8 @@
           }
         },
         "required": [
-          "target_user_id"
+          "target_user_id",
+          "remark"
         ],
         "type": "object"
       },

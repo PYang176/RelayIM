@@ -1314,13 +1314,14 @@ components:
           description: 空字符串表示清除简介
     FriendRequestCreate:
       type: object
-      required: [target_user_id]
+      required: [target_user_id, remark]
       properties:
         target_user_id:
           $ref: "#/components/schemas/SnowflakeID"
         remark:
           type: string
-          maxLength: 255
+          minLength: 1
+          maxLength: 200
     FriendRequest:
       type: object
       required: [id, user, status, remark, created_at]

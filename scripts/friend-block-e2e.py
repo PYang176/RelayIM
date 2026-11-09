@@ -221,7 +221,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "POST",
                 "/friend-requests",
                 token=bob["token"],
-                payload={"target_user_id": alice["id"], "remark": ""},
+                payload={
+                    "target_user_id": alice["id"],
+                    "remark": "拉黑期间好友申请",
+                },
             )
             if (
                 bob_send_status != 403

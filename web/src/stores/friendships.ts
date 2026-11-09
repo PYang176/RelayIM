@@ -63,7 +63,10 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
-    async function sendRequest(targetUserID: string, remark: string) {
+    async function sendRequest(
+        targetUserID: string,
+        remark: string,
+    ): Promise<boolean> {
         actionBusy.value = true
         clearError()
         try {
@@ -72,8 +75,10 @@ export const useFriendshipStore = defineStore('friendships', () => {
                 (user) => user.id !== targetUserID,
             )
             await loadAll()
+            return true
         } catch (cause) {
             reportError(cause, '发送好友申请失败')
+            return false
         } finally {
             actionBusy.value = false
         }

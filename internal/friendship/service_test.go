@@ -81,3 +81,11 @@ func TestServiceValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestSendRequestRequiresRemark(t *testing.T) {
+	service := NewService(nil)
+	err := service.SendRequest(context.Background(), 1, 2, " ")
+	if !errors.Is(err, ErrRequestRemarkRequired) {
+		t.Fatalf("错误 = %v，期望 ErrRequestRemarkRequired", err)
+	}
+}

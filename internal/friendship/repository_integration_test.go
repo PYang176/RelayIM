@@ -118,7 +118,7 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		context.Background(),
 		userB,
 		userA,
-		"",
+		"反向重复申请",
 	); !errors.Is(err, ErrRequestPending) {
 		t.Fatalf("反向重复申请错误 = %v，期望 ErrRequestPending", err)
 	}
@@ -179,7 +179,7 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		context.Background(),
 		userB,
 		userA,
-		"",
+		"拉黑期间申请",
 	); !errors.Is(err, ErrUserBlocked) {
 		t.Fatalf("拉黑期间好友申请错误 = %v，期望 ErrUserBlocked", err)
 	}
