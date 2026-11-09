@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"ginChatProject/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
@@ -144,6 +145,32 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	if group.Title != "集成测试群" {
 		t.Fatalf("群会话标题 = %q，期望群名称", group.Title)
 	}
+	invitationPage, err := service.ListReceivedInvitations(
+		context.Background(),
+		userB,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil ||
+		len(invitationPage.Invitations) != 1 ||
+		invitationPage.Invitations[0].ConversationID != group.ID {
+		t.Fatalf("群邀请列表 = %+v, err=%v", invitationPage, err)
+	}
+	accepted, err := service.AcceptInvitation(
+		context.Background(),
+		userB,
+		invitationPage.Invitations[0].InvitationID,
+	)
+	if err != nil || accepted.MemberCount != 2 {
+		t.Fatalf("接受群邀请 = %+v, err=%v", accepted, err)
+	}
+	if _, err := service.AcceptInvitation(
+		context.Background(),
+		userB,
+		invitationPage.Invitations[0].InvitationID,
+	); err != nil {
+		t.Fatalf("重复接受群邀请应保持幂等: %v", err)
+	}
+
 	updatedGroup, err := service.UpdateGroupProfile(
 		context.Background(),
 		UpdateGroupProfileCommand{
@@ -197,7 +224,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		t.Fatalf("邀请非好友错误 = %v，期望 %v", err, ErrNotFriend)
 	}
 
-	memberCount, err := service.InviteMembers(
+	invitedCount, err := service.InviteMembers(
 		context.Background(),
 		InviteMembersCommand{
 			ActorID:        userA,
@@ -205,8 +232,12 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			MemberUserIDs:  []uint64{userB},
 		},
 	)
-	if err != nil || memberCount != 2 {
-		t.Fatalf("重复邀请成员 count=%d err=%v，期望幂等返回 2", memberCount, err)
+	if err != nil || invitedCount != 0 {
+		t.Fatalf(
+			"重复邀请成员 count=%d err=%v，期望有效成员不重复邀请",
+			invitedCount,
+			err,
+		)
 	}
 
 	if err := service.RemoveMember(
@@ -237,7 +268,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		t.Fatalf("群主退群错误 = %v，期望 ErrOwnerCannotLeave", err)
 	}
 
-	memberCount, err = service.InviteMembers(
+	invitedCount, err = service.InviteMembers(
 		context.Background(),
 		InviteMembersCommand{
 			ActorID:        userA,
@@ -245,8 +276,23 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			MemberUserIDs:  []uint64{userB},
 		},
 	)
-	if err != nil || memberCount != 2 {
-		t.Fatalf("重新邀请成员 count=%d err=%v", memberCount, err)
+	if err != nil || invitedCount != 1 {
+		t.Fatalf("重新邀请成员 count=%d err=%v", invitedCount, err)
+	}
+	invitationPage, err = service.ListReceivedInvitations(
+		context.Background(),
+		userB,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil || len(invitationPage.Invitations) != 1 {
+		t.Fatalf("重新邀请列表 = %+v, err=%v", invitationPage, err)
+	}
+	if _, err := service.AcceptInvitation(
+		context.Background(),
+		userB,
+		invitationPage.Invitations[0].InvitationID,
+	); err != nil {
+		t.Fatalf("重新接受群邀请失败: %v", err)
 	}
 	if err := service.RemoveMember(
 		context.Background(),
@@ -432,6 +478,175 @@ func TestCreateDirectConcurrentIntegration(t *testing.T) {
 	}
 }
 
+func TestGroupInvitationLifecycleIntegration(t *testing.T) {
+	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+	}
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("连接测试数据库失败: %v", err)
+	}
+	if err := snowflake.Init(1); err != nil {
+		t.Fatalf("初始化 Snowflake 失败: %v", err)
+	}
+
+	ownerID, inviteeID := insertConversationTestUsers(t, db)
+	t.Cleanup(func() {
+		cleanupConversationTestData(t, db, ownerID, inviteeID)
+	})
+	service := NewService(NewRepository(db))
+	group, err := service.CreateGroup(
+		context.Background(),
+		CreateGroupCommand{
+			OwnerID:       ownerID,
+			Name:          "邀请生命周期群",
+			MemberUserIDs: []uint64{inviteeID},
+		},
+	)
+	if err != nil {
+		t.Fatalf("创建邀请测试群失败: %v", err)
+	}
+	managedInvitations, err := service.ListGroupInvitations(
+		context.Background(),
+		ownerID,
+		group.ID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil || len(managedInvitations.Invitations) != 1 {
+		t.Fatalf("群待审批邀请 = %+v, err=%v", managedInvitations, err)
+	}
+	if _, err := service.ListGroupInvitations(
+		context.Background(),
+		inviteeID,
+		group.ID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	); !errors.Is(err, ErrConversationNotFound) {
+		t.Fatalf("非成员查询群邀请错误 = %v", err)
+	}
+
+	page, err := service.ListReceivedInvitations(
+		context.Background(),
+		inviteeID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil || len(page.Invitations) != 1 {
+		t.Fatalf("收到邀请 = %+v, err=%v", page, err)
+	}
+	invitationID := page.Invitations[0].InvitationID
+	if _, err := service.AcceptInvitation(
+		context.Background(),
+		ownerID,
+		invitationID,
+	); !errors.Is(err, ErrInvitationForbidden) {
+		t.Fatalf("非接收者接受邀请错误 = %v", err)
+	}
+
+	if err := db.Table("group_invitations").
+		Where("id = ?", invitationID).
+		Updates(map[string]any{
+			"created_at": time.Now().UTC().Add(-2 * time.Minute),
+			"expires_at": time.Now().UTC().Add(-time.Minute),
+		}).Error; err != nil {
+		t.Fatalf("设置过期邀请失败: %v", err)
+	}
+	if _, err := service.AcceptInvitation(
+		context.Background(),
+		inviteeID,
+		invitationID,
+	); !errors.Is(err, ErrInvitationExpired) {
+		t.Fatalf("接受过期邀请错误 = %v", err)
+	}
+
+	invitedCount, err := service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        ownerID,
+			ConversationID: group.ID,
+			MemberUserIDs:  []uint64{inviteeID},
+		},
+	)
+	if err != nil || invitedCount != 1 {
+		t.Fatalf("重新邀请 count=%d err=%v", invitedCount, err)
+	}
+	if err := service.RejectInvitation(
+		context.Background(),
+		inviteeID,
+		invitationID,
+	); err != nil {
+		t.Fatalf("拒绝群邀请失败: %v", err)
+	}
+	page, err = service.ListReceivedInvitations(
+		context.Background(),
+		inviteeID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil || len(page.Invitations) != 0 {
+		t.Fatalf("拒绝后邀请列表 = %+v, err=%v", page, err)
+	}
+	if _, err := service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        ownerID,
+			ConversationID: group.ID,
+			MemberUserIDs:  []uint64{inviteeID},
+		},
+	); err != nil {
+		t.Fatalf("拒绝后重新邀请失败: %v", err)
+	}
+
+	const workers = 2
+	errs := make(chan error, workers)
+	var waitGroup sync.WaitGroup
+	for index := 0; index < workers; index++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			_, err := service.AcceptInvitation(
+				context.Background(),
+				inviteeID,
+				invitationID,
+			)
+			errs <- err
+		}()
+	}
+	waitGroup.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("并发接受邀请失败: %v", err)
+		}
+	}
+	members, err := service.ListMembers(
+		context.Background(),
+		inviteeID,
+		group.ID,
+	)
+	if err != nil || len(members) != 2 {
+		t.Fatalf("接受后群成员 = %+v, err=%v", members, err)
+	}
+	managedInvitations, err = service.ListGroupInvitations(
+		context.Background(),
+		ownerID,
+		group.ID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil || len(managedInvitations.Invitations) != 0 {
+		t.Fatalf("接受后待审批邀请 = %+v, err=%v", managedInvitations, err)
+	}
+	if _, err := service.ListGroupInvitations(
+		context.Background(),
+		inviteeID,
+		group.ID,
+		InvitationPageQuery{Limit: defaultPageSize},
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("普通成员查询群邀请错误 = %v", err)
+	}
+}
+
 func insertConversationTestUsers(t *testing.T, db *gorm.DB) (uint64, uint64) {
 	t.Helper()
 
@@ -487,6 +702,8 @@ func cleanupConversationTestData(
 
 	statements := []string{
 		"DELETE FROM conversation_members WHERE user_id IN (?, ?)",
+		"DELETE FROM group_invitations WHERE invitee_id IN (?, ?) " +
+			"OR inviter_id IN (?, ?)",
 		"DELETE FROM conversations WHERE owner_id IN (?, ?) " +
 			"OR direct_low_user_id IN (?, ?) OR direct_high_user_id IN (?, ?)",
 		"DELETE FROM user_blocks WHERE blocker_id IN (?, ?) OR blocked_id IN (?, ?)",
@@ -497,6 +714,7 @@ func cleanupConversationTestData(
 	}
 	args := [][]any{
 		{userA, userB},
+		{userA, userB, userA, userB},
 		{userA, userB, userA, userB, userA, userB},
 		{userA, userB, userA, userB},
 		{userA, userB},

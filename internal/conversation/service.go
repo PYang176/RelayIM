@@ -12,6 +12,9 @@ const (
 	maxGroupNameRunes   = 64
 	maxGroupMemberCount = 500
 	maxGroupAvatarBytes = 512
+	defaultPageSize     = 20
+	maxPageSize         = 100
+	invitationTTL       = 7 * 24 * time.Hour
 )
 
 // Service 提供会话创建与列表查询。
@@ -58,6 +61,72 @@ type InviteMembersCommand struct {
 
 	// MemberUserIDs 是待邀请好友 Snowflake ID。
 	MemberUserIDs []uint64
+}
+
+// InvitationPageQuery 是群邀请列表的游标分页参数。
+type InvitationPageQuery struct {
+	// Limit 是本页最大记录数。
+	Limit int
+
+	// BeforeID 是上一页最后一条邀请的 Snowflake ID。
+	BeforeID uint64
+}
+
+// ReceivedInvitationResult 是当前用户收到的一条群邀请。
+type ReceivedInvitationResult struct {
+	// InvitationID 是邀请 Snowflake ID。
+	InvitationID uint64
+
+	// ConversationID 是目标群会话 Snowflake ID。
+	ConversationID uint64
+
+	// ConversationName 是群名称。
+	ConversationName string
+
+	// AvatarURL 是群头像。
+	AvatarURL string
+
+	// InviterID 是邀请人 Snowflake ID。
+	InviterID uint64
+
+	// InviterName 是邀请人的公开昵称。
+	InviterName string
+
+	// CreatedAt 是邀请创建时间。
+	CreatedAt time.Time
+
+	// ExpiresAt 是邀请失效时间。
+	ExpiresAt time.Time
+}
+
+// ReceivedInvitationPage 是当前用户收到的群邀请一页。
+type ReceivedInvitationPage struct {
+	Invitations []ReceivedInvitationResult
+	NextCursor  uint64
+	HasMore     bool
+}
+
+// GroupInvitationResult 是群管理员看到的待处理邀请。
+type GroupInvitationResult struct {
+	InvitationID uint64
+	Invitee      MemberResult
+	InviterID    uint64
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+// GroupInvitationPage 是群待处理邀请的一页。
+type GroupInvitationPage struct {
+	Invitations []GroupInvitationResult
+	NextCursor  uint64
+	HasMore     bool
+}
+
+// InvitationAcceptanceResult 是接受邀请后的群状态。
+type InvitationAcceptanceResult struct {
+	InvitationID   uint64
+	ConversationID uint64
+	MemberCount    uint64
 }
 
 // RemoveMemberCommand 是群主移除成员或普通成员退群的参数。
@@ -264,11 +333,11 @@ func (s *Service) CreateGroup(
 		Title:            stringValue(record.Name),
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
-		MemberCount:      uint64(len(memberUserIDs) + 1),
+		MemberCount:      1,
 	}, nil
 }
 
-// InviteMembers 邀请群主或管理员的更多好友加入群聊。
+// InviteMembers 由群主或管理员向更多好友发送入群邀请。
 func (s *Service) InviteMembers(
 	ctx context.Context,
 	command InviteMembersCommand,
@@ -288,6 +357,87 @@ func (s *Service) InviteMembers(
 		command.ActorID,
 		command.ConversationID,
 		memberUserIDs,
+	)
+}
+
+// ListReceivedInvitations 返回当前用户待处理的群邀请。
+func (s *Service) ListReceivedInvitations(
+	ctx context.Context,
+	userID uint64,
+	page InvitationPageQuery,
+) (ReceivedInvitationPage, error) {
+	if userID == 0 || !validInvitationPage(page) {
+		return ReceivedInvitationPage{}, ErrInvalidInput
+	}
+	return s.repo.listReceivedInvitations(
+		ctx,
+		userID,
+		page.Limit,
+		page.BeforeID,
+	)
+}
+
+// AcceptInvitation 接受群邀请并在事务中加入群。
+func (s *Service) AcceptInvitation(
+	ctx context.Context,
+	userID uint64,
+	invitationID uint64,
+) (InvitationAcceptanceResult, error) {
+	if userID == 0 || invitationID == 0 {
+		return InvitationAcceptanceResult{}, ErrInvalidInput
+	}
+	record, memberCount, err := s.repo.respondToInvitation(
+		ctx,
+		userID,
+		invitationID,
+		true,
+	)
+	if err != nil {
+		return InvitationAcceptanceResult{}, err
+	}
+	return InvitationAcceptanceResult{
+		InvitationID:   record.ID,
+		ConversationID: record.ConversationID,
+		MemberCount:    memberCount,
+	}, nil
+}
+
+// RejectInvitation 拒绝群邀请。
+func (s *Service) RejectInvitation(
+	ctx context.Context,
+	userID uint64,
+	invitationID uint64,
+) error {
+	if userID == 0 || invitationID == 0 {
+		return ErrInvalidInput
+	}
+	_, _, err := s.repo.respondToInvitation(
+		ctx,
+		userID,
+		invitationID,
+		false,
+	)
+	return err
+}
+
+// ListGroupInvitations 返回群主或管理员可见的待处理邀请。
+func (s *Service) ListGroupInvitations(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	page InvitationPageQuery,
+) (GroupInvitationPage, error) {
+	if actorID == 0 ||
+		conversationID == 0 ||
+		!validInvitationPage(page) {
+		return GroupInvitationPage{}, ErrInvalidInput
+	}
+	return s.repo.listGroupInvitations(
+		ctx,
+		actorID,
+		conversationID,
+		page.Limit,
+		page.BeforeID,
 	)
 }
 
@@ -488,6 +638,10 @@ func uint64Value(value *uint64) uint64 {
 		return 0
 	}
 	return *value
+}
+
+func validInvitationPage(page InvitationPageQuery) bool {
+	return page.Limit > 0 && page.Limit <= maxPageSize
 }
 
 func validGroupAvatarURL(value string) bool {

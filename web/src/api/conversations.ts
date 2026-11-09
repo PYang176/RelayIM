@@ -59,7 +59,7 @@ export async function inviteGroupMembers(
     conversationId: string,
     memberUserIds: string[],
 ): Promise<number> {
-    const response = await request<{member_count: number}>(
+    const response = await request<{invited_count: number}>(
         `/conversations/${conversationId}/members`,
         {
             method: 'POST',
@@ -67,7 +67,7 @@ export async function inviteGroupMembers(
         },
         token,
     )
-    return response.member_count
+    return response.invited_count
 }
 
 export function removeGroupMember(

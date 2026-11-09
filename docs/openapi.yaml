@@ -634,7 +634,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     post:
       tags: [Conversation]
-      summary: 邀请好友入群
+      summary: 向好友发送入群邀请
       operationId: inviteConversationMembers
       parameters:
         - $ref: "#/components/parameters/ConversationID"
@@ -646,18 +646,18 @@ paths:
               $ref: "#/components/schemas/InviteMembersRequest"
       responses:
         "200":
-          description: 邀请完成
+          description: 邀请已创建或保持待处理
           content:
             application/json:
               schema:
                 type: object
-                required: [member_count]
+                required: [invited_count]
                 properties:
-                  member_count:
+                  invited_count:
                     type: integer
                     format: int64
-                    minimum: 1
-                    example: 4
+                    minimum: 0
+                    example: 2
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -668,6 +668,100 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/group-invitations:
+    get:
+      tags: [Conversation]
+      summary: 查询当前用户收到的待处理群邀请
+      operationId: listReceivedGroupInvitations
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/BeforeID"
+      responses:
+        "200":
+          description: 待处理群邀请
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedGroupInvitationList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/group-invitations/{invitation_id}/accept:
+    post:
+      tags: [Conversation]
+      summary: 接受群邀请并加入群聊
+      operationId: acceptGroupInvitation
+      parameters:
+        - $ref: "#/components/parameters/GroupInvitationID"
+      responses:
+        "200":
+          description: 已加入群聊
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invitation_id, conversation_id, member_count]
+                properties:
+                  invitation_id:
+                    $ref: "#/components/schemas/SnowflakeID"
+                  conversation_id:
+                    $ref: "#/components/schemas/SnowflakeID"
+                  member_count:
+                    type: integer
+                    minimum: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/group-invitations/{invitation_id}/reject:
+    post:
+      tags: [Conversation]
+      summary: 拒绝群邀请
+      operationId: rejectGroupInvitation
+      parameters:
+        - $ref: "#/components/parameters/GroupInvitationID"
+      responses:
+        "200":
+          description: 群邀请已拒绝
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/conversations/{conversation_id}/invitations:
+    get:
+      tags: [Conversation]
+      summary: 群主或管理员查询待处理邀请
+      operationId: listGroupInvitations
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/BeforeID"
+      responses:
+        "200":
+          description: 群待处理邀请
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupPendingInvitationList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/conversations/{conversation_id}/members/{user_id}:
     delete:
       tags: [Conversation]
@@ -1088,6 +1182,14 @@ components:
       in: path
       required: true
       description: Snowflake 好友申请 ID 字符串
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
+    GroupInvitationID:
+      name: invitation_id
+      in: path
+      required: true
+      description: Snowflake 群邀请 ID 字符串
       schema:
         type: string
         pattern: "^[1-9][0-9]*$"
@@ -1558,6 +1660,69 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/SnowflakeID"
+    ReceivedGroupInvitation:
+      type: object
+      required:
+        [invitation_id, conversation_id, conversation_name, avatar_url, inviter_id, inviter_name, created_at, expires_at]
+      properties:
+        invitation_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        conversation_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        conversation_name:
+          type: string
+        avatar_url:
+          type: string
+        inviter_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        inviter_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+    ReceivedGroupInvitationList:
+      type: object
+      required: [invitations, next_cursor, has_more]
+      properties:
+        invitations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceivedGroupInvitation"
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+    GroupPendingInvitation:
+      type: object
+      required: [invitation_id, invitee, inviter_id, created_at, expires_at]
+      properties:
+        invitation_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        invitee:
+          $ref: "#/components/schemas/PublicUser"
+        inviter_id:
+          $ref: "#/components/schemas/SnowflakeID"
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+    GroupPendingInvitationList:
+      type: object
+      required: [invitations, next_cursor, has_more]
+      properties:
+        invitations:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupPendingInvitation"
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
     MemberRoleRequest:
       type: object
       required: [role]

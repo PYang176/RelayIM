@@ -10,6 +10,10 @@ const (
 	groupMemberRole             = 1
 	groupAdminRole              = 2
 	groupOwnerRole              = 3
+	invitationStatusPending     = 1
+	invitationStatusAccepted    = 2
+	invitationStatusRejected    = 3
+	invitationStatusExpired     = 4
 )
 
 type conversation struct {
@@ -82,6 +86,58 @@ type conversationMember struct {
 
 func (conversationMember) TableName() string {
 	return "conversation_members"
+}
+
+type groupInvitation struct {
+	// ID 是群邀请 Snowflake ID。
+	ID uint64 `gorm:"column:id;primaryKey;autoIncrement:false"`
+
+	// ConversationID 是目标群会话 Snowflake ID。
+	ConversationID uint64 `gorm:"column:conversation_id"`
+
+	// InviterID 是邀请人 Snowflake ID。
+	InviterID uint64 `gorm:"column:inviter_id"`
+
+	// InviteeID 是被邀请人 Snowflake ID。
+	InviteeID uint64 `gorm:"column:invitee_id"`
+
+	// Status 表示邀请状态，1 待处理、2 已接受、3 已拒绝、4 已过期、5 已取消。
+	Status int `gorm:"column:status"`
+
+	// CreatedAt 是本次邀请创建的 UTC 时间。
+	CreatedAt time.Time `gorm:"column:created_at"`
+
+	// ExpiresAt 是邀请失效的 UTC 时间。
+	ExpiresAt time.Time `gorm:"column:expires_at"`
+
+	// RespondedAt 是接受、拒绝或取消的 UTC 时间。
+	RespondedAt *time.Time `gorm:"column:responded_at"`
+}
+
+func (groupInvitation) TableName() string {
+	return "group_invitations"
+}
+
+type receivedInvitationRecord struct {
+	InvitationID     uint64    `gorm:"column:invitation_id"`
+	ConversationID   uint64    `gorm:"column:conversation_id"`
+	ConversationName string    `gorm:"column:conversation_name"`
+	AvatarURL        *string   `gorm:"column:avatar_url"`
+	InviterID        uint64    `gorm:"column:inviter_id"`
+	InviterName      string    `gorm:"column:inviter_name"`
+	ExpiresAt        time.Time `gorm:"column:expires_at"`
+	CreatedAt        time.Time `gorm:"column:created_at"`
+}
+
+type groupInvitationRecord struct {
+	InvitationID uint64    `gorm:"column:invitation_id"`
+	InviteeID    uint64    `gorm:"column:invitee_id"`
+	Username     string    `gorm:"column:username"`
+	Nickname     string    `gorm:"column:nickname"`
+	AvatarURL    *string   `gorm:"column:avatar_url"`
+	InviterID    uint64    `gorm:"column:inviter_id"`
+	ExpiresAt    time.Time `gorm:"column:expires_at"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
 }
 
 type conversationSummary struct {

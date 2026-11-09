@@ -42,6 +42,43 @@ export interface ConversationMember {
     joined_at: string
 }
 
+export interface ReceivedGroupInvitation {
+    invitation_id: string
+    conversation_id: string
+    conversation_name: string
+    avatar_url: string
+    inviter_id: string
+    inviter_name: string
+    created_at: string
+    expires_at: string
+}
+
+export interface GroupInvitationPage {
+    invitations: ReceivedGroupInvitation[]
+    next_cursor: string
+    has_more: boolean
+}
+
+export interface GroupPendingInvitation {
+    invitation_id: string
+    invitee: FriendUser
+    inviter_id: string
+    created_at: string
+    expires_at: string
+}
+
+export interface GroupPendingInvitationPage {
+    invitations: GroupPendingInvitation[]
+    next_cursor: string
+    has_more: boolean
+}
+
+export interface InvitationAcceptance {
+    invitation_id: string
+    conversation_id: string
+    member_count: number
+}
+
 export interface Message {
     message_id: string
     conversation_id: string

@@ -11,6 +11,7 @@ import {useRouter} from 'vue-router'
 import ConversationList from '@/components/ConversationList.vue'
 import CreateGroupDialog from '@/components/CreateGroupDialog.vue'
 import FriendsDrawer from '@/components/FriendsDrawer.vue'
+import GroupInvitationsDialog from '@/components/GroupInvitationsDialog.vue'
 import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageList from '@/components/MessageList.vue'
@@ -18,13 +19,16 @@ import ProfileDialog from '@/components/ProfileDialog.vue'
 import {useAuthStore} from '@/stores/auth'
 import {useChatStore} from '@/stores/chat'
 import {useFriendshipStore} from '@/stores/friendships'
+import {useGroupInvitationStore} from '@/stores/group-invitations'
 
 const auth = useAuthStore()
 const chat = useChatStore()
 const friendships = useFriendshipStore()
+const groupInvitations = useGroupInvitationStore()
 const router = useRouter()
 const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageList')
 const friendsOpen = shallowRef(false)
+const groupInvitationsOpen = shallowRef(false)
 const groupDialogOpen = shallowRef(false)
 const creatingGroup = shallowRef(false)
 const groupMembersOpen = shallowRef(false)
@@ -100,15 +104,40 @@ function openGroupMembers() {
     const conversationId = chat.activeConversationId
     if (conversationId) {
         void chat.loadMembers(conversationId, true)
+        void groupInvitations.loadGroupInvitations(conversationId, true)
     }
     void friendships.loadAll()
 }
 
 async function inviteMembers(userIds: string[]) {
-    await runMemberAction(
-        () => chat.inviteGroupMembers(userIds),
+    const succeeded = await runMemberAction(
+        async () => {
+            await chat.inviteGroupMembers(userIds)
+        },
         '邀请群成员失败',
     )
+    if (succeeded && chat.activeConversationId) {
+        await groupInvitations.loadGroupInvitations(
+            chat.activeConversationId,
+            true,
+        )
+    }
+}
+
+function loadMoreGroupInvitations() {
+    if (chat.activeConversationId) {
+        void groupInvitations.loadGroupInvitations(
+            chat.activeConversationId,
+            false,
+        )
+    }
+}
+
+async function handleGroupInvitationAccepted(conversationID: string) {
+    groupInvitationsOpen.value = false
+    await chat.loadConversations()
+    await chat.selectConversation(conversationID)
+    messageList.value?.scrollToBottom()
 }
 
 async function removeMember(userID: string) {
@@ -263,6 +292,7 @@ function markVisibleConversationRead() {
 async function logout() {
     chat.reset()
     friendships.reset()
+    groupInvitations.reset()
     await auth.logout()
     await router.replace('/login')
 }
@@ -287,9 +317,11 @@ onMounted(async () => {
         return
     }
     await chat.connectWebSocket()
+    await groupInvitations.loadReceived()
     presenceTimer = window.setInterval(() => {
         void chat.refreshPresence()
         void chat.reconcileActiveConversation()
+        void groupInvitations.loadReceived()
     }, 30_000)
 })
 
@@ -328,6 +360,17 @@ onBeforeUnmount(() => {
                 </button>
                 <button class="ghost-button" type="button" @click="friendsOpen = true">
                     好友
+                </button>
+                <button
+                        class="ghost-button"
+                        type="button"
+                        @click="groupInvitationsOpen = true"
+                >
+                    群邀请
+                    <template v-if="groupInvitations.invitations.length">
+                        {{ groupInvitations.invitations.length
+                        }}{{ groupInvitations.hasMore ? '+' : '' }}
+                    </template>
                 </button>
                 <button class="ghost-button" type="button" @click="logout">退出</button>
             </div>
@@ -455,6 +498,12 @@ onBeforeUnmount(() => {
                 @open-direct="openFriendDirect"
         />
 
+        <GroupInvitationsDialog
+                :open="groupInvitationsOpen"
+                @close="groupInvitationsOpen = false"
+                @accepted="handleGroupInvitationAccepted"
+        />
+
         <CreateGroupDialog
                 :busy="creatingGroup"
                 :error="friendships.error"
@@ -480,10 +529,18 @@ onBeforeUnmount(() => {
                 :loading-more-friends="friendships.loadingMore"
                 :members="chat.activeMembers"
                 :open="groupMembersOpen"
+                :pending-invitations="
+                    groupInvitations.groupPending[chat.activeConversationId] ?? []
+                "
+                :pending-invitations-has-more="
+                    groupInvitations.groupHasMore[chat.activeConversationId] ?? false
+                "
+                :loading-more-invitations="groupInvitations.loadingMore"
                 @close="groupMembersOpen = false"
                 @dissolve="dissolveGroup"
                 @invite="inviteMembers"
                 @load-more-friends="friendships.loadMoreFriends"
+                @load-more-invitations="loadMoreGroupInvitations"
                 @remove="removeMember"
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"

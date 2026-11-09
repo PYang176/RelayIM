@@ -153,6 +153,58 @@ func TestInviteMembersValidation(t *testing.T) {
 	}
 }
 
+func TestGroupInvitationValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "接受邀请参数为空",
+			run: func() error {
+				_, err := service.AcceptInvitation(context.Background(), 0, 1)
+				return err
+			},
+		},
+		{
+			name: "拒绝邀请参数为空",
+			run: func() error {
+				return service.RejectInvitation(context.Background(), 1, 0)
+			},
+		},
+		{
+			name: "收到邀请分页无效",
+			run: func() error {
+				_, err := service.ListReceivedInvitations(
+					context.Background(),
+					1,
+					InvitationPageQuery{Limit: maxPageSize + 1},
+				)
+				return err
+			},
+		},
+		{
+			name: "群邀请分页无效",
+			run: func() error {
+				_, err := service.ListGroupInvitations(
+					context.Background(),
+					1,
+					1,
+					InvitationPageQuery{Limit: 0},
+				)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.run(); !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
 func TestRemoveMemberValidation(t *testing.T) {
 	service := NewService(nil)
 	err := service.RemoveMember(

@@ -3,7 +3,11 @@ import {computed, nextTick, shallowRef, useTemplateRef, watch} from 'vue'
 
 import GroupGovernancePanel from '@/components/GroupGovernancePanel.vue'
 import GroupProfileForm from '@/components/GroupProfileForm.vue'
-import type {ConversationMember, Friend} from '@/types/api'
+import type {
+    ConversationMember,
+    Friend,
+    GroupPendingInvitation,
+} from '@/types/api'
 
 const props = defineProps<{
     open: boolean
@@ -13,6 +17,9 @@ const props = defineProps<{
     friends: Friend[]
     friendsHasMore: boolean
     loadingMoreFriends: boolean
+    pendingInvitations: GroupPendingInvitation[]
+    pendingInvitationsHasMore: boolean
+    loadingMoreInvitations: boolean
     currentUserId: string
     loading: boolean
     busy: boolean
@@ -22,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     close: []
     loadMoreFriends: []
+    loadMoreInvitations: []
     invite: [userIds: string[]]
     remove: [userId: string]
     setRole: [userId: string, role: 1 | 2]
@@ -44,9 +52,18 @@ const isOwner = computed(() => currentMember.value?.role === 3)
 const activeMemberIDs = computed(
     () => new Set(props.members.map((member) => member.user_id)),
 )
+const pendingInviteeIDs = computed(
+    () => new Set(
+        props.pendingInvitations.map(
+            (invitation) => invitation.invitee.id,
+        ),
+    ),
+)
 const availableFriends = computed(() =>
     props.friends.filter(
-        (friend) => !activeMemberIDs.value.has(friend.user.id),
+        (friend) =>
+            !activeMemberIDs.value.has(friend.user.id) &&
+            !pendingInviteeIDs.value.has(friend.user.id),
     ),
 )
 
@@ -107,6 +124,7 @@ function close() {
 function invite() {
     if (selectedInviteUserIds.value.length === 0 || props.busy) return
     emit('invite', [...selectedInviteUserIds.value])
+    selectedInviteUserIds.value = []
 }
 
 function remove(member: ConversationMember) {
@@ -217,13 +235,61 @@ function leave() {
                 </article>
             </div>
 
+            <section
+                    v-if="canManage && pendingInvitations.length > 0"
+                    class="group-member-picker invite-picker"
+                    aria-label="待审批群邀请"
+            >
+                <h3>待审批邀请</h3>
+                <div class="group-member-list">
+                    <div
+                            v-for="invitation in pendingInvitations"
+                            :key="invitation.invitation_id"
+                            class="group-member-option"
+                    >
+                        <span class="friend-avatar">
+                            {{
+                                (
+                                    invitation.invitee.nickname ||
+                                    invitation.invitee.username
+                                ).slice(0, 1)
+                            }}
+                        </span>
+                        <span class="group-member-copy">
+                            <strong>
+                                {{
+                                    invitation.invitee.nickname ||
+                                    invitation.invitee.username
+                                }}
+                            </strong>
+                            <small>
+                                @{{ invitation.invitee.username }} · 等待审批
+                            </small>
+                        </span>
+                    </div>
+                </div>
+                <button
+                        v-if="pendingInvitationsHasMore"
+                        class="text-button"
+                        :disabled="loadingMoreInvitations"
+                        type="button"
+                        @click="emit('loadMoreInvitations')"
+                >
+                    {{
+                        loadingMoreInvitations
+                            ? '加载中…'
+                            : '加载更多待审批邀请'
+                    }}
+                </button>
+            </section>
+
             <fieldset v-if="canManage" class="group-member-picker invite-picker">
                 <legend>
                     邀请好友
                     <span>已选 {{ selectedInviteUserIds.length }} 人</span>
                 </legend>
                 <p v-if="availableFriends.length === 0 && !friendsHasMore">
-                    你的好友已经都在群里。
+                    没有可邀请的好友，群成员和待审批邀请不会重复显示。
                 </p>
                 <div v-else-if="availableFriends.length > 0" class="group-member-list">
                     <label
@@ -263,7 +329,7 @@ function leave() {
                     {{
                         busy
                             ? '处理中…'
-                            : `邀请 ${selectedInviteUserIds.length} 人`
+                            : `发送 ${selectedInviteUserIds.length} 个邀请`
                     }}
                 </button>
             </fieldset>

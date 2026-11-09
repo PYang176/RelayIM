@@ -114,6 +114,28 @@ function Send-DemoMessage {
         }
 }
 
+function Accept-DemoGroupInvitation {
+    param(
+        [object]$Invitee,
+        [string]$ConversationId
+    )
+
+    $received = Invoke-Api `
+        -Method "GET" `
+        -Path "/group-invitations" `
+        -Token $Invitee.token
+    $invitation = $received.invitations |
+        Where-Object { [string]$_.conversation_id -eq $ConversationId } |
+        Select-Object -First 1
+    if ($null -eq $invitation) {
+        throw "未找到 $($Invitee.username) 的群邀请"
+    }
+    Invoke-Api `
+        -Method "POST" `
+        -Path "/group-invitations/$($invitation.invitation_id)/accept" `
+        -Token $Invitee.token | Out-Null
+}
+
 Write-Host "正在创建演示用户..."
 $alice = Register-DemoUser "demo_alice_$Suffix" "演示用户阿岚"
 $bob = Register-DemoUser "demo_bob_$Suffix" "演示用户北辰"
@@ -150,6 +172,9 @@ Invoke-Api `
     -Path "/conversations/$($group.id)/members" `
     -Token $alice.token `
     -Body @{member_user_ids = @($dave.id)} | Out-Null
+Accept-DemoGroupInvitation $bob $group.id
+Accept-DemoGroupInvitation $carol $group.id
+Accept-DemoGroupInvitation $dave $group.id
 Invoke-Api `
     -Method "PUT" `
     -Path "/conversations/$($group.id)/members/$($bob.id)/role" `

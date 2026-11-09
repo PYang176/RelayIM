@@ -202,7 +202,7 @@ func (h *Handler) InviteMembers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	memberCount, err := h.service.InviteMembers(
+	invitedCount, err := h.service.InviteMembers(
 		c.Request.Context(),
 		InviteMembersCommand{
 			ActorID:        userID,
@@ -214,7 +214,139 @@ func (h *Handler) InviteMembers(c *gin.Context) {
 		writeConversationError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"member_count": memberCount})
+	c.JSON(http.StatusOK, gin.H{"invited_count": invitedCount})
+}
+
+// ListReceivedInvitations 处理 GET /api/v1/group-invitations。
+func (h *Handler) ListReceivedInvitations(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	page, ok := parseInvitationPageQuery(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListReceivedInvitations(
+		c.Request.Context(),
+		userID,
+		page,
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	invitations := make([]gin.H, 0, len(result.Invitations))
+	for _, invitation := range result.Invitations {
+		invitations = append(invitations, gin.H{
+			"invitation_id":     strconv.FormatUint(invitation.InvitationID, 10),
+			"conversation_id":   strconv.FormatUint(invitation.ConversationID, 10),
+			"conversation_name": invitation.ConversationName,
+			"avatar_url":        invitation.AvatarURL,
+			"inviter_id":        strconv.FormatUint(invitation.InviterID, 10),
+			"inviter_name":      invitation.InviterName,
+			"created_at":        invitation.CreatedAt,
+			"expires_at":        invitation.ExpiresAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"invitations": invitations,
+		"next_cursor": formatInvitationCursor(result.NextCursor),
+		"has_more":    result.HasMore,
+	})
+}
+
+// AcceptInvitation 处理 POST /api/v1/group-invitations/:id/accept。
+func (h *Handler) AcceptInvitation(c *gin.Context) {
+	h.respondInvitation(c, true)
+}
+
+// RejectInvitation 处理 POST /api/v1/group-invitations/:id/reject。
+func (h *Handler) RejectInvitation(c *gin.Context) {
+	h.respondInvitation(c, false)
+}
+
+func (h *Handler) respondInvitation(c *gin.Context, accept bool) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	invitationID, ok := parsePathUserID(c, "id")
+	if !ok {
+		return
+	}
+	if !accept {
+		if err := h.service.RejectInvitation(
+			c.Request.Context(),
+			userID,
+			invitationID,
+		); err != nil {
+			writeConversationError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "群邀请已拒绝"})
+		return
+	}
+	result, err := h.service.AcceptInvitation(
+		c.Request.Context(),
+		userID,
+		invitationID,
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"invitation_id":   strconv.FormatUint(result.InvitationID, 10),
+		"conversation_id": strconv.FormatUint(result.ConversationID, 10),
+		"member_count":    result.MemberCount,
+	})
+}
+
+// ListGroupInvitations 处理群待审批邀请查询。
+func (h *Handler) ListGroupInvitations(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	page, ok := parseInvitationPageQuery(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListGroupInvitations(
+		c.Request.Context(),
+		userID,
+		conversationID,
+		page,
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	invitations := make([]gin.H, 0, len(result.Invitations))
+	for _, invitation := range result.Invitations {
+		invitations = append(invitations, gin.H{
+			"invitation_id": strconv.FormatUint(invitation.InvitationID, 10),
+			"invitee": gin.H{
+				"user_id":    strconv.FormatUint(invitation.Invitee.UserID, 10),
+				"username":   invitation.Invitee.Username,
+				"nickname":   invitation.Invitee.Nickname,
+				"avatar_url": invitation.Invitee.AvatarURL,
+			},
+			"inviter_id": strconv.FormatUint(invitation.InviterID, 10),
+			"created_at": invitation.CreatedAt,
+			"expires_at": invitation.ExpiresAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"invitations": invitations,
+		"next_cursor": formatInvitationCursor(result.NextCursor),
+		"has_more":    result.HasMore,
+	})
 }
 
 // RemoveMember 处理 DELETE /api/v1/conversations/:conversation_id/members/:user_id。
@@ -438,6 +570,39 @@ func parseGroupMemberIDs(
 	return result, true
 }
 
+func parseInvitationPageQuery(
+	c *gin.Context,
+) (InvitationPageQuery, bool) {
+	page := InvitationPageQuery{Limit: defaultPageSize}
+	if rawLimit := c.Query("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 || limit > maxPageSize {
+			c.JSON(
+				http.StatusBadRequest,
+				gin.H{"error": "limit 必须在 1 到 100 之间"},
+			)
+			return InvitationPageQuery{}, false
+		}
+		page.Limit = limit
+	}
+	if rawCursor := c.Query("before_id"); rawCursor != "" {
+		cursor, err := strconv.ParseUint(rawCursor, 10, 64)
+		if err != nil || cursor == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "before_id 格式错误"})
+			return InvitationPageQuery{}, false
+		}
+		page.BeforeID = cursor
+	}
+	return page, true
+}
+
+func formatInvitationCursor(cursor uint64) string {
+	if cursor == 0 {
+		return ""
+	}
+	return strconv.FormatUint(cursor, 10)
+}
+
 func writeConversationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrSameUser):
@@ -460,6 +625,14 @@ func writeConversationError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound.Error()})
 	case errors.Is(err, ErrConversationNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrConversationNotFound.Error()})
+	case errors.Is(err, ErrInvitationNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": ErrInvitationNotFound.Error()})
+	case errors.Is(err, ErrInvitationForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrInvitationForbidden.Error()})
+	case errors.Is(err, ErrInvitationHandled),
+		errors.Is(err, ErrInvitationExpired),
+		errors.Is(err, ErrInvitationUnavailable):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器内部错误"})
 	}

@@ -443,17 +443,20 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
-    async function inviteGroupMembers(memberUserIds: string[]) {
+    async function inviteGroupMembers(
+        memberUserIds: string[],
+    ): Promise<number> {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
-        if (!conversationId || conversation?.conversation_type !== 2) return
+        if (!conversationId || conversation?.conversation_type !== 2) return 0
         clearError()
-        conversation.member_count = await conversationApi.inviteGroupMembers(
+        const invitedCount = await conversationApi.inviteGroupMembers(
             auth.token,
             conversationId,
             memberUserIds,
         )
         await loadMembers(conversationId, true)
+        return invitedCount
     }
 
     async function removeGroupMember(targetUserID: string) {

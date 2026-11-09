@@ -19,6 +19,7 @@
 | `00006_user_blocks.sql` | 用户方向性拉黑关系与双向检查索引 |
 | `00007_friendship_pagination_indexes.sql` | 好友与申请列表 Keyset 分页索引 |
 | `00008_drop_unused_user_block_time_index.sql` | 拉黑列表改用联合主键分页并清理冗余索引 |
+| `00009_group_invitation_pagination_indexes.sql` | 群邀请状态列表 Keyset 分页索引 |
 
 ## 执行迁移
 

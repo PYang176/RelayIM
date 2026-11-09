@@ -113,7 +113,7 @@ func (r *Repository) CreateDirect(
 	return nil, false, err
 }
 
-// CreateGroup 在事务中创建群会话并加入群主和受邀好友。
+// CreateGroup 在事务中创建群会话、加入群主并生成好友邀请。
 func (r *Repository) CreateGroup(
 	ctx context.Context,
 	ownerID uint64,
@@ -143,24 +143,23 @@ func (r *Repository) CreateGroup(
 		if err := tx.Create(result).Error; err != nil {
 			return err
 		}
-		members := make([]conversationMember, 0, len(memberUserIDs)+1)
-		members = append(members, conversationMember{
+		if err := tx.Create(&conversationMember{
 			ConversationID: result.ID,
 			UserID:         ownerID,
 			Role:           groupOwnerRole,
 			JoinedAt:       now,
 			UpdatedAt:      now,
-		})
-		for _, userID := range memberUserIDs {
-			members = append(members, conversationMember{
-				ConversationID: result.ID,
-				UserID:         userID,
-				Role:           1,
-				JoinedAt:       now,
-				UpdatedAt:      now,
-			})
+		}).Error; err != nil {
+			return fmt.Errorf("加入群主: %w", err)
 		}
-		return tx.Create(&members).Error
+		_, err := createGroupInvitations(
+			tx,
+			result.ID,
+			ownerID,
+			memberUserIDs,
+			now,
+		)
+		return err
 	})
 	if err != nil {
 		if isForeignKeyError(err) {
@@ -219,7 +218,7 @@ func (r *Repository) ListForUser(
 	return results, nil
 }
 
-// InviteMembers 在锁住群会话后邀请更多好友入群。
+// InviteMembers 在锁住群会话后创建待审批的好友邀请。
 func (r *Repository) InviteMembers(
 	ctx context.Context,
 	actorID uint64,
@@ -227,7 +226,7 @@ func (r *Repository) InviteMembers(
 	memberUserIDs []uint64,
 ) (uint64, error) {
 	now := time.Now().UTC()
-	var memberCount uint64
+	var invitedCount uint64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var conversationRecord conversation
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -269,75 +268,17 @@ func (r *Repository) InviteMembers(
 			return err
 		}
 
-		var currentCount int64
-		if err := tx.Model(&conversationMember{}).
-			Where(
-				"conversation_id = ? AND left_at IS NULL",
-				conversationID,
-			).
-			Count(&currentCount).Error; err != nil {
-			return fmt.Errorf("统计群当前成员数: %w", err)
-		}
-
-		var existing []conversationMember
-		if err := tx.Where(
-			"conversation_id = ? AND user_id IN ?",
+		count, err := createGroupInvitations(
+			tx,
 			conversationID,
+			actorID,
 			memberUserIDs,
-		).Find(&existing).Error; err != nil {
-			return fmt.Errorf("查询待邀请成员记录: %w", err)
+			now,
+		)
+		if err != nil {
+			return err
 		}
-		existingByUserID := make(map[uint64]conversationMember, len(existing))
-		for _, record := range existing {
-			existingByUserID[record.UserID] = record
-		}
-
-		newCount := 0
-		for _, userID := range memberUserIDs {
-			record, exists := existingByUserID[userID]
-			if exists && record.LeftAt == nil {
-				continue
-			}
-			newCount++
-		}
-		if currentCount+int64(newCount) > maxGroupMemberCount {
-			return ErrGroupFull
-		}
-
-		for _, userID := range memberUserIDs {
-			record, exists := existingByUserID[userID]
-			if exists {
-				if record.LeftAt == nil {
-					continue
-				}
-				if err := tx.Model(&conversationMember{}).
-					Where(
-						"conversation_id = ? AND user_id = ?",
-						conversationID,
-						userID,
-					).
-					Updates(map[string]any{
-						"role":          1,
-						"last_read_seq": conversationRecord.LastSeq,
-						"joined_at":     now,
-						"left_at":       nil,
-						"updated_at":    now,
-					}).Error; err != nil {
-					return fmt.Errorf("恢复已退出成员: %w", err)
-				}
-				continue
-			}
-			if err := tx.Create(&conversationMember{
-				ConversationID: conversationID,
-				UserID:         userID,
-				Role:           1,
-				JoinedAt:       now,
-				UpdatedAt:      now,
-			}).Error; err != nil {
-				return fmt.Errorf("新增群成员: %w", err)
-			}
-		}
-		memberCount = uint64(currentCount + int64(newCount))
+		invitedCount = uint64(count)
 		return nil
 	})
 	if err != nil {
@@ -346,7 +287,386 @@ func (r *Repository) InviteMembers(
 		}
 		return 0, err
 	}
-	return memberCount, nil
+	return invitedCount, nil
+}
+
+func createGroupInvitations(
+	tx *gorm.DB,
+	conversationID uint64,
+	inviterID uint64,
+	inviteeIDs []uint64,
+	now time.Time,
+) (int, error) {
+	var members []conversationMember
+	if err := tx.Where(
+		"conversation_id = ? AND user_id IN ?",
+		conversationID,
+		inviteeIDs,
+	).Find(&members).Error; err != nil {
+		return 0, fmt.Errorf("查询群成员状态: %w", err)
+	}
+	memberByUserID := make(map[uint64]conversationMember, len(members))
+	for _, member := range members {
+		memberByUserID[member.UserID] = member
+	}
+
+	var invitations []groupInvitation
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where(
+			"conversation_id = ? AND invitee_id IN ?",
+			conversationID,
+			inviteeIDs,
+		).
+		Find(&invitations).Error; err != nil {
+		return 0, fmt.Errorf("查询群邀请状态: %w", err)
+	}
+	invitationByInviteeID := make(map[uint64]groupInvitation, len(invitations))
+	for _, invitation := range invitations {
+		invitationByInviteeID[invitation.InviteeID] = invitation
+	}
+
+	expiresAt := now.Add(invitationTTL)
+	created := make([]groupInvitation, 0, len(inviteeIDs))
+	invitedCount := 0
+	for _, inviteeID := range inviteeIDs {
+		if member, exists := memberByUserID[inviteeID]; exists &&
+			member.LeftAt == nil {
+			continue
+		}
+		existing, exists := invitationByInviteeID[inviteeID]
+		if exists &&
+			existing.Status == invitationStatusPending &&
+			existing.ExpiresAt.After(now) {
+			continue
+		}
+		if exists {
+			if err := tx.Model(&groupInvitation{}).
+				Where("id = ?", existing.ID).
+				Updates(map[string]any{
+					"inviter_id":   inviterID,
+					"status":       invitationStatusPending,
+					"created_at":   now,
+					"expires_at":   expiresAt,
+					"responded_at": nil,
+				}).Error; err != nil {
+				return 0, fmt.Errorf("重新激活群邀请: %w", err)
+			}
+		} else {
+			created = append(created, groupInvitation{
+				ID:             uint64(snowflake.Generate()),
+				ConversationID: conversationID,
+				InviterID:      inviterID,
+				InviteeID:      inviteeID,
+				Status:         invitationStatusPending,
+				CreatedAt:      now,
+				ExpiresAt:      expiresAt,
+			})
+		}
+		invitedCount++
+	}
+	if len(created) > 0 {
+		if err := tx.Create(&created).Error; err != nil {
+			return 0, fmt.Errorf("创建群邀请: %w", err)
+		}
+	}
+	return invitedCount, nil
+}
+
+func (r *Repository) respondToInvitation(
+	ctx context.Context,
+	userID uint64,
+	invitationID uint64,
+	accept bool,
+) (*groupInvitation, uint64, error) {
+	now := time.Now().UTC()
+	var invitation groupInvitation
+	var memberCount uint64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", invitationID).
+			First(&invitation).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInvitationNotFound
+			}
+			return fmt.Errorf("锁定群邀请: %w", err)
+		}
+		if invitation.InviteeID != userID {
+			return ErrInvitationForbidden
+		}
+		if invitation.Status == invitationStatusAccepted && accept {
+			var activeCount int64
+			if err := tx.Model(&conversationMember{}).
+				Where(
+					"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+					invitation.ConversationID,
+					userID,
+				).
+				Count(&activeCount).Error; err != nil {
+				return fmt.Errorf("校验已接受邀请成员: %w", err)
+			}
+			if activeCount == 1 {
+				var totalCount int64
+				if err := tx.Model(&conversationMember{}).
+					Where(
+						"conversation_id = ? AND left_at IS NULL",
+						invitation.ConversationID,
+					).
+					Count(&totalCount).Error; err != nil {
+					return fmt.Errorf("统计已接受邀请群成员: %w", err)
+				}
+				memberCount = uint64(totalCount)
+				return nil
+			}
+		}
+		if invitation.Status != invitationStatusPending {
+			return ErrInvitationHandled
+		}
+		if !invitation.ExpiresAt.After(now) {
+			return ErrInvitationExpired
+		}
+		if !accept {
+			return tx.Model(&groupInvitation{}).
+				Where("id = ?", invitation.ID).
+				Updates(map[string]any{
+					"status":       invitationStatusRejected,
+					"responded_at": now,
+				}).Error
+		}
+
+		var conversationRecord conversation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND status = ? AND conversation_type = ?",
+				invitation.ConversationID,
+				conversationStatusOpen,
+				conversationTypeGroup,
+			).
+			First(&conversationRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInvitationUnavailable
+			}
+			return fmt.Errorf("锁定受邀群会话: %w", err)
+		}
+
+		var currentCount int64
+		if err := tx.Model(&conversationMember{}).
+			Where(
+				"conversation_id = ? AND left_at IS NULL",
+				invitation.ConversationID,
+			).
+			Count(&currentCount).Error; err != nil {
+			return fmt.Errorf("统计受邀群成员: %w", err)
+		}
+		var existingMember conversationMember
+		memberErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"conversation_id = ? AND user_id = ?",
+				invitation.ConversationID,
+				userID,
+			).
+			First(&existingMember).Error
+		switch {
+		case memberErr == nil && existingMember.LeftAt == nil:
+			memberCount = uint64(currentCount)
+		case memberErr == nil:
+			if currentCount >= maxGroupMemberCount {
+				return ErrGroupFull
+			}
+			if err := tx.Model(&conversationMember{}).
+				Where(
+					"conversation_id = ? AND user_id = ?",
+					invitation.ConversationID,
+					userID,
+				).
+				Updates(map[string]any{
+					"role":          groupMemberRole,
+					"last_read_seq": conversationRecord.LastSeq,
+					"joined_at":     now,
+					"left_at":       nil,
+					"updated_at":    now,
+				}).Error; err != nil {
+				return fmt.Errorf("恢复受邀群成员: %w", err)
+			}
+			memberCount = uint64(currentCount + 1)
+		case errors.Is(memberErr, gorm.ErrRecordNotFound):
+			if currentCount >= maxGroupMemberCount {
+				return ErrGroupFull
+			}
+			if err := tx.Create(&conversationMember{
+				ConversationID: invitation.ConversationID,
+				UserID:         userID,
+				Role:           groupMemberRole,
+				LastReadSeq:    conversationRecord.LastSeq,
+				JoinedAt:       now,
+				UpdatedAt:      now,
+			}).Error; err != nil {
+				return fmt.Errorf("加入受邀群成员: %w", err)
+			}
+			memberCount = uint64(currentCount + 1)
+		default:
+			return fmt.Errorf("查询受邀群成员: %w", memberErr)
+		}
+
+		if err := tx.Model(&groupInvitation{}).
+			Where("id = ?", invitation.ID).
+			Updates(map[string]any{
+				"status":       invitationStatusAccepted,
+				"responded_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("更新群邀请接受状态: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return &invitation, memberCount, nil
+}
+
+func (r *Repository) listReceivedInvitations(
+	ctx context.Context,
+	userID uint64,
+	limit int,
+	beforeID uint64,
+) (ReceivedInvitationPage, error) {
+	now := time.Now().UTC()
+	var records []receivedInvitationRecord
+	query := r.db.WithContext(ctx).
+		Table("group_invitations AS gi").
+		Select(
+			"gi.id AS invitation_id, gi.conversation_id, "+
+				"c.name AS conversation_name, c.avatar_url, "+
+				"gi.inviter_id, "+
+				"COALESCE(ip.nickname, iu.username) AS inviter_name, "+
+				"gi.created_at, gi.expires_at",
+		).
+		Joins("JOIN conversations AS c ON c.id = gi.conversation_id").
+		Joins("JOIN users AS iu ON iu.id = gi.inviter_id").
+		Joins("LEFT JOIN user_profiles AS ip ON ip.user_id = iu.id").
+		Where(
+			"gi.invitee_id = ? AND gi.status = ? "+
+				"AND gi.expires_at > ? AND c.status = ?",
+			userID,
+			invitationStatusPending,
+			now,
+			conversationStatusOpen,
+		)
+	if beforeID > 0 {
+		query = query.Where("gi.id < ?", beforeID)
+	}
+	if err := query.
+		Order("gi.id DESC").
+		Limit(limit + 1).
+		Scan(&records).Error; err != nil {
+		return ReceivedInvitationPage{}, fmt.Errorf("查询收到群邀请: %w", err)
+	}
+	hasMore := len(records) > limit
+	if hasMore {
+		records = records[:limit]
+	}
+	results := make([]ReceivedInvitationResult, 0, len(records))
+	for _, record := range records {
+		results = append(results, ReceivedInvitationResult{
+			InvitationID:     record.InvitationID,
+			ConversationID:   record.ConversationID,
+			ConversationName: record.ConversationName,
+			AvatarURL:        stringValue(record.AvatarURL),
+			InviterID:        record.InviterID,
+			InviterName:      record.InviterName,
+			CreatedAt:        record.CreatedAt,
+			ExpiresAt:        record.ExpiresAt,
+		})
+	}
+	page := ReceivedInvitationPage{
+		Invitations: results,
+		HasMore:     hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		page.NextCursor = results[len(results)-1].InvitationID
+	}
+	return page, nil
+}
+
+func (r *Repository) listGroupInvitations(
+	ctx context.Context,
+	actorID uint64,
+	conversationID uint64,
+	limit int,
+	beforeID uint64,
+) (GroupInvitationPage, error) {
+	var actor conversationMember
+	if err := r.db.WithContext(ctx).
+		Where(
+			"conversation_id = ? AND user_id = ? AND left_at IS NULL",
+			conversationID,
+			actorID,
+		).
+		First(&actor).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return GroupInvitationPage{}, ErrConversationNotFound
+		}
+		return GroupInvitationPage{}, fmt.Errorf("校验群邀请查看权限: %w", err)
+	}
+	if actor.Role < groupAdminRole {
+		return GroupInvitationPage{}, ErrPermissionDenied
+	}
+
+	now := time.Now().UTC()
+	var records []groupInvitationRecord
+	query := r.db.WithContext(ctx).
+		Table(
+			"group_invitations AS gi " +
+				"USE INDEX (idx_group_invitations_conversation_status_id)",
+		).
+		Select(
+			"gi.id AS invitation_id, gi.invitee_id, "+
+				"u.username, p.nickname, p.avatar_url, "+
+				"gi.inviter_id, gi.created_at, gi.expires_at",
+		).
+		Joins("JOIN users AS u ON u.id = gi.invitee_id").
+		Joins("LEFT JOIN user_profiles AS p ON p.user_id = u.id").
+		Where(
+			"gi.conversation_id = ? AND gi.status = ? AND gi.expires_at > ?",
+			conversationID,
+			invitationStatusPending,
+			now,
+		)
+	if beforeID > 0 {
+		query = query.Where("gi.id < ?", beforeID)
+	}
+	if err := query.
+		Order("gi.id DESC").
+		Limit(limit + 1).
+		Scan(&records).Error; err != nil {
+		return GroupInvitationPage{}, fmt.Errorf("查询群待处理邀请: %w", err)
+	}
+	hasMore := len(records) > limit
+	if hasMore {
+		records = records[:limit]
+	}
+	results := make([]GroupInvitationResult, 0, len(records))
+	for _, record := range records {
+		results = append(results, GroupInvitationResult{
+			InvitationID: record.InvitationID,
+			Invitee: MemberResult{
+				UserID:    record.InviteeID,
+				Username:  record.Username,
+				Nickname:  record.Nickname,
+				AvatarURL: stringValue(record.AvatarURL),
+			},
+			InviterID: record.InviterID,
+			CreatedAt: record.CreatedAt,
+			ExpiresAt: record.ExpiresAt,
+		})
+	}
+	page := GroupInvitationPage{
+		Invitations: results,
+		HasMore:     hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		page.NextCursor = results[len(results)-1].InvitationID
+	}
+	return page, nil
 }
 
 // RemoveMember 软移除群成员；普通成员只能把自己的成员记录标记为退出。

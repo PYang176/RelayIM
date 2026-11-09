@@ -61,6 +61,16 @@
           "type": "string"
         }
       },
+      "GroupInvitationID": {
+        "description": "Snowflake 群邀请 ID 字符串",
+        "in": "path",
+        "name": "invitation_id",
+        "required": true,
+        "schema": {
+          "pattern": "^[1-9][0-9]*$",
+          "type": "string"
+        }
+      },
       "MessageID": {
         "description": "Snowflake 消息 ID 字符串",
         "in": "path",
@@ -536,6 +546,57 @@
         ],
         "type": "object"
       },
+      "GroupPendingInvitation": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invitation_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "invitee": {
+            "$ref": "#/components/schemas/PublicUser"
+          },
+          "inviter_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "invitee",
+          "inviter_id",
+          "created_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "GroupPendingInvitationList": {
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "invitations": {
+            "items": {
+              "$ref": "#/components/schemas/GroupPendingInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor",
+          "has_more"
+        ],
+        "type": "object"
+      },
       "GroupProfileRequest": {
         "properties": {
           "avatar_url": {
@@ -892,6 +953,69 @@
         "required": [
           "user_id",
           "last_read_seq"
+        ],
+        "type": "object"
+      },
+      "ReceivedGroupInvitation": {
+        "properties": {
+          "avatar_url": {
+            "type": "string"
+          },
+          "conversation_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "conversation_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invitation_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "inviter_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          },
+          "inviter_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "conversation_id",
+          "conversation_name",
+          "avatar_url",
+          "inviter_id",
+          "inviter_name",
+          "created_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "ReceivedGroupInvitationList": {
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "invitations": {
+            "items": {
+              "$ref": "#/components/schemas/ReceivedGroupInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor",
+          "has_more"
         ],
         "type": "object"
       },
@@ -1669,6 +1793,50 @@
         ]
       }
     },
+    "/api/v1/conversations/{conversation_id}/invitations": {
+      "get": {
+        "operationId": "listGroupInvitations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationID"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/BeforeID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupPendingInvitationList"
+                }
+              }
+            },
+            "description": "群待处理邀请"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "群主或管理员查询待处理邀请",
+        "tags": [
+          "Conversation"
+        ]
+      }
+    },
     "/api/v1/conversations/{conversation_id}/members": {
       "get": {
         "operationId": "listConversationMembers",
@@ -1737,21 +1905,21 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "member_count": {
-                      "example": 4,
+                    "invited_count": {
+                      "example": 2,
                       "format": "int64",
-                      "minimum": 1,
+                      "minimum": 0,
                       "type": "integer"
                     }
                   },
                   "required": [
-                    "member_count"
+                    "invited_count"
                   ],
                   "type": "object"
                 }
               }
             },
-            "description": "邀请完成"
+            "description": "邀请已创建或保持待处理"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1769,7 +1937,7 @@
             "$ref": "#/components/responses/Conflict"
           }
         },
-        "summary": "邀请好友入群",
+        "summary": "向好友发送入群邀请",
         "tags": [
           "Conversation"
         ]
@@ -2503,6 +2671,130 @@
         "summary": "设置或清除好友备注",
         "tags": [
           "Friendship"
+        ]
+      }
+    },
+    "/api/v1/group-invitations": {
+      "get": {
+        "operationId": "listReceivedGroupInvitations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/BeforeID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivedGroupInvitationList"
+                }
+              }
+            },
+            "description": "待处理群邀请"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "查询当前用户收到的待处理群邀请",
+        "tags": [
+          "Conversation"
+        ]
+      }
+    },
+    "/api/v1/group-invitations/{invitation_id}/accept": {
+      "post": {
+        "operationId": "acceptGroupInvitation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupInvitationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "conversation_id": {
+                      "$ref": "#/components/schemas/SnowflakeID"
+                    },
+                    "invitation_id": {
+                      "$ref": "#/components/schemas/SnowflakeID"
+                    },
+                    "member_count": {
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "invitation_id",
+                    "conversation_id",
+                    "member_count"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "已加入群聊"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "summary": "接受群邀请并加入群聊",
+        "tags": [
+          "Conversation"
+        ]
+      }
+    },
+    "/api/v1/group-invitations/{invitation_id}/reject": {
+      "post": {
+        "operationId": "rejectGroupInvitation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupInvitationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "群邀请已拒绝"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "summary": "拒绝群邀请",
+        "tags": [
+          "Conversation"
         ]
       }
     },

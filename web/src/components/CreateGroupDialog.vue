@@ -72,7 +72,7 @@ function submit() {
             <header class="group-dialog-header">
                 <div>
                     <h2 id="create-group-title">创建群聊</h2>
-                    <p>选择好友一起进入新群，创建后可以直接发送文字、图片和文件。</p>
+                    <p>选择好友发送入群邀请，好友同意后进入群聊。</p>
                 </div>
                 <button
                         class="icon-button"

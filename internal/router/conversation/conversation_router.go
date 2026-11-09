@@ -52,4 +52,14 @@ func Register(
 		),
 		handler.UpdateGroupProfile,
 	)
+
+	invitations := r.Group("/api/v1")
+	invitations.Use(middleware.AuthMiddleware())
+	invitations.GET("/group-invitations", handler.ListReceivedInvitations)
+	invitations.POST("/group-invitations/:id/accept", handler.AcceptInvitation)
+	invitations.POST("/group-invitations/:id/reject", handler.RejectInvitation)
+	invitations.GET(
+		"/conversations/:conversation_id/invitations",
+		handler.ListGroupInvitations,
+	)
 }

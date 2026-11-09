@@ -35,4 +35,19 @@ var (
 
 	// ErrConversationNotFound 表示当前用户无法访问该会话。
 	ErrConversationNotFound = errors.New("会话不存在或无权访问")
+
+	// ErrInvitationNotFound 表示群邀请不存在。
+	ErrInvitationNotFound = errors.New("群邀请不存在")
+
+	// ErrInvitationForbidden 表示当前用户不是邀请接收者。
+	ErrInvitationForbidden = errors.New("无权处理该群邀请")
+
+	// ErrInvitationHandled 表示群邀请已经处理。
+	ErrInvitationHandled = errors.New("群邀请已处理")
+
+	// ErrInvitationExpired 表示群邀请已经过期。
+	ErrInvitationExpired = errors.New("群邀请已过期")
+
+	// ErrInvitationUnavailable 表示邀请对应群聊已解散或不可加入。
+	ErrInvitationUnavailable = errors.New("群邀请对应群聊不可加入")
 )
