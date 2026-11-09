@@ -7,7 +7,33 @@ import type {UserSummary} from '@/types/api'
 const TOKEN_KEY = 'ginchat.access_token'
 const REFRESH_TOKEN_KEY = 'ginchat.refresh_token'
 const DEVICE_KEY = 'ginchat.device_id'
+const DEVICE_IDS_KEY = 'ginchat.device_ids'
 const USER_KEY = 'ginchat.user'
+
+function accountDeviceKey(username: string) {
+    return username.trim().toLocaleLowerCase()
+}
+
+function readDeviceIDs(): Record<string, string> {
+    const value = localStorage.getItem(DEVICE_IDS_KEY)
+    if (!value) return {}
+    try {
+        const parsed = JSON.parse(value) as Record<string, unknown>
+        return Object.fromEntries(
+            Object.entries(parsed).filter(
+                (entry): entry is [string, string] =>
+                    typeof entry[1] === 'string',
+            ),
+        )
+    } catch {
+        localStorage.removeItem(DEVICE_IDS_KEY)
+        return {}
+    }
+}
+
+function readAccountDeviceID(username: string): string {
+    return readDeviceIDs()[accountDeviceKey(username)] ?? ''
+}
 
 function readStoredUser(): UserSummary | null {
     const value = localStorage.getItem(USER_KEY)
@@ -42,12 +68,25 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(REFRESH_TOKEN_KEY, nextRefreshToken)
         if (nextDeviceID) {
             localStorage.setItem(DEVICE_KEY, nextDeviceID)
+            const deviceIDs = readDeviceIDs()
+            deviceIDs[accountDeviceKey(nextUser.username)] = nextDeviceID
+            localStorage.setItem(DEVICE_IDS_KEY, JSON.stringify(deviceIDs))
         }
         localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
     }
 
     async function login(username: string, password: string) {
-        const response = await authApi.login(username, password, deviceID.value)
+        /*
+         * 同一浏览器可以依次登录多个账号。优先读取该账号自己的
+         * 设备绑定，旧版单值缓存仅用于首次兼容迁移。
+         */
+        const knownDeviceID =
+            readAccountDeviceID(username) || deviceID.value
+        const response = await authApi.login(
+            username,
+            password,
+            knownDeviceID,
+        )
         persist(
             response.token,
             response.refresh_token,

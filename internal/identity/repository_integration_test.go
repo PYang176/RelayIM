@@ -232,4 +232,72 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	if sameDevice.ID != deviceResult.ID {
 		t.Fatalf("复用设备 ID = %d，期望 %d", sameDevice.ID, deviceResult.ID)
 	}
+
+	secondUsername := fmt.Sprintf("it_%d", uint64(snowflake.Generate()))
+	second, err := service.Register(context.Background(), RegisterCommand{
+		Username:        secondUsername,
+		Password:        password,
+		ConfirmPassword: password,
+		Nickname:        "切换账号测试用户",
+	})
+	if err != nil {
+		t.Fatalf("注册切换账号测试用户失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Exec(
+			"DELETE FROM refresh_tokens WHERE user_id = ?",
+			second.ID,
+		).Error; err != nil {
+			t.Errorf("清理切换账号测试 Refresh Token 失败: %v", err)
+		}
+		if err := db.Exec(
+			"DELETE FROM devices WHERE user_id = ?",
+			second.ID,
+		).Error; err != nil {
+			t.Errorf("清理切换账号测试设备失败: %v", err)
+		}
+		if err := db.Exec(
+			"DELETE FROM user_profiles WHERE user_id = ?",
+			second.ID,
+		).Error; err != nil {
+			t.Errorf("清理切换账号测试资料失败: %v", err)
+		}
+		if err := db.Exec(
+			"DELETE FROM users WHERE id = ?",
+			second.ID,
+		).Error; err != nil {
+			t.Errorf("清理切换账号测试用户失败: %v", err)
+		}
+	})
+
+	switched, err := service.Login(context.Background(), LoginCommand{
+		Username:   secondUsername,
+		Password:   password,
+		DeviceID:   login.DeviceID,
+		DeviceName: "GinChat Web",
+		Platform:   1,
+	})
+	if err != nil {
+		t.Fatalf("使用其他账号设备切换登录失败: %v", err)
+	}
+	if switched.DeviceID == 0 || switched.DeviceID == login.DeviceID {
+		t.Fatalf(
+			"切换登录设备 ID = %d，不能复用原账号设备 %d",
+			switched.DeviceID,
+			login.DeviceID,
+		)
+	}
+	var switchedDeviceCount int64
+	if err := db.Table("devices").
+		Where(
+			"id = ? AND user_id = ? AND revoked_at IS NULL",
+			switched.DeviceID,
+			second.ID,
+		).
+		Count(&switchedDeviceCount).Error; err != nil {
+		t.Fatalf("查询切换账号设备失败: %v", err)
+	}
+	if switchedDeviceCount != 1 {
+		t.Fatalf("切换账号新设备数量 = %d，期望 1", switchedDeviceCount)
+	}
 }

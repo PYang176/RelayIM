@@ -300,6 +300,18 @@ func (s *Service) Login(
 		DeviceName: command.DeviceName,
 		Platform:   command.Platform,
 	})
+	if errors.Is(err, ErrDeviceNotFound) && command.DeviceID > 0 {
+		/*
+		 * 浏览器切换账号时可能保留上一个账号的设备 ID。登录阶段
+		 * 应创建当前账号的新设备，而不是让用户手工清理本地存储。
+		 * WebSocket Ticket 阶段仍会严格拒绝不属于当前用户的设备。
+		 */
+		device, err = s.EnsureDevice(ctx, EnsureDeviceCommand{
+			UserID:     userRecord.ID,
+			DeviceName: command.DeviceName,
+			Platform:   command.Platform,
+		})
+	}
 	if err != nil {
 		return LoginResult{}, err
 	}
