@@ -50,4 +50,7 @@ var (
 
 	// ErrInvitationUnavailable 表示邀请对应群聊已解散或不可加入。
 	ErrInvitationUnavailable = errors.New("群邀请对应群聊不可加入")
+
+	// ErrInvitationRemarkRequired 表示邀请人没有填写入群备注。
+	ErrInvitationRemarkRequired = errors.New("群邀请备注不能为空")
 )

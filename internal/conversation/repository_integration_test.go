@@ -123,6 +123,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			OwnerID:       userA,
 			Name:          "集成测试群",
 			MemberUserIDs: []uint64{userB},
+			InviteRemark:  "邀请参与集成测试",
 		},
 	)
 	if err != nil {
@@ -152,7 +153,8 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	)
 	if err != nil ||
 		len(invitationPage.Invitations) != 1 ||
-		invitationPage.Invitations[0].ConversationID != group.ID {
+		invitationPage.Invitations[0].ConversationID != group.ID ||
+		invitationPage.Invitations[0].InviteRemark != "邀请参与集成测试" {
 		t.Fatalf("群邀请列表 = %+v, err=%v", invitationPage, err)
 	}
 	accepted, err := service.AcceptInvitation(
@@ -218,6 +220,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			OwnerID:       userA,
 			Name:          "非好友群",
 			MemberUserIDs: []uint64{uint64(snowflake.Generate())},
+			InviteRemark:  "非好友邀请测试",
 		},
 	)
 	if !errors.Is(err, ErrNotFriend) {
@@ -230,6 +233,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			ActorID:        userA,
 			ConversationID: group.ID,
 			MemberUserIDs:  []uint64{userB},
+			InviteRemark:   "重新邀请参与测试",
 		},
 	)
 	if err != nil || invitedCount != 0 {
@@ -274,6 +278,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			ActorID:        userA,
 			ConversationID: group.ID,
 			MemberUserIDs:  []uint64{userB},
+			InviteRemark:   "再次邀请参与测试",
 		},
 	)
 	if err != nil || invitedCount != 1 {
@@ -396,6 +401,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 			ActorID:        userB,
 			ConversationID: group.ID,
 			MemberUserIDs:  []uint64{userA},
+			InviteRemark:   "解散后邀请测试",
 		},
 	); !errors.Is(err, ErrConversationNotFound) {
 		t.Fatalf("解散后邀请成员错误 = %v，期望 ErrConversationNotFound", err)
@@ -505,6 +511,7 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 			OwnerID:       ownerID,
 			Name:          "邀请生命周期群",
 			MemberUserIDs: []uint64{inviteeID},
+			InviteRemark:  "邀请生命周期测试",
 		},
 	)
 	if err != nil {
@@ -518,6 +525,12 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	)
 	if err != nil || len(managedInvitations.Invitations) != 1 {
 		t.Fatalf("群待审批邀请 = %+v, err=%v", managedInvitations, err)
+	}
+	if managedInvitations.Invitations[0].InviteRemark != "邀请生命周期测试" {
+		t.Fatalf(
+			"群待审批邀请备注 = %q",
+			managedInvitations.Invitations[0].InviteRemark,
+		)
 	}
 	if _, err := service.ListGroupInvitations(
 		context.Background(),
@@ -567,6 +580,7 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 			ActorID:        ownerID,
 			ConversationID: group.ID,
 			MemberUserIDs:  []uint64{inviteeID},
+			InviteRemark:   "过期后重新邀请",
 		},
 	)
 	if err != nil || invitedCount != 1 {
@@ -593,6 +607,7 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 			ActorID:        ownerID,
 			ConversationID: group.ID,
 			MemberUserIDs:  []uint64{inviteeID},
+			InviteRemark:   "拒绝后再次邀请",
 		},
 	); err != nil {
 		t.Fatalf("拒绝后重新邀请失败: %v", err)

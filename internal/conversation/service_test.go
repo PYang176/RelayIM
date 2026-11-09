@@ -153,6 +153,41 @@ func TestInviteMembersValidation(t *testing.T) {
 	}
 }
 
+func TestInvitationRemarkValidation(t *testing.T) {
+	service := NewService(nil)
+	if _, err := service.CreateGroup(
+		context.Background(),
+		CreateGroupCommand{
+			OwnerID:       1,
+			Name:          "测试群",
+			MemberUserIDs: []uint64{2},
+		},
+	); !errors.Is(err, ErrInvitationRemarkRequired) {
+		t.Fatalf("空建群邀请备注错误 = %v", err)
+	}
+	if _, err := service.CreateGroup(
+		context.Background(),
+		CreateGroupCommand{
+			OwnerID:       1,
+			Name:          "测试群",
+			MemberUserIDs: []uint64{2},
+			InviteRemark:  strings.Repeat("备", maxInvitationRemarkRunes+1),
+		},
+	); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("过长建群邀请备注错误 = %v", err)
+	}
+	if _, err := service.InviteMembers(
+		context.Background(),
+		InviteMembersCommand{
+			ActorID:        1,
+			ConversationID: 2,
+			MemberUserIDs:  []uint64{3},
+		},
+	); !errors.Is(err, ErrInvitationRemarkRequired) {
+		t.Fatalf("空管理员邀请备注错误 = %v", err)
+	}
+}
+
 func TestGroupInvitationValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {

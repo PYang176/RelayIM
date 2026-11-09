@@ -109,10 +109,10 @@ function openGroupMembers() {
     void friendships.loadAll()
 }
 
-async function inviteMembers(userIds: string[]) {
+async function inviteMembers(userIds: string[], inviteRemark: string) {
     const succeeded = await runMemberAction(
         async () => {
-            await chat.inviteGroupMembers(userIds)
+            await chat.inviteGroupMembers(userIds, inviteRemark)
         },
         '邀请群成员失败',
     )
@@ -210,10 +210,15 @@ function openGroupCreator() {
 async function createGroup(payload: {
     name: string
     memberUserIds: string[]
+    inviteRemark: string
 }) {
     creatingGroup.value = true
     try {
-        await chat.createGroup(payload.name, payload.memberUserIds)
+        await chat.createGroup(
+            payload.name,
+            payload.memberUserIds,
+            payload.inviteRemark,
+        )
         groupDialogOpen.value = false
         messageList.value?.scrollToBottom()
     } catch (cause) {

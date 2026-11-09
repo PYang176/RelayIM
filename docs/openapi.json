@@ -396,6 +396,11 @@
             "maxLength": 512,
             "type": "string"
           },
+          "invite_remark": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
           "member_user_ids": {
             "items": {
               "$ref": "#/components/schemas/SnowflakeID"
@@ -413,7 +418,8 @@
         },
         "required": [
           "name",
-          "member_user_ids"
+          "member_user_ids",
+          "invite_remark"
         ],
         "type": "object"
       },
@@ -559,6 +565,9 @@
           "invitation_id": {
             "$ref": "#/components/schemas/SnowflakeID"
           },
+          "invite_remark": {
+            "type": "string"
+          },
           "invitee": {
             "$ref": "#/components/schemas/PublicUser"
           },
@@ -570,6 +579,7 @@
           "invitation_id",
           "invitee",
           "inviter_id",
+          "invite_remark",
           "created_at",
           "expires_at"
         ],
@@ -640,6 +650,11 @@
       },
       "InviteMembersRequest": {
         "properties": {
+          "invite_remark": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
           "member_user_ids": {
             "items": {
               "$ref": "#/components/schemas/SnowflakeID"
@@ -651,7 +666,8 @@
           }
         },
         "required": [
-          "member_user_ids"
+          "member_user_ids",
+          "invite_remark"
         ],
         "type": "object"
       },
@@ -978,6 +994,9 @@
           "invitation_id": {
             "$ref": "#/components/schemas/SnowflakeID"
           },
+          "invite_remark": {
+            "type": "string"
+          },
           "inviter_id": {
             "$ref": "#/components/schemas/SnowflakeID"
           },
@@ -992,6 +1011,7 @@
           "avatar_url",
           "inviter_id",
           "inviter_name",
+          "invite_remark",
           "created_at",
           "expires_at"
         ],

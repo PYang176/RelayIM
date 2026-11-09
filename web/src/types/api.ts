@@ -49,6 +49,7 @@ export interface ReceivedGroupInvitation {
     avatar_url: string
     inviter_id: string
     inviter_name: string
+    invite_remark: string
     created_at: string
     expires_at: string
 }
@@ -63,6 +64,7 @@ export interface GroupPendingInvitation {
     invitation_id: string
     invitee: FriendUser
     inviter_id: string
+    invite_remark: string
     created_at: string
     expires_at: string
 }

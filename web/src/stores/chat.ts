@@ -389,12 +389,17 @@ export const useChatStore = defineStore('chat', () => {
         await selectConversation(conversation.id)
     }
 
-    async function createGroup(name: string, memberUserIds: string[]) {
+    async function createGroup(
+        name: string,
+        memberUserIds: string[],
+        inviteRemark: string,
+    ) {
         clearError()
         const conversation = await conversationApi.createGroup(
             auth.token,
             name.trim(),
             memberUserIds,
+            inviteRemark.trim(),
         )
         upsertConversation(conversation)
         await selectConversation(conversation.id)
@@ -445,6 +450,7 @@ export const useChatStore = defineStore('chat', () => {
 
     async function inviteGroupMembers(
         memberUserIds: string[],
+        inviteRemark: string,
     ): Promise<number> {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
@@ -454,6 +460,7 @@ export const useChatStore = defineStore('chat', () => {
             auth.token,
             conversationId,
             memberUserIds,
+            inviteRemark.trim(),
         )
         await loadMembers(conversationId, true)
         return invitedCount

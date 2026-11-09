@@ -33,11 +33,17 @@ type createGroupRequest struct {
 
 	// MemberUserIDs 是创建群时一起加入的好友 Snowflake ID 字符串。
 	MemberUserIDs []string `json:"member_user_ids"`
+
+	// InviteRemark 是邀请人填写的入群理由。
+	InviteRemark string `json:"invite_remark"`
 }
 
 type inviteMembersRequest struct {
 	// MemberUserIDs 是继续邀请入群的好友 Snowflake ID 字符串。
 	MemberUserIDs []string `json:"member_user_ids"`
+
+	// InviteRemark 是邀请人填写的入群理由。
+	InviteRemark string `json:"invite_remark"`
 }
 
 type setMemberRoleRequest struct {
@@ -119,6 +125,7 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 			Name:          request.Name,
 			AvatarURL:     request.AvatarURL,
 			MemberUserIDs: memberUserIDs,
+			InviteRemark:  request.InviteRemark,
 		},
 	)
 	if err != nil {
@@ -208,6 +215,7 @@ func (h *Handler) InviteMembers(c *gin.Context) {
 			ActorID:        userID,
 			ConversationID: conversationID,
 			MemberUserIDs:  memberUserIDs,
+			InviteRemark:   request.InviteRemark,
 		},
 	)
 	if err != nil {
@@ -245,6 +253,7 @@ func (h *Handler) ListReceivedInvitations(c *gin.Context) {
 			"avatar_url":        invitation.AvatarURL,
 			"inviter_id":        strconv.FormatUint(invitation.InviterID, 10),
 			"inviter_name":      invitation.InviterName,
+			"invite_remark":     invitation.InviteRemark,
 			"created_at":        invitation.CreatedAt,
 			"expires_at":        invitation.ExpiresAt,
 		})
@@ -337,9 +346,10 @@ func (h *Handler) ListGroupInvitations(c *gin.Context) {
 				"nickname":   invitation.Invitee.Nickname,
 				"avatar_url": invitation.Invitee.AvatarURL,
 			},
-			"inviter_id": strconv.FormatUint(invitation.InviterID, 10),
-			"created_at": invitation.CreatedAt,
-			"expires_at": invitation.ExpiresAt,
+			"inviter_id":    strconv.FormatUint(invitation.InviterID, 10),
+			"invite_remark": invitation.InviteRemark,
+			"created_at":    invitation.CreatedAt,
+			"expires_at":    invitation.ExpiresAt,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -625,6 +635,8 @@ func writeConversationError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrUserNotFound.Error()})
 	case errors.Is(err, ErrConversationNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrConversationNotFound.Error()})
+	case errors.Is(err, ErrInvitationRemarkRequired):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrInvitationNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": ErrInvitationNotFound.Error()})
 	case errors.Is(err, ErrInvitationForbidden):

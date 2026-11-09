@@ -120,6 +120,7 @@ func (r *Repository) CreateGroup(
 	name string,
 	avatarURL *string,
 	memberUserIDs []uint64,
+	inviteRemark string,
 ) (*conversation, error) {
 	now := time.Now().UTC()
 	result := &conversation{
@@ -157,6 +158,7 @@ func (r *Repository) CreateGroup(
 			result.ID,
 			ownerID,
 			memberUserIDs,
+			inviteRemark,
 			now,
 		)
 		return err
@@ -224,6 +226,7 @@ func (r *Repository) InviteMembers(
 	actorID uint64,
 	conversationID uint64,
 	memberUserIDs []uint64,
+	inviteRemark string,
 ) (uint64, error) {
 	now := time.Now().UTC()
 	var invitedCount uint64
@@ -273,6 +276,7 @@ func (r *Repository) InviteMembers(
 			conversationID,
 			actorID,
 			memberUserIDs,
+			inviteRemark,
 			now,
 		)
 		if err != nil {
@@ -295,6 +299,7 @@ func createGroupInvitations(
 	conversationID uint64,
 	inviterID uint64,
 	inviteeIDs []uint64,
+	inviteRemark string,
 	now time.Time,
 ) (int, error) {
 	var members []conversationMember
@@ -337,17 +342,26 @@ func createGroupInvitations(
 		if exists &&
 			existing.Status == invitationStatusPending &&
 			existing.ExpiresAt.After(now) {
+			if err := tx.Model(&groupInvitation{}).
+				Where("id = ?", existing.ID).
+				Updates(map[string]any{
+					"inviter_id":    inviterID,
+					"invite_remark": inviteRemark,
+				}).Error; err != nil {
+				return 0, fmt.Errorf("更新待处理群邀请备注: %w", err)
+			}
 			continue
 		}
 		if exists {
 			if err := tx.Model(&groupInvitation{}).
 				Where("id = ?", existing.ID).
 				Updates(map[string]any{
-					"inviter_id":   inviterID,
-					"status":       invitationStatusPending,
-					"created_at":   now,
-					"expires_at":   expiresAt,
-					"responded_at": nil,
+					"inviter_id":    inviterID,
+					"invite_remark": inviteRemark,
+					"status":        invitationStatusPending,
+					"created_at":    now,
+					"expires_at":    expiresAt,
+					"responded_at":  nil,
 				}).Error; err != nil {
 				return 0, fmt.Errorf("重新激活群邀请: %w", err)
 			}
@@ -356,6 +370,7 @@ func createGroupInvitations(
 				ID:             uint64(snowflake.Generate()),
 				ConversationID: conversationID,
 				InviterID:      inviterID,
+				InviteRemark:   inviteRemark,
 				InviteeID:      inviteeID,
 				Status:         invitationStatusPending,
 				CreatedAt:      now,
@@ -536,7 +551,7 @@ func (r *Repository) listReceivedInvitations(
 		Select(
 			"gi.id AS invitation_id, gi.conversation_id, "+
 				"c.name AS conversation_name, c.avatar_url, "+
-				"gi.inviter_id, "+
+				"gi.inviter_id, gi.invite_remark, "+
 				"COALESCE(ip.nickname, iu.username) AS inviter_name, "+
 				"gi.created_at, gi.expires_at",
 		).
@@ -573,6 +588,7 @@ func (r *Repository) listReceivedInvitations(
 			AvatarURL:        stringValue(record.AvatarURL),
 			InviterID:        record.InviterID,
 			InviterName:      record.InviterName,
+			InviteRemark:     record.InviteRemark,
 			CreatedAt:        record.CreatedAt,
 			ExpiresAt:        record.ExpiresAt,
 		})
@@ -615,13 +631,14 @@ func (r *Repository) listGroupInvitations(
 	var records []groupInvitationRecord
 	query := r.db.WithContext(ctx).
 		Table(
-			"group_invitations AS gi " +
+			"group_invitations AS gi "+
 				"USE INDEX (idx_group_invitations_conversation_status_id)",
 		).
 		Select(
 			"gi.id AS invitation_id, gi.invitee_id, "+
 				"u.username, p.nickname, p.avatar_url, "+
-				"gi.inviter_id, gi.created_at, gi.expires_at",
+				"gi.inviter_id, gi.invite_remark, "+
+				"gi.created_at, gi.expires_at",
 		).
 		Joins("JOIN users AS u ON u.id = gi.invitee_id").
 		Joins("LEFT JOIN user_profiles AS p ON p.user_id = u.id").
@@ -654,9 +671,10 @@ func (r *Repository) listGroupInvitations(
 				Nickname:  record.Nickname,
 				AvatarURL: stringValue(record.AvatarURL),
 			},
-			InviterID: record.InviterID,
-			CreatedAt: record.CreatedAt,
-			ExpiresAt: record.ExpiresAt,
+			InviterID:    record.InviterID,
+			InviteRemark: record.InviteRemark,
+			CreatedAt:    record.CreatedAt,
+			ExpiresAt:    record.ExpiresAt,
 		})
 	}
 	page := GroupInvitationPage{

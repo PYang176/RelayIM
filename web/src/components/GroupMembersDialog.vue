@@ -30,7 +30,7 @@ const emit = defineEmits<{
     close: []
     loadMoreFriends: []
     loadMoreInvitations: []
-    invite: [userIds: string[]]
+    invite: [userIds: string[], inviteRemark: string]
     remove: [userId: string]
     setRole: [userId: string, role: 1 | 2]
     transferOwner: [userId: string]
@@ -41,6 +41,7 @@ const emit = defineEmits<{
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const closeButton = useTemplateRef<HTMLButtonElement>('closeButton')
 const selectedInviteUserIds = shallowRef<string[]>([])
+const inviteRemark = shallowRef('')
 const pendingRemovalID = shallowRef('')
 const confirmingLeave = shallowRef(false)
 
@@ -72,6 +73,7 @@ watch(
     async (open) => {
         if (open) {
             selectedInviteUserIds.value = []
+            inviteRemark.value = ''
             pendingRemovalID.value = ''
             confirmingLeave.value = false
             dialog.value?.showModal()
@@ -122,9 +124,17 @@ function close() {
 }
 
 function invite() {
-    if (selectedInviteUserIds.value.length === 0 || props.busy) return
-    emit('invite', [...selectedInviteUserIds.value])
+    const remark = inviteRemark.value.trim()
+    if (
+        selectedInviteUserIds.value.length === 0 ||
+        !remark ||
+        props.busy
+    ) {
+        return
+    }
+    emit('invite', [...selectedInviteUserIds.value], remark)
     selectedInviteUserIds.value = []
+    inviteRemark.value = ''
 }
 
 function remove(member: ConversationMember) {
@@ -265,6 +275,9 @@ function leave() {
                             <small>
                                 @{{ invitation.invitee.username }} · 等待审批
                             </small>
+                            <p v-if="invitation.invite_remark">
+                                {{ invitation.invite_remark }}
+                            </p>
                         </span>
                     </div>
                 </div>
@@ -320,9 +333,24 @@ function leave() {
                 >
                     {{ loadingMoreFriends ? '加载中…' : '加载更多好友' }}
                 </button>
+                <label class="group-field" for="invite-members-remark">
+                    <span>入群邀请备注</span>
+                    <textarea
+                            id="invite-members-remark"
+                            v-model="inviteRemark"
+                            maxlength="200"
+                            placeholder="说明邀请原因，例如：一起参与本周联调"
+                            required
+                            rows="3"
+                    />
+                </label>
                 <button
                         class="primary-button compact invite-button"
-                        :disabled="busy || selectedInviteUserIds.length === 0"
+                        :disabled="
+                            busy ||
+                            selectedInviteUserIds.length === 0 ||
+                            !inviteRemark.trim()
+                        "
                         type="button"
                         @click="invite"
                 >

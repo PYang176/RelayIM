@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	maxGroupNameRunes   = 64
-	maxGroupMemberCount = 500
-	maxGroupAvatarBytes = 512
-	defaultPageSize     = 20
-	maxPageSize         = 100
-	invitationTTL       = 7 * 24 * time.Hour
+	maxGroupNameRunes        = 64
+	maxGroupMemberCount      = 500
+	maxGroupAvatarBytes      = 512
+	maxInvitationRemarkRunes = 200
+	defaultPageSize          = 20
+	maxPageSize              = 100
+	invitationTTL            = 7 * 24 * time.Hour
 )
 
 // Service 提供会话创建与列表查询。
@@ -49,6 +50,9 @@ type CreateGroupCommand struct {
 
 	// MemberUserIDs 是创建群时一并加入的好友 Snowflake ID。
 	MemberUserIDs []uint64
+
+	// InviteRemark 是邀请人填写的入群理由。
+	InviteRemark string
 }
 
 // InviteMembersCommand 是群主或管理员继续邀请成员的参数。
@@ -61,6 +65,9 @@ type InviteMembersCommand struct {
 
 	// MemberUserIDs 是待邀请好友 Snowflake ID。
 	MemberUserIDs []uint64
+
+	// InviteRemark 是邀请人填写的入群理由。
+	InviteRemark string
 }
 
 // InvitationPageQuery 是群邀请列表的游标分页参数。
@@ -92,6 +99,9 @@ type ReceivedInvitationResult struct {
 	// InviterName 是邀请人的公开昵称。
 	InviterName string
 
+	// InviteRemark 是邀请人填写的入群理由。
+	InviteRemark string
+
 	// CreatedAt 是邀请创建时间。
 	CreatedAt time.Time
 
@@ -111,6 +121,7 @@ type GroupInvitationResult struct {
 	InvitationID uint64
 	Invitee      MemberResult
 	InviterID    uint64
+	InviteRemark string
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 }
@@ -310,6 +321,10 @@ func (s *Service) CreateGroup(
 	if err != nil {
 		return Result{}, err
 	}
+	inviteRemark, err := normalizeInvitationRemark(command.InviteRemark)
+	if err != nil {
+		return Result{}, err
+	}
 
 	var avatarURL *string
 	if command.AvatarURL != "" {
@@ -322,6 +337,7 @@ func (s *Service) CreateGroup(
 		command.Name,
 		avatarURL,
 		memberUserIDs,
+		inviteRemark,
 	)
 	if err != nil {
 		return Result{}, err
@@ -352,11 +368,16 @@ func (s *Service) InviteMembers(
 	if err != nil {
 		return 0, err
 	}
+	inviteRemark, err := normalizeInvitationRemark(command.InviteRemark)
+	if err != nil {
+		return 0, err
+	}
 	return s.repo.InviteMembers(
 		ctx,
 		command.ActorID,
 		command.ConversationID,
 		memberUserIDs,
+		inviteRemark,
 	)
 }
 
@@ -642,6 +663,17 @@ func uint64Value(value *uint64) uint64 {
 
 func validInvitationPage(page InvitationPageQuery) bool {
 	return page.Limit > 0 && page.Limit <= maxPageSize
+}
+
+func normalizeInvitationRemark(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ErrInvitationRemarkRequired
+	}
+	if utf8.RuneCountInString(value) > maxInvitationRemarkRunes {
+		return "", ErrInvalidInput
+	}
+	return value, nil
 }
 
 func validGroupAvatarURL(value string) bool {

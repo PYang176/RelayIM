@@ -110,6 +110,9 @@ async function accept(invitationID: string) {
                             {{ invitation.inviter_name }} 邀请 ·
                             {{ formatExpiry(invitation.expires_at) }} 失效
                         </small>
+                        <p v-if="invitation.invite_remark">
+                            {{ invitation.invite_remark }}
+                        </p>
                     </div>
                     <div class="friend-actions">
                         <button

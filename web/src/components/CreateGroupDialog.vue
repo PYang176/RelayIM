@@ -16,12 +16,19 @@ const props = defineProps<{
 const emit = defineEmits<{
     close: []
     loadMore: []
-    create: [payload: {name: string; memberUserIds: string[]}]
+    create: [
+        payload: {
+            name: string
+            memberUserIds: string[]
+            inviteRemark: string
+        },
+    ]
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const nameInput = useTemplateRef<HTMLInputElement>('nameInput')
 const groupName = shallowRef('')
+const inviteRemark = shallowRef('')
 const selectedUserIds = shallowRef<string[]>([])
 
 watch(
@@ -29,6 +36,7 @@ watch(
     async (open) => {
         if (open) {
             groupName.value = ''
+            inviteRemark.value = ''
             selectedUserIds.value = []
             dialog.value?.showModal()
             await nextTick()
@@ -52,10 +60,14 @@ function close() {
 
 function submit() {
     const name = groupName.value.trim()
-    if (!name || selectedUserIds.value.length === 0 || props.busy) return
+    const remark = inviteRemark.value.trim()
+    if (!name || !remark || selectedUserIds.value.length === 0 || props.busy) {
+        return
+    }
     emit('create', {
         name,
         memberUserIds: [...selectedUserIds.value],
+        inviteRemark: remark,
     })
 }
 </script>
@@ -94,6 +106,18 @@ function submit() {
                         maxlength="64"
                         placeholder="例如：后端学习小组"
                         required
+                />
+            </label>
+
+            <label class="group-field" for="group-invite-remark">
+                <span>入群邀请备注</span>
+                <textarea
+                        id="group-invite-remark"
+                        v-model="inviteRemark"
+                        maxlength="200"
+                        placeholder="说明邀请原因，例如：项目组周会沟通群"
+                        required
+                        rows="3"
                 />
             </label>
 
@@ -154,6 +178,7 @@ function submit() {
                             :disabled="
                                 busy ||
                                 !groupName.trim() ||
+                                !inviteRemark.trim() ||
                                 selectedUserIds.length === 0
                             "
                             type="submit"

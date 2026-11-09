@@ -166,12 +166,16 @@ $group = Invoke-Api `
         name = "GinChat 演示群 $Suffix"
         avatar_url = ""
         member_user_ids = @($bob.id, $carol.id)
+        invite_remark = "邀请参与 GinChat 群聊演示"
     }
 Invoke-Api `
     -Method "POST" `
     -Path "/conversations/$($group.id)/members" `
     -Token $alice.token `
-    -Body @{member_user_ids = @($dave.id)} | Out-Null
+    -Body @{
+        member_user_ids = @($dave.id)
+        invite_remark = "邀请参与 GinChat 群管理员演示"
+    } | Out-Null
 Accept-DemoGroupInvitation $bob $group.id
 Accept-DemoGroupInvitation $carol $group.id
 Accept-DemoGroupInvitation $dave $group.id

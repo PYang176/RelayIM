@@ -28,6 +28,7 @@ export function createGroup(
     token: string,
     name: string,
     memberUserIds: string[],
+    inviteRemark: string,
 ): Promise<Conversation> {
     return request(
         '/conversations/groups',
@@ -36,6 +37,7 @@ export function createGroup(
             body: JSON.stringify({
                 name,
                 member_user_ids: memberUserIds,
+                invite_remark: inviteRemark,
             }),
         },
         token,
@@ -58,12 +60,16 @@ export async function inviteGroupMembers(
     token: string,
     conversationId: string,
     memberUserIds: string[],
+    inviteRemark: string,
 ): Promise<number> {
     const response = await request<{invited_count: number}>(
         `/conversations/${conversationId}/members`,
         {
             method: 'POST',
-            body: JSON.stringify({member_user_ids: memberUserIds}),
+            body: JSON.stringify({
+                member_user_ids: memberUserIds,
+                invite_remark: inviteRemark,
+            }),
         },
         token,
     )

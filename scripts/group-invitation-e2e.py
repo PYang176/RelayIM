@@ -171,6 +171,7 @@ def create_group_with_invitation(
             "name": name,
             "avatar_url": "",
             "member_user_ids": [invitee["id"]],
+            "invite_remark": f"邀请加入 {name}",
         },
     )
     return group["id"]
@@ -230,6 +231,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 for item in invitations
                 if item["conversation_id"] == accepted_group_id
             )
+            accepted_remark = f"邀请加入 {accepted_group_name}"
+            if accepted_invitation["invite_remark"] != accepted_remark:
+                raise AssertionError("群邀请备注与提交内容不一致")
 
             page.goto("/login", wait_until="networkidle")
             page.get_by_label("用户名").fill(invitee["username"])
@@ -245,6 +249,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 has_text=accepted_group_name
             )
             expect(invitation_row).to_be_visible()
+            expect(
+                invitation_row.get_by_text(accepted_remark, exact=True)
+            ).to_be_visible()
             dialog_screenshot = report_dir / "group-invitation-pending.png"
             page.screenshot(path=str(dialog_screenshot), full_page=True)
             invitation_row.get_by_role(

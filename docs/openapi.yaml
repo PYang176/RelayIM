@@ -1612,7 +1612,7 @@ components:
           $ref: "#/components/schemas/SnowflakeID"
     CreateGroupRequest:
       type: object
-      required: [name, member_user_ids]
+      required: [name, member_user_ids, invite_remark]
       properties:
         name:
           type: string
@@ -1629,6 +1629,10 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/SnowflakeID"
+        invite_remark:
+          type: string
+          minLength: 1
+          maxLength: 200
     ConversationMember:
       type: object
       required:
@@ -1651,7 +1655,7 @@ components:
           format: date-time
     InviteMembersRequest:
       type: object
-      required: [member_user_ids]
+      required: [member_user_ids, invite_remark]
       properties:
         member_user_ids:
           type: array
@@ -1660,10 +1664,14 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/SnowflakeID"
+        invite_remark:
+          type: string
+          minLength: 1
+          maxLength: 200
     ReceivedGroupInvitation:
       type: object
       required:
-        [invitation_id, conversation_id, conversation_name, avatar_url, inviter_id, inviter_name, created_at, expires_at]
+        [invitation_id, conversation_id, conversation_name, avatar_url, inviter_id, inviter_name, invite_remark, created_at, expires_at]
       properties:
         invitation_id:
           $ref: "#/components/schemas/SnowflakeID"
@@ -1676,6 +1684,8 @@ components:
         inviter_id:
           $ref: "#/components/schemas/SnowflakeID"
         inviter_name:
+          type: string
+        invite_remark:
           type: string
         created_at:
           type: string
@@ -1697,7 +1707,7 @@ components:
           type: boolean
     GroupPendingInvitation:
       type: object
-      required: [invitation_id, invitee, inviter_id, created_at, expires_at]
+      required: [invitation_id, invitee, inviter_id, invite_remark, created_at, expires_at]
       properties:
         invitation_id:
           $ref: "#/components/schemas/SnowflakeID"
@@ -1705,6 +1715,8 @@ components:
           $ref: "#/components/schemas/PublicUser"
         inviter_id:
           $ref: "#/components/schemas/SnowflakeID"
+        invite_remark:
+          type: string
         created_at:
           type: string
           format: date-time

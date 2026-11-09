@@ -98,6 +98,9 @@ type groupInvitation struct {
 	// InviterID 是邀请人 Snowflake ID。
 	InviterID uint64 `gorm:"column:inviter_id"`
 
+	// InviteRemark 是邀请人填写的入群理由。
+	InviteRemark string `gorm:"column:invite_remark"`
+
 	// InviteeID 是被邀请人 Snowflake ID。
 	InviteeID uint64 `gorm:"column:invitee_id"`
 
@@ -125,6 +128,7 @@ type receivedInvitationRecord struct {
 	AvatarURL        *string   `gorm:"column:avatar_url"`
 	InviterID        uint64    `gorm:"column:inviter_id"`
 	InviterName      string    `gorm:"column:inviter_name"`
+	InviteRemark     string    `gorm:"column:invite_remark"`
 	ExpiresAt        time.Time `gorm:"column:expires_at"`
 	CreatedAt        time.Time `gorm:"column:created_at"`
 }
@@ -136,6 +140,7 @@ type groupInvitationRecord struct {
 	Nickname     string    `gorm:"column:nickname"`
 	AvatarURL    *string   `gorm:"column:avatar_url"`
 	InviterID    uint64    `gorm:"column:inviter_id"`
+	InviteRemark string    `gorm:"column:invite_remark"`
 	ExpiresAt    time.Time `gorm:"column:expires_at"`
 	CreatedAt    time.Time `gorm:"column:created_at"`
 }
