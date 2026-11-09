@@ -179,9 +179,58 @@ func (r *Repository) CreateGroup(
 func (r *Repository) ListForUser(
 	ctx context.Context,
 	userID uint64,
-) ([]conversationSummary, error) {
+	limit int,
+	beforeUpdatedAt time.Time,
+	beforeID uint64,
+) ([]conversationSummary, bool, error) {
 	var results []conversationSummary
-	err := r.db.WithContext(ctx).
+	query := r.conversationSummaryQuery(ctx, userID)
+	if !beforeUpdatedAt.IsZero() && beforeID > 0 {
+		query = query.Where(
+			"(c.updated_at < ? OR (c.updated_at = ? AND c.id < ?))",
+			beforeUpdatedAt,
+			beforeUpdatedAt,
+			beforeID,
+		)
+	}
+	err := query.
+		Order("c.updated_at DESC, c.id DESC").
+		Limit(limit + 1).
+		Scan(&results).Error
+	if err != nil {
+		return nil, false, fmt.Errorf("查询用户会话: %w", err)
+	}
+	hasMore := len(results) > limit
+	if hasMore {
+		results = results[:limit]
+	}
+	return results, hasMore, nil
+}
+
+// GetForUser 返回当前用户可访问的单个会话摘要。
+func (r *Repository) GetForUser(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+) (*conversationSummary, error) {
+	var result conversationSummary
+	err := r.conversationSummaryQuery(ctx, userID).
+		Where("c.id = ?", conversationID).
+		Take(&result).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrConversationNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询单个用户会话: %w", err)
+	}
+	return &result, nil
+}
+
+func (r *Repository) conversationSummaryQuery(
+	ctx context.Context,
+	userID uint64,
+) *gorm.DB {
+	return r.db.WithContext(ctx).
 		Table("conversation_members AS m").
 		Select(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
@@ -192,7 +241,8 @@ func (r *Repository) ListForUser(
 				"WHEN c.conversation_type = 1 "+
 				"THEN c.direct_low_user_id ELSE NULL END AS peer_user_id, "+
 				"CASE WHEN c.conversation_type = 1 "+
-				"THEN COALESCE(dp.nickname, direct_user.username, '私聊') "+
+			"THEN COALESCE(NULLIF(fr.remark, ''), dp.nickname, "+
+			"direct_user.username, '私聊') "+
 				"ELSE COALESCE(c.name, '群聊') END AS title, "+
 				"(SELECT COUNT(*) FROM conversation_members AS active_member "+
 				"WHERE active_member.conversation_id = c.id "+
@@ -209,17 +259,20 @@ func (r *Repository) ListForUser(
 		Joins(
 			"LEFT JOIN user_profiles AS dp ON dp.user_id = direct_user.id",
 		).
+		Joins(
+			"LEFT JOIN friendships AS f ON c.conversation_type = 1 "+
+				"AND f.user_low_id = c.direct_low_user_id "+
+				"AND f.user_high_id = c.direct_high_user_id "+
+				"AND f.status = 1",
+		).
+		Joins(
+			"LEFT JOIN friend_remarks AS fr ON fr.friendship_id = f.id "+
+				"AND fr.user_id = m.user_id",
+		).
 		Where("m.user_id = ? AND m.left_at IS NULL AND c.status = ?",
 			userID,
 			conversationStatusOpen,
-		).
-		Order("c.updated_at DESC").
-		Limit(100).
-		Scan(&results).Error
-	if err != nil {
-		return nil, fmt.Errorf("查询用户会话: %w", err)
-	}
-	return results, nil
+		)
 }
 
 // InviteMembers 在锁住群会话后创建待审批的好友邀请。

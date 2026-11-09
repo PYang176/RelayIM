@@ -41,6 +41,15 @@
           "type": "string"
         }
       },
+      "ConversationCursor": {
+        "description": "会话下一页复合游标；客户端应原样回传 next_cursor",
+        "in": "query",
+        "name": "cursor",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
       "ConversationID": {
         "description": "Snowflake 会话 ID 字符串",
         "in": "path",
@@ -325,6 +334,11 @@
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          },
+          "updated_at": {
+            "description": "会话最近活动的 UTC 时间，用于稳定倒序分页",
+            "format": "date-time",
+            "type": "string"
           }
         },
         "required": [
@@ -336,7 +350,31 @@
           "last_seq",
           "last_read_seq",
           "unread_count",
-          "member_count"
+          "member_count",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ConversationListPage": {
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/Conversation"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "description": "下一页复合游标；没有下一页时为空字符串",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversations",
+          "next_cursor",
+          "has_more"
         ],
         "type": "object"
       },
@@ -1686,33 +1724,33 @@
     "/api/v1/conversations": {
       "get": {
         "operationId": "listConversations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/ConversationCursor"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "conversations": {
-                      "items": {
-                        "$ref": "#/components/schemas/Conversation"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "conversations"
-                  ],
-                  "type": "object"
+                  "$ref": "#/components/schemas/ConversationListPage"
                 }
               }
             },
             "description": "按最近更新时间倒序的会话"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           }
         },
-        "summary": "查询当前用户会话列表",
+        "summary": "分页查询当前用户会话列表",
         "tags": [
           "Conversation"
         ]
@@ -1812,6 +1850,41 @@
           }
         },
         "summary": "创建或获取私聊",
+        "tags": [
+          "Conversation"
+        ]
+      }
+    },
+    "/api/v1/conversations/{conversation_id}": {
+      "get": {
+        "operationId": "getConversation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "会话摘要"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "查询当前用户可访问的单个会话",
         "tags": [
           "Conversation"
         ]

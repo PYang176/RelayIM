@@ -5,12 +5,15 @@ const props = defineProps<{
     conversations: Conversation[]
     activeId: string
     loading: boolean
+    loadingMore: boolean
+    hasMore: boolean
 }>()
 
 const emit = defineEmits<{
     select: [conversationId: string]
     createGroup: []
     openFriends: []
+    loadMore: []
 }>()
 
 function title(conversation: Conversation) {
@@ -81,6 +84,15 @@ function summary(conversation: Conversation) {
                 <span v-if="conversation.unread_count > 0" class="unread-badge">
           {{ conversation.unread_count > 99 ? '99+' : conversation.unread_count }}
         </span>
+            </button>
+            <button
+                    v-if="hasMore"
+                    :disabled="loadingMore"
+                    class="conversation-load-more"
+                    type="button"
+                    @click="emit('loadMore')"
+            >
+                {{ loadingMore ? '加载中…' : '加载更多会话' }}
             </button>
         </div>
     </aside>

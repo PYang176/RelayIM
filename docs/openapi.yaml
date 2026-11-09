@@ -529,21 +529,20 @@ paths:
   /api/v1/conversations:
     get:
       tags: [Conversation]
-      summary: 查询当前用户会话列表
+      summary: 分页查询当前用户会话列表
       operationId: listConversations
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/ConversationCursor"
       responses:
         "200":
           description: 按最近更新时间倒序的会话
           content:
             application/json:
               schema:
-                type: object
-                required: [conversations]
-                properties:
-                  conversations:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Conversation"
+                $ref: "#/components/schemas/ConversationListPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
   /api/v1/conversations/private:
@@ -606,6 +605,26 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/v1/conversations/{conversation_id}:
+    get:
+      tags: [Conversation]
+      summary: 查询当前用户可访问的单个会话
+      operationId: getConversation
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        "200":
+          description: 会话摘要
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/conversations/{conversation_id}/members:
     get:
       tags: [Conversation]
@@ -1242,6 +1261,13 @@ components:
       schema:
         type: string
         pattern: "^[1-9][0-9]*$"
+    ConversationCursor:
+      name: cursor
+      in: query
+      required: false
+      description: 会话下一页复合游标；客户端应原样回传 next_cursor
+      schema:
+        type: string
   headers:
     RetryAfter:
       description: 建议等待的秒数
@@ -1601,6 +1627,7 @@ components:
           last_read_seq,
           unread_count,
           member_count,
+          updated_at,
         ]
       properties:
         id:
@@ -1635,6 +1662,23 @@ components:
           type: integer
           format: int64
           minimum: 1
+        updated_at:
+          type: string
+          format: date-time
+          description: 会话最近活动的 UTC 时间，用于稳定倒序分页
+    ConversationListPage:
+      type: object
+      required: [conversations, next_cursor, has_more]
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
+        next_cursor:
+          type: string
+          description: 下一页复合游标；没有下一页时为空字符串
+        has_more:
+          type: boolean
     CreateDirectRequest:
       type: object
       required: [peer_user_id]

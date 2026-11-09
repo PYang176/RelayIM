@@ -31,6 +31,13 @@ export interface Conversation {
     last_read_seq: number
     unread_count: number
     member_count: number
+    updated_at: string
+}
+
+export interface ConversationPage {
+    conversations: Conversation[]
+    next_cursor: string
+    has_more: boolean
 }
 
 export interface ConversationMember {

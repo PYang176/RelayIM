@@ -80,6 +80,18 @@ type InvitationPageQuery struct {
 	BeforeID uint64
 }
 
+// ConversationPageQuery 是会话列表的复合游标分页参数。
+type ConversationPageQuery struct {
+	// Limit 是本页最大记录数。
+	Limit int
+
+	// BeforeUpdatedAt 是上一页最后一条会话的 UTC 更新时间。
+	BeforeUpdatedAt time.Time
+
+	// BeforeID 是上一页最后一条会话的 Snowflake ID。
+	BeforeID uint64
+}
+
 // RespondInvitationCommand 是接受或拒绝群邀请的参数。
 type RespondInvitationCommand struct {
 	// UserID 是被邀请人 Snowflake ID。
@@ -274,6 +286,24 @@ type Result struct {
 
 	// MemberCount 是会话当前有效成员数量。
 	MemberCount uint64
+
+	// UpdatedAt 是会话最近活动的 UTC 时间。
+	UpdatedAt time.Time
+}
+
+// ConversationPage 是会话列表的一页。
+type ConversationPage struct {
+	// Conversations 是本页按最近活动时间倒序排列的会话。
+	Conversations []Result
+
+	// NextUpdatedAt 是下一页游标中的最后活动时间。
+	NextUpdatedAt time.Time
+
+	// NextID 是下一页游标中的会话 Snowflake ID。
+	NextID uint64
+
+	// HasMore 表示当前游标之后是否仍有会话。
+	HasMore bool
 }
 
 // MemberResult 是接口层可安全展示的会话成员。
@@ -326,6 +356,7 @@ func (s *Service) CreateDirect(
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
 		MemberCount:      2,
+		UpdatedAt:        record.UpdatedAt,
 	}, created, nil
 }
 
@@ -378,6 +409,7 @@ func (s *Service) CreateGroup(
 		AvatarURL:        stringValue(record.AvatarURL),
 		LastSeq:          record.LastSeq,
 		MemberCount:      1,
+		UpdatedAt:        record.UpdatedAt,
 	}, nil
 }
 
@@ -651,14 +683,26 @@ func (s *Service) ListMembers(
 }
 
 // List 返回当前用户的会话列表。
-func (s *Service) List(ctx context.Context, userID uint64) ([]Result, error) {
-	if userID == 0 {
-		return nil, ErrInvalidInput
+func (s *Service) List(
+	ctx context.Context,
+	userID uint64,
+	page ConversationPageQuery,
+) (ConversationPage, error) {
+	if userID == 0 ||
+		page.Limit <= 0 ||
+		page.Limit > maxPageSize {
+		return ConversationPage{}, ErrInvalidInput
 	}
 
-	records, err := s.repo.ListForUser(ctx, userID)
+	records, hasMore, err := s.repo.ListForUser(
+		ctx,
+		userID,
+		page.Limit,
+		page.BeforeUpdatedAt,
+		page.BeforeID,
+	)
 	if err != nil {
-		return nil, err
+		return ConversationPage{}, err
 	}
 
 	results := make([]Result, 0, len(records))
@@ -678,9 +722,51 @@ func (s *Service) List(ctx context.Context, userID uint64) ([]Result, error) {
 			LastReadSeq:      record.LastReadSeq,
 			UnreadCount:      unread,
 			MemberCount:      record.MemberCount,
+			UpdatedAt:        record.UpdatedAt,
 		})
 	}
-	return results, nil
+	resultPage := ConversationPage{
+		Conversations: results,
+		HasMore:       hasMore,
+	}
+	if hasMore && len(results) > 0 {
+		last := results[len(results)-1]
+		resultPage.NextUpdatedAt = last.UpdatedAt
+		resultPage.NextID = last.ID
+	}
+	return resultPage, nil
+}
+
+// Get 返回当前用户可访问的单个会话。
+func (s *Service) Get(
+	ctx context.Context,
+	userID uint64,
+	conversationID uint64,
+) (Result, error) {
+	if userID == 0 || conversationID == 0 {
+		return Result{}, ErrInvalidInput
+	}
+	record, err := s.repo.GetForUser(ctx, userID, conversationID)
+	if err != nil {
+		return Result{}, err
+	}
+	unread := uint64(0)
+	if record.LastSeq > record.LastReadSeq {
+		unread = record.LastSeq - record.LastReadSeq
+	}
+	return Result{
+		ID:               record.ID,
+		ConversationType: record.ConversationType,
+		Name:             stringValue(record.Name),
+		Title:            record.Title,
+		PeerUserID:       uint64Value(record.PeerUserID),
+		AvatarURL:        stringValue(record.AvatarURL),
+		LastSeq:          record.LastSeq,
+		LastReadSeq:      record.LastReadSeq,
+		UnreadCount:      unread,
+		MemberCount:      record.MemberCount,
+		UpdatedAt:        record.UpdatedAt,
+	}, nil
 }
 
 func normalizeGroupMemberIDs(

@@ -77,6 +77,34 @@ func TestCreateGroupValidation(t *testing.T) {
 	}
 }
 
+func TestConversationPaginationValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name string
+		page ConversationPageQuery
+	}{
+		{
+			name: "分页大小为零",
+			page: ConversationPageQuery{},
+		},
+		{
+			name: "分页大小超过上限",
+			page: ConversationPageQuery{Limit: maxPageSize + 1},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := service.List(
+				context.Background(),
+				1,
+				test.page,
+			); !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("List() 错误 = %v，期望 ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
 func TestNormalizeGroupMemberIDs(t *testing.T) {
 	tests := []struct {
 		name    string

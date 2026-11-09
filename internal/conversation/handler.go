@@ -1,11 +1,14 @@
 package conversation
 
 import (
+	"encoding/base64"
 	"errors"
 	"ginChatProject/internal/middleware"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -148,18 +151,44 @@ func (h *Handler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
+	page, ok := parseConversationPageQuery(c)
+	if !ok {
+		return
+	}
 
-	results, err := h.service.List(c.Request.Context(), userID)
+	result, err := h.service.List(c.Request.Context(), userID, page)
 	if err != nil {
 		writeConversationError(c, err)
 		return
 	}
 
-	response := make([]gin.H, 0, len(results))
-	for _, result := range results {
-		response = append(response, conversationResponse(result))
+	response := make([]gin.H, 0, len(result.Conversations))
+	for _, conversation := range result.Conversations {
+		response = append(response, conversationResponse(conversation))
 	}
-	c.JSON(http.StatusOK, gin.H{"conversations": response})
+	c.JSON(http.StatusOK, gin.H{
+		"conversations": response,
+		"next_cursor":   encodeConversationCursor(result.NextUpdatedAt, result.NextID),
+		"has_more":      result.HasMore,
+	})
+}
+
+// Get 处理 GET /api/v1/conversations/:conversation_id。
+func (h *Handler) Get(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Get(c.Request.Context(), userID, conversationID)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, conversationResponse(result))
 }
 
 // ListMembers 处理 GET /api/v1/conversations/:conversation_id/members。
@@ -583,7 +612,65 @@ func conversationResponse(result Result) gin.H {
 		"last_read_seq":     result.LastReadSeq,
 		"unread_count":      result.UnreadCount,
 		"member_count":      result.MemberCount,
+		"updated_at":        result.UpdatedAt,
 	}
+}
+
+func parseConversationPageQuery(
+	c *gin.Context,
+) (ConversationPageQuery, bool) {
+	page := ConversationPageQuery{Limit: defaultPageSize}
+	if rawLimit := c.Query("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 || limit > maxPageSize {
+			c.JSON(
+				http.StatusBadRequest,
+				gin.H{"error": "limit 必须在 1 到 100 之间"},
+			)
+			return ConversationPageQuery{}, false
+		}
+		page.Limit = limit
+	}
+	if cursor := c.Query("cursor"); cursor != "" {
+		beforeUpdatedAt, beforeID, err := decodeConversationCursor(cursor)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cursor 格式错误"})
+			return ConversationPageQuery{}, false
+		}
+		page.BeforeUpdatedAt = beforeUpdatedAt
+		page.BeforeID = beforeID
+	}
+	return page, true
+}
+
+func encodeConversationCursor(updatedAt time.Time, conversationID uint64) string {
+	if updatedAt.IsZero() || conversationID == 0 {
+		return ""
+	}
+	raw := strconv.FormatInt(updatedAt.UnixMilli(), 10) +
+		"|" +
+		strconv.FormatUint(conversationID, 10)
+	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+func decodeConversationCursor(value string) (time.Time, uint64, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	parts := strings.Split(string(decoded), "|")
+	if len(parts) != 2 {
+		return time.Time{}, 0, errors.New("游标字段数量错误")
+	}
+	milliseconds, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || milliseconds <= 0 {
+		return time.Time{}, 0, errors.New("游标时间错误")
+	}
+	conversationID, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil || conversationID == 0 {
+		return time.Time{}, 0, errors.New("游标会话 ID 错误")
+	}
+	return time.UnixMilli(milliseconds).UTC(), conversationID, nil
 }
 
 func parseConversationID(c *gin.Context) (uint64, bool) {

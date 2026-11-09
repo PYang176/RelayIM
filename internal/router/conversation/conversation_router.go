@@ -34,6 +34,7 @@ func Register(
 	group.GET("", handler.List)
 	group.POST("/private", handler.CreateDirect)
 	group.POST("/groups", handler.CreateGroup)
+	group.GET("/:conversation_id", handler.Get)
 	group.GET("/:conversation_id/members", handler.ListMembers)
 	group.POST("/:conversation_id/members", handler.InviteMembers)
 	group.DELETE("/:conversation_id/members/:user_id", handler.RemoveMember)

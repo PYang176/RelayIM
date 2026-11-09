@@ -401,8 +401,11 @@ onBeforeUnmount(() => {
             <ConversationList
                     :active-id="chat.activeConversationId"
                     :conversations="chat.conversations"
+                    :has-more="chat.hasMoreConversations"
                     :loading="chat.loadingConversations"
+                    :loading-more="chat.loadingMoreConversations"
                     @create-group="openGroupCreator"
+                    @load-more="chat.loadMoreConversations"
                     @open-friends="friendsOpen = true"
                     @select="selectConversation"
             />

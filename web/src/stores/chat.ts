@@ -50,6 +50,9 @@ export const useChatStore = defineStore('chat', () => {
     const readStates = ref<ReadState[]>([])
     const presenceByUser = ref<Record<string, boolean>>({})
     const loadingConversations = shallowRef(false)
+    const loadingMoreConversations = shallowRef(false)
+    const conversationNextCursor = shallowRef('')
+    const hasMoreConversations = shallowRef(false)
     const loadingMessages = shallowRef(false)
     const loadingMembers = shallowRef(false)
     const uploadingAttachment = shallowRef(false)
@@ -267,13 +270,33 @@ export const useChatStore = defineStore('chat', () => {
         return conversation.title || conversation.name || '私聊'
     }
 
+    function conversationIDCompare(left: string, right: string): number {
+        const leftID = BigInt(left)
+        const rightID = BigInt(right)
+        if (leftID === rightID) return 0
+        return leftID > rightID ? -1 : 1
+    }
+
+    function sortConversations(items: Conversation[]): Conversation[] {
+        return [...items].sort((left, right) => {
+            const timeDifference =
+                Date.parse(right.updated_at) - Date.parse(left.updated_at)
+            if (Number.isFinite(timeDifference) && timeDifference !== 0) {
+                return timeDifference
+            }
+            return conversationIDCompare(left.id, right.id)
+        })
+    }
+
     function upsertConversation(conversation: Conversation) {
         const index = conversations.value.findIndex((item) => item.id === conversation.id)
+        const next = [...conversations.value]
         if (index >= 0) {
-            conversations.value[index] = conversation
-            return
+            next[index] = conversation
+        } else {
+            next.push(conversation)
         }
-        conversations.value.unshift(conversation)
+        conversations.value = sortConversations(next)
     }
 
     function upsertMessage(conversationId: string, message: ChatMessage) {
@@ -352,10 +375,11 @@ export const useChatStore = defineStore('chat', () => {
             (item) => item.id === message.conversation_id,
         )
         if (!conversation) {
-            void loadConversations()
+            void refreshConversation(message.conversation_id)
             return
         }
         conversation.last_seq = Math.max(conversation.last_seq, message.seq)
+        conversation.updated_at = new Date().toISOString()
         const shouldIncrementUnread =
             message.sender_id !== auth.user?.id &&
             (
@@ -365,12 +389,31 @@ export const useChatStore = defineStore('chat', () => {
         if (shouldIncrementUnread) {
             conversation.unread_count += 1
         }
+        conversations.value = sortConversations(conversations.value)
     }
 
     async function loadConversations() {
         loadingConversations.value = true
         try {
-            conversations.value = await conversationApi.listConversations(auth.token)
+            const previousActive = conversations.value.find(
+                (item) => item.id === activeConversationId.value,
+            )
+            const page = await conversationApi.listConversations(auth.token)
+            let next = [...page.conversations]
+            /*
+             * 活跃会话可能不在最新一页。重连刷新首屏时保留它，
+             * 避免用户正在阅读的旧会话因重新分页被关闭。
+             */
+            if (
+                activeConversationId.value &&
+                previousActive &&
+                !next.some((item) => item.id === activeConversationId.value)
+            ) {
+                next.push(previousActive)
+            }
+            conversations.value = sortConversations(next)
+            conversationNextCursor.value = page.next_cursor
+            hasMoreConversations.value = page.has_more
             if (!activeConversationId.value && conversations.value.length > 0) {
                 await selectConversation(conversations.value[0].id)
             }
@@ -378,6 +421,51 @@ export const useChatStore = defineStore('chat', () => {
             setError(cause instanceof Error ? cause.message : '加载会话失败')
         } finally {
             loadingConversations.value = false
+        }
+    }
+
+    async function loadMoreConversations() {
+        if (
+            loadingMoreConversations.value ||
+            !hasMoreConversations.value ||
+            !conversationNextCursor.value
+        ) {
+            return
+        }
+        loadingMoreConversations.value = true
+        try {
+            const page = await conversationApi.listConversations(
+                auth.token,
+                conversationNextCursor.value,
+            )
+            const merged = new Map<string, Conversation>()
+            for (const conversation of [
+                ...conversations.value,
+                ...page.conversations,
+            ]) {
+                merged.set(conversation.id, conversation)
+            }
+            conversations.value = sortConversations([...merged.values()])
+            conversationNextCursor.value = page.next_cursor
+            hasMoreConversations.value = page.has_more
+        } catch (cause) {
+            setError(
+                cause instanceof Error ? cause.message : '加载更多会话失败',
+            )
+        } finally {
+            loadingMoreConversations.value = false
+        }
+    }
+
+    async function refreshConversation(conversationId: string) {
+        try {
+            const conversation = await conversationApi.getConversation(
+                auth.token,
+                conversationId,
+            )
+            upsertConversation(conversation)
+        } catch {
+            // 会话摘要刷新失败时，WebSocket 后续事件和定时对账仍可恢复。
         }
     }
 
@@ -718,6 +806,7 @@ export const useChatStore = defineStore('chat', () => {
         const conversation = conversations.value.find((item) => item.id === conversationId)
         if (conversation) {
             conversation.last_seq = Math.max(conversation.last_seq, response.seq)
+            conversation.updated_at = response.created_at
             if (!observation.gapDetected) {
                 conversation.last_read_seq = Math.max(
                     conversation.last_read_seq,
@@ -725,6 +814,7 @@ export const useChatStore = defineStore('chat', () => {
                 )
                 conversation.unread_count = 0
             }
+            conversations.value = sortConversations(conversations.value)
         }
         void refreshReadStates()
         window.setTimeout(() => {
@@ -773,6 +863,7 @@ export const useChatStore = defineStore('chat', () => {
             )
             if (conversation) {
                 conversation.last_seq = Math.max(conversation.last_seq, response.seq)
+                conversation.updated_at = response.created_at
                 if (!observation.gapDetected) {
                     conversation.last_read_seq = Math.max(
                         conversation.last_read_seq,
@@ -780,6 +871,7 @@ export const useChatStore = defineStore('chat', () => {
                     )
                     conversation.unread_count = 0
                 }
+                conversations.value = sortConversations(conversations.value)
             }
             void refreshReadStates()
             window.setTimeout(() => {
@@ -995,13 +1087,10 @@ export const useChatStore = defineStore('chat', () => {
         const conversationId = activeConversationId.value
         if (!conversationId) return
         try {
-            const latestConversations = await conversationApi.listConversations(
+            const conversation = await conversationApi.getConversation(
                 auth.token,
+                conversationId,
             )
-            const conversation = latestConversations.find(
-                (item) => item.id === conversationId,
-            )
-            if (!conversation) return
             upsertConversation(conversation)
 
             const state = sequenceStateFor(conversationId)
@@ -1048,6 +1137,8 @@ export const useChatStore = defineStore('chat', () => {
         activeConversationId.value = ''
         readStates.value = []
         presenceByUser.value = {}
+        conversationNextCursor.value = ''
+        hasMoreConversations.value = false
         error.value = ''
     }
 
@@ -1063,6 +1154,8 @@ export const useChatStore = defineStore('chat', () => {
         presenceByUser,
         connectionState,
         loadingConversations,
+        loadingMoreConversations,
+        hasMoreConversations,
         loadingMessages,
         loadingMembers,
         uploadingAttachment,
@@ -1071,6 +1164,7 @@ export const useChatStore = defineStore('chat', () => {
         error,
         conversationTitle,
         loadConversations,
+        loadMoreConversations,
         createDirect,
         createGroup,
         selectConversation,

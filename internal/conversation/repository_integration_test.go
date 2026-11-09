@@ -101,11 +101,17 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		t.Fatalf("清理私聊拉黑关系失败: %v", err)
 	}
 
-	summaries, err := repository.ListForUser(context.Background(), userA)
+	summaries, hasMore, err := repository.ListForUser(
+		context.Background(),
+		userA,
+		defaultPageSize,
+		time.Time{},
+		0,
+	)
 	if err != nil {
 		t.Fatalf("查询用户会话失败: %v", err)
 	}
-	if len(summaries) != 1 || summaries[0].ID != first.ID {
+	if hasMore || len(summaries) != 1 || summaries[0].ID != first.ID {
 		t.Fatalf("用户会话列表 = %+v，期望唯一会话 %d", summaries, first.ID)
 	}
 
@@ -120,15 +126,46 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		t.Fatalf("更新已读序号失败: %v", err)
 	}
 
-	results, err := service.List(context.Background(), userA)
+	results, err := service.List(
+		context.Background(),
+		userA,
+		ConversationPageQuery{Limit: defaultPageSize},
+	)
 	if err != nil {
 		t.Fatalf("查询会话服务列表失败: %v", err)
 	}
-	if len(results) != 1 || results[0].UnreadCount != 3 {
+	if len(results.Conversations) != 1 ||
+		results.Conversations[0].UnreadCount != 3 {
 		t.Fatalf("会话列表 = %+v，期望未读数 3", results)
 	}
-	if results[0].Title == "" {
-		t.Fatalf("私聊标题 = %q，期望对方展示名称", results[0].Title)
+	if results.Conversations[0].Title == "" {
+		t.Fatalf("私聊标题 = %q，期望对方展示名称", results.Conversations[0].Title)
+	}
+	var friendshipID uint64
+	lowID, highID := orderedUsers(userA, userB)
+	if err := db.Table("friendships").
+		Select("id").
+		Where("user_low_id = ? AND user_high_id = ?", lowID, highID).
+		Scan(&friendshipID).Error; err != nil || friendshipID == 0 {
+		t.Fatalf("查询集成测试好友关系失败: %v", err)
+	}
+	if err := db.Exec(
+		"INSERT INTO friend_remarks (friendship_id, user_id, remark) VALUES (?, ?, ?)",
+		friendshipID,
+		userA,
+		"好友备注",
+	).Error; err != nil {
+		t.Fatalf("创建集成测试好友备注失败: %v", err)
+	}
+	remarked, err := service.List(
+		context.Background(),
+		userA,
+		ConversationPageQuery{Limit: defaultPageSize},
+	)
+	if err != nil ||
+		len(remarked.Conversations) != 1 ||
+		remarked.Conversations[0].Title != "好友备注" {
+		t.Fatalf("好友备注会话标题 = %+v, err=%v", remarked, err)
 	}
 
 	group, err := service.CreateGroup(
@@ -438,6 +475,115 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 		},
 	); !errors.Is(err, ErrConversationNotFound) {
 		t.Fatalf("解散后邀请成员错误 = %v，期望 ErrConversationNotFound", err)
+	}
+}
+
+func TestConversationPaginationIntegration(t *testing.T) {
+	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+	}
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("连接测试数据库失败: %v", err)
+	}
+	initConversationSnowflake(t)
+
+	userID, peerID := insertConversationTestUsers(t, db)
+	t.Cleanup(func() {
+		cleanupConversationTestData(t, db, userID, peerID)
+	})
+
+	const conversationCount = 5
+	conversationIDs := make([]uint64, 0, conversationCount)
+	baseTime := time.Now().UTC().Add(-time.Hour)
+	for index := 0; index < conversationCount; index++ {
+		conversationID := uint64(snowflake.Generate())
+		conversationIDs = append(conversationIDs, conversationID)
+		if err := db.Exec(
+			`INSERT INTO conversations
+				(id, conversation_type, owner_id, name, status, last_seq,
+				 created_at, updated_at)
+			 VALUES (?, 2, ?, ?, 1, 0, ?, ?)`,
+			conversationID,
+			userID,
+			fmt.Sprintf("分页群%d", index),
+			baseTime.Add(time.Duration(index)*time.Minute),
+			baseTime.Add(time.Duration(index)*time.Minute),
+		).Error; err != nil {
+			t.Fatalf("创建分页会话失败: %v", err)
+		}
+		if err := db.Exec(
+			`INSERT INTO conversation_members
+				(conversation_id, user_id, role)
+			 VALUES (?, ?, 3)`,
+			conversationID,
+			userID,
+		).Error; err != nil {
+			t.Fatalf("创建分页会话成员失败: %v", err)
+		}
+	}
+
+	service := NewService(NewRepository(db))
+	first, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{Limit: 2},
+	)
+	if err != nil ||
+		len(first.Conversations) != 2 ||
+		!first.HasMore ||
+		first.NextID == 0 {
+		t.Fatalf("会话第一页 = %+v, err=%v", first, err)
+	}
+	if first.Conversations[0].ID != conversationIDs[4] ||
+		first.Conversations[1].ID != conversationIDs[3] {
+		t.Fatalf("会话第一页顺序 = %+v", first.Conversations)
+	}
+	second, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{
+			Limit:           2,
+			BeforeUpdatedAt: first.NextUpdatedAt,
+			BeforeID:        first.NextID,
+		},
+	)
+	if err != nil ||
+		len(second.Conversations) != 2 ||
+		!second.HasMore {
+		t.Fatalf("会话第二页 = %+v, err=%v", second, err)
+	}
+	if second.Conversations[0].ID != conversationIDs[2] ||
+		second.Conversations[1].ID != conversationIDs[1] {
+		t.Fatalf("会话第二页顺序 = %+v", second.Conversations)
+	}
+	third, err := service.List(
+		context.Background(),
+		userID,
+		ConversationPageQuery{
+			Limit:           2,
+			BeforeUpdatedAt: second.NextUpdatedAt,
+			BeforeID:        second.NextID,
+		},
+	)
+	if err != nil ||
+		len(third.Conversations) != 1 ||
+		third.HasMore ||
+		third.Conversations[0].ID != conversationIDs[0] {
+		t.Fatalf("会话第三页 = %+v, err=%v", third, err)
+	}
+
+	single, err := service.Get(
+		context.Background(),
+		userID,
+		conversationIDs[2],
+	)
+	if err != nil || single.ID != conversationIDs[2] {
+		t.Fatalf("单会话查询 = %+v, err=%v", single, err)
 	}
 }
 

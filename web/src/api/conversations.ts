@@ -1,13 +1,24 @@
 import {request} from './http'
-import type {Conversation, ConversationMember} from '@/types/api'
+import type {
+    Conversation,
+    ConversationMember,
+    ConversationPage,
+} from '@/types/api'
 
-export async function listConversations(token: string): Promise<Conversation[]> {
-    const response = await request<{ conversations: Conversation[] }>(
-        '/conversations',
-        {},
-        token,
-    )
-    return response.conversations
+export function listConversations(
+    token: string,
+    cursor = '',
+): Promise<ConversationPage> {
+    const params = new URLSearchParams({limit: '20'})
+    if (cursor) params.set('cursor', cursor)
+    return request<ConversationPage>(`/conversations?${params}`, {}, token)
+}
+
+export function getConversation(
+    token: string,
+    conversationId: string,
+): Promise<Conversation> {
+    return request(`/conversations/${conversationId}`, {}, token)
 }
 
 export function createDirect(
