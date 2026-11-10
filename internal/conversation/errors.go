@@ -12,8 +12,8 @@ var (
 	// ErrUserNotFound 表示会话成员对应的用户不存在。
 	ErrUserNotFound = errors.New("会话用户不存在")
 
-	// ErrNotFriend 表示创建群聊时选择了非好友用户。
-	ErrNotFriend = errors.New("只能邀请好友加入群聊")
+	// ErrNotFriend 表示双方已不是有效好友关系。
+	ErrNotFriend = errors.New("双方当前不是有效好友关系")
 
 	// ErrUserBlocked 表示双方存在拉黑关系，不能创建私聊。
 	ErrUserBlocked = errors.New("双方存在拉黑关系")

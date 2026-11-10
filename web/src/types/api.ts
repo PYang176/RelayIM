@@ -32,6 +32,7 @@ export interface Conversation {
     pinned: boolean
     unread_count: number
     member_count: number
+    direct_friendship_active: boolean
     updated_at: string
 }
 
@@ -151,6 +152,9 @@ export interface WsMessage {
     message_id: string
     conversation_id?: string
     sender_id?: string
+    peer_user_id?: string
+    relationship_active?: boolean
+    friend_visible?: boolean
     recalled_by?: string
     seq?: number
     msg_type?: number
@@ -197,6 +201,7 @@ export interface Friend {
     user: FriendUser
     remark: string
     blocked_by_me: boolean
+    relationship_active: boolean
 }
 
 export interface BlockedUser {

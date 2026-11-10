@@ -297,6 +297,9 @@ type Result struct {
 	// MemberCount 是会话当前有效成员数量。
 	MemberCount uint64
 
+	// DirectFriendshipActive 表示私聊双方是否仍维持有效好友关系。
+	DirectFriendshipActive bool
+
 	// UpdatedAt 是会话最近活动的 UTC 时间。
 	UpdatedAt time.Time
 }
@@ -361,15 +364,16 @@ func (s *Service) CreateDirect(
 		return Result{}, false, err
 	}
 	return Result{
-		ID:               record.ID,
-		ConversationType: record.ConversationType,
-		Name:             stringValue(record.Name),
-		Title:            record.Title,
-		PeerUserID:       command.PeerUserID,
-		AvatarURL:        stringValue(record.AvatarURL),
-		LastSeq:          record.LastSeq,
-		MemberCount:      2,
-		UpdatedAt:        record.UpdatedAt,
+		ID:                     record.ID,
+		ConversationType:       record.ConversationType,
+		Name:                   stringValue(record.Name),
+		Title:                  record.Title,
+		PeerUserID:             command.PeerUserID,
+		AvatarURL:              stringValue(record.AvatarURL),
+		LastSeq:                record.LastSeq,
+		MemberCount:            2,
+		DirectFriendshipActive: true,
+		UpdatedAt:              record.UpdatedAt,
 	}, created, nil
 }
 
@@ -415,14 +419,15 @@ func (s *Service) CreateGroup(
 		return Result{}, err
 	}
 	return Result{
-		ID:               record.ID,
-		ConversationType: record.ConversationType,
-		Name:             stringValue(record.Name),
-		Title:            stringValue(record.Name),
-		AvatarURL:        stringValue(record.AvatarURL),
-		LastSeq:          record.LastSeq,
-		MemberCount:      1,
-		UpdatedAt:        record.UpdatedAt,
+		ID:                     record.ID,
+		ConversationType:       record.ConversationType,
+		Name:                   stringValue(record.Name),
+		Title:                  stringValue(record.Name),
+		AvatarURL:              stringValue(record.AvatarURL),
+		LastSeq:                record.LastSeq,
+		MemberCount:            1,
+		DirectFriendshipActive: true,
+		UpdatedAt:              record.UpdatedAt,
 	}, nil
 }
 
@@ -721,18 +726,19 @@ func (s *Service) List(
 			unread = record.LastSeq - record.LastReadSeq
 		}
 		results = append(results, Result{
-			ID:               record.ID,
-			ConversationType: record.ConversationType,
-			Name:             stringValue(record.Name),
-			Title:            record.Title,
-			PeerUserID:       uint64Value(record.PeerUserID),
-			AvatarURL:        stringValue(record.AvatarURL),
-			LastSeq:          record.LastSeq,
-			LastReadSeq:      record.LastReadSeq,
-			Pinned:           record.Pinned,
-			UnreadCount:      unread,
-			MemberCount:      record.MemberCount,
-			UpdatedAt:        record.UpdatedAt,
+			ID:                     record.ID,
+			ConversationType:       record.ConversationType,
+			Name:                   stringValue(record.Name),
+			Title:                  record.Title,
+			PeerUserID:             uint64Value(record.PeerUserID),
+			AvatarURL:              stringValue(record.AvatarURL),
+			LastSeq:                record.LastSeq,
+			LastReadSeq:            record.LastReadSeq,
+			Pinned:                 record.Pinned,
+			UnreadCount:            unread,
+			MemberCount:            record.MemberCount,
+			DirectFriendshipActive: record.DirectFriendshipActive,
+			UpdatedAt:              record.UpdatedAt,
 		})
 	}
 	resultPage := ConversationPage{
@@ -766,18 +772,19 @@ func (s *Service) Get(
 		unread = record.LastSeq - record.LastReadSeq
 	}
 	return Result{
-		ID:               record.ID,
-		ConversationType: record.ConversationType,
-		Name:             stringValue(record.Name),
-		Title:            record.Title,
-		PeerUserID:       uint64Value(record.PeerUserID),
-		AvatarURL:        stringValue(record.AvatarURL),
-		LastSeq:          record.LastSeq,
-		LastReadSeq:      record.LastReadSeq,
-		Pinned:           record.Pinned,
-		UnreadCount:      unread,
-		MemberCount:      record.MemberCount,
-		UpdatedAt:        record.UpdatedAt,
+		ID:                     record.ID,
+		ConversationType:       record.ConversationType,
+		Name:                   stringValue(record.Name),
+		Title:                  record.Title,
+		PeerUserID:             uint64Value(record.PeerUserID),
+		AvatarURL:              stringValue(record.AvatarURL),
+		LastSeq:                record.LastSeq,
+		LastReadSeq:            record.LastReadSeq,
+		Pinned:                 record.Pinned,
+		UnreadCount:            unread,
+		MemberCount:            record.MemberCount,
+		DirectFriendshipActive: record.DirectFriendshipActive,
+		UpdatedAt:              record.UpdatedAt,
 	}, nil
 }
 

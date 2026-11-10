@@ -1,26 +1,40 @@
 package conversation
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/ws"
 	"github.com/gin-gonic/gin"
 )
 
+// RealtimeDelivery 把会话通知路由到用户当前连接的 Go 实例。
+type RealtimeDelivery interface {
+	Route(ctx context.Context, userIDs []uint64, payload []byte) error
+}
+
 // Handler 处理会话 HTTP 请求。
 type Handler struct {
-	service *Service
+	service  *Service
+	delivery RealtimeDelivery
 }
 
 // NewHandler 创建会话 Handler。
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, delivery RealtimeDelivery) *Handler {
+	return &Handler{
+		service:  service,
+		delivery: delivery,
+	}
 }
 
 type createDirectRequest struct {
@@ -112,7 +126,39 @@ func (h *Handler) CreateDirect(c *gin.Context) {
 	if created {
 		status = http.StatusCreated
 	}
+	h.notifyConversationAvailable(c.Request.Context(), result.ID, peerUserID)
 	c.JSON(status, conversationResponse(result))
+}
+
+// notifyConversationAvailable 通知对方刷新会话摘要，失败不覆盖已提交的创建结果。
+func (h *Handler) notifyConversationAvailable(
+	ctx context.Context,
+	conversationID uint64,
+	peerUserID uint64,
+) {
+	if h.delivery == nil || conversationID == 0 || peerUserID == 0 {
+		return
+	}
+	payload, err := json.Marshal(ws.ConversationCreatedMessage{
+		Action:         ws.ActionConversationCreated,
+		ConversationID: strconv.FormatUint(conversationID, 10),
+		TraceID:        observability.TraceID(ctx),
+	})
+	if err != nil {
+		slog.Warn("序列化会话刷新通知失败", "error", err)
+		return
+	}
+	if err := h.delivery.Route(ctx, []uint64{peerUserID}, payload); err != nil {
+		slog.Warn(
+			"推送会话刷新通知失败，等待客户端后续同步",
+			"conversation_id",
+			conversationID,
+			"peer_user_id",
+			peerUserID,
+			"error",
+			err,
+		)
+	}
 }
 
 // CreateGroup 处理 POST /api/v1/conversations/groups。
@@ -642,18 +688,19 @@ func conversationResponse(result Result) gin.H {
 		peerUserID = strconv.FormatUint(result.PeerUserID, 10)
 	}
 	return gin.H{
-		"id":                strconv.FormatUint(result.ID, 10),
-		"conversation_type": result.ConversationType,
-		"name":              result.Name,
-		"title":             result.Title,
-		"peer_user_id":      peerUserID,
-		"avatar_url":        result.AvatarURL,
-		"last_seq":          result.LastSeq,
-		"last_read_seq":     result.LastReadSeq,
-		"pinned":            result.Pinned,
-		"unread_count":      result.UnreadCount,
-		"member_count":      result.MemberCount,
-		"updated_at":        result.UpdatedAt,
+		"id":                       strconv.FormatUint(result.ID, 10),
+		"conversation_type":        result.ConversationType,
+		"name":                     result.Name,
+		"title":                    result.Title,
+		"peer_user_id":             peerUserID,
+		"avatar_url":               result.AvatarURL,
+		"last_seq":                 result.LastSeq,
+		"last_read_seq":            result.LastReadSeq,
+		"pinned":                   result.Pinned,
+		"unread_count":             result.UnreadCount,
+		"member_count":             result.MemberCount,
+		"direct_friendship_active": result.DirectFriendshipActive,
+		"updated_at":               result.UpdatedAt,
 	}
 }
 

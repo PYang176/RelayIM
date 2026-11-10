@@ -152,6 +152,26 @@ func (r *Repository) sendMessage(
 			if blockedCount > 0 {
 				return ErrUserBlocked
 			}
+			lowUserID := input.SenderID
+			highUserID := peerUserID
+			if lowUserID > highUserID {
+				lowUserID, highUserID = highUserID, lowUserID
+			}
+			var friendshipCount int64
+			if err := tx.Table("friendships").
+				Where(
+					"user_low_id = ? AND user_high_id = ? AND status = 1 "+
+						"AND low_user_deleted_at IS NULL "+
+						"AND high_user_deleted_at IS NULL",
+					lowUserID,
+					highUserID,
+				).
+				Count(&friendshipCount).Error; err != nil {
+				return fmt.Errorf("校验私聊好友关系: %w", err)
+			}
+			if friendshipCount != 1 {
+				return ErrNotFriends
+			}
 		}
 
 		// 引用消息必须属于当前会话。数据库自引用外键只能保证被引用消息

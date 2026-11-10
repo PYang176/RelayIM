@@ -15,6 +15,8 @@ var (
 	ErrNotMember = errors.New("发送者不是会话成员")
 	// ErrUserBlocked 表示私聊双方存在拉黑关系。
 	ErrUserBlocked = errors.New("双方存在拉黑关系")
+	// ErrNotFriends 表示私聊双方已不是有效好友关系。
+	ErrNotFriends = errors.New("你不是对方的好友")
 	// ErrInvalidReply 表示引用消息不属于当前会话。
 	ErrInvalidReply = errors.New("引用的消息无效")
 	// ErrClientMessageConflict 表示同一客户端消息 ID 被用于其他会话。

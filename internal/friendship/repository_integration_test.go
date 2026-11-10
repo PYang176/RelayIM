@@ -186,6 +186,13 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 	if err != nil || len(friends.Friends) != 0 {
 		t.Fatalf("删除后好友列表 = %+v, err=%v", friends, err)
 	}
+	friends, err = service.ListFriends(context.Background(), userB, page)
+	if err != nil ||
+		len(friends.Friends) != 1 ||
+		friends.Friends[0].User.ID != userA ||
+		friends.Friends[0].RelationshipActive {
+		t.Fatalf("被单向删除后的联系人列表 = %+v, err=%v", friends, err)
+	}
 
 	if err := service.SendRequest(
 		context.Background(),

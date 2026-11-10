@@ -4,6 +4,7 @@ import (
 	friendshipapp "github.com/PYang176/RelayIM/internal/friendship"
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"github.com/PYang176/RelayIM/internal/platform/observability"
+	realtimeapp "github.com/PYang176/RelayIM/internal/realtime"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,10 +25,11 @@ func Register(
 	db *gorm.DB,
 	requestLimiter middleware.RateLimitChecker,
 	metrics *observability.Metrics,
+	realtimeDelivery *realtimeapp.DeliveryRouter,
 ) {
 	repository := friendshipapp.NewRepository(db)
 	service := friendshipapp.NewService(repository)
-	handler := friendshipapp.NewHandler(service)
+	handler := friendshipapp.NewHandler(service, realtimeDelivery)
 
 	group := r.Group("/api/v1")
 	group.Use(middleware.AuthMiddleware())

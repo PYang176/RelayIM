@@ -43,6 +43,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	outsiderID := uint64(snowflake.Generate())
 	conversationID := uint64(snowflake.Generate())
 	directConversationID := uint64(snowflake.Generate())
+	directFriendshipID := uint64(snowflake.Generate())
 	memberDeviceID := uint64(snowflake.Generate())
 	attachmentID := uint64(snowflake.Generate())
 	oldOrphanID := uint64(snowflake.Generate())
@@ -70,6 +71,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{directConversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{directConversationID}},
+			{"DELETE FROM friendships WHERE id = ?", []any{directFriendshipID}},
 			{"DELETE FROM devices WHERE id = ?", []any{memberDeviceID}},
 			{
 				"DELETE FROM user_blocks WHERE blocker_id IN (?, ?, ?) " +
@@ -208,6 +210,16 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	).Error; err != nil {
 		t.Fatalf("创建私聊测试成员失败: %v", err)
 	}
+	if err := db.Exec(
+		`INSERT INTO friendships
+			(id, user_low_id, user_high_id, status)
+		 VALUES (?, ?, ?, 1)`,
+		directFriendshipID,
+		lowID,
+		highID,
+	).Error; err != nil {
+		t.Fatalf("创建私聊好友关系失败: %v", err)
+	}
 
 	repository := NewRepository(db)
 	service := NewService(repository)
@@ -290,6 +302,28 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	})
 	if !errors.Is(err, ErrUserBlocked) {
 		t.Fatalf("拉黑后发送错误 = %v，期望 ErrUserBlocked", err)
+	}
+	if err := db.Exec(
+		"DELETE FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?",
+		ownerID,
+		memberID,
+	).Error; err != nil {
+		t.Fatalf("清理消息拉黑关系失败: %v", err)
+	}
+	if err := db.Exec(
+		"UPDATE friendships SET low_user_deleted_at = CURRENT_TIMESTAMP(3) WHERE id = ?",
+		directFriendshipID,
+	).Error; err != nil {
+		t.Fatalf("模拟单向删除好友失败: %v", err)
+	}
+	_, err = service.SendText(context.Background(), SendTextCommand{
+		ConversationID:  directConversationID,
+		SenderID:        memberID,
+		ClientMessageID: "client-message-not-friends",
+		Content:         "单向删除后消息",
+	})
+	if !errors.Is(err, ErrNotFriends) {
+		t.Fatalf("单向删除后发送错误 = %v，期望 ErrNotFriends", err)
 	}
 
 	// 场景 4：同一会话并发发送。会话行锁应让序号仍保持连续，不发生重复。

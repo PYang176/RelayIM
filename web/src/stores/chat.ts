@@ -6,6 +6,7 @@ import * as messageApi from '@/api/messages'
 import * as presenceApi from '@/api/presence'
 import {useChatSocket} from '@/composables/useChatSocket'
 import {useAuthStore} from '@/stores/auth'
+import {useFriendshipStore} from '@/stores/friendships'
 import {useGroupInvitationStore} from '@/stores/group-invitations'
 import {
     createSequenceCursor,
@@ -42,6 +43,7 @@ interface ConversationSequenceState {
 
 export const useChatStore = defineStore('chat', () => {
     const auth = useAuthStore()
+    const friendships = useFriendshipStore()
     const groupInvitations = useGroupInvitationStore()
     const conversations = ref<Conversation[]>([])
     const messagesByConversation = ref<Record<string, ChatMessage[]>>({})
@@ -330,7 +332,14 @@ export const useChatStore = defineStore('chat', () => {
         )
         if (searchIndex >= 0) {
             const searchResults = [...conversationSearchResults.value]
-            searchResults[searchIndex] = conversation
+            searchResults[searchIndex] = {
+                ...conversation,
+                // 并发刷新可能晚于实时消息返回，会话序号不能因此倒退
+                last_seq: Math.max(
+                    searchResults[searchIndex].last_seq,
+                    conversation.last_seq,
+                ),
+            }
             conversationSearchResults.value = sortConversations(searchResults)
         }
     }
@@ -343,7 +352,10 @@ export const useChatStore = defineStore('chat', () => {
         const index = items.findIndex((item) => item.id === conversation.id)
         const next = [...items]
         if (index >= 0) {
-            next[index] = conversation
+            next[index] = {
+                ...conversation,
+                last_seq: Math.max(next[index].last_seq, conversation.last_seq),
+            }
         } else {
             next.push(conversation)
         }
@@ -459,6 +471,21 @@ export const useChatStore = defineStore('chat', () => {
         conversationSearchResults.value = sortConversations(
             conversationSearchResults.value,
         )
+    }
+
+    // applyFriendRelationshipChange 更新私聊会话的继续发送权限
+    function applyFriendRelationshipChange(peerUserID: string, active: boolean) {
+        for (const conversation of [
+            ...conversations.value,
+            ...conversationSearchResults.value,
+        ]) {
+            if (
+                conversation.conversation_type === 1 &&
+                conversation.peer_user_id === peerUserID
+            ) {
+                conversation.direct_friendship_active = active
+            }
+        }
     }
 
     // loadConversations 加载首个会话列表窗口
@@ -895,6 +922,15 @@ export const useChatStore = defineStore('chat', () => {
                 (left, right) => left.seq - right.seq,
             )
             const latestSeq = latestMessages.at(-1)?.seq ?? 0
+            const conversationSummary = conversations.value.find(
+                (item) => item.id === conversationId,
+            )
+            if (conversationSummary) {
+                conversationSummary.last_seq = Math.max(
+                    conversationSummary.last_seq,
+                    latestSeq,
+                )
+            }
 
             /*
              * 最新页是新的历史窗口。旧窗口可能距离最新消息几千条，
@@ -1243,6 +1279,26 @@ export const useChatStore = defineStore('chat', () => {
     // handleSocketMessage 根据动作类型处理实时消息、撤回和群邀请
     function handleSocketMessage(payload: WsMessage) {
         if (
+            payload.action === 'conversation_created' &&
+            payload.conversation_id
+        ) {
+            void refreshConversation(payload.conversation_id)
+            return
+        }
+        if (
+            payload.action === 'friend_relationship_changed' &&
+            payload.peer_user_id
+        ) {
+            const active = Boolean(payload.relationship_active)
+            applyFriendRelationshipChange(payload.peer_user_id, active)
+            friendships.applyRelationshipChange(
+                payload.peer_user_id,
+                active,
+                payload.friend_visible ?? true,
+            )
+            return
+        }
+        if (
             payload.action === 'group_invitation' ||
             payload.action === 'group_invitation_cancelled'
         ) {
@@ -1431,6 +1487,7 @@ export const useChatStore = defineStore('chat', () => {
         markRead,
         refreshPresence,
         reconcileActiveConversation,
+        applyFriendRelationshipChange,
         reportError: setError,
         clearError,
         reset,

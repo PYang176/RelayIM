@@ -200,6 +200,9 @@ type conversationSummary struct {
 	// MemberCount 是当前有效成员数量。
 	MemberCount uint64 `gorm:"column:member_count"`
 
+	// DirectFriendshipActive 表示私聊双方是否都未删除好友。
+	DirectFriendshipActive bool `gorm:"column:direct_friendship_active"`
+
 	// UpdatedAt 是会话最近活动时间。
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }

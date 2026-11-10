@@ -333,74 +333,164 @@ a:focus-visible {
 
 .chat-page {
     height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+    overflow: hidden;
     background: var(--canvas);
 }
 
-.app-header {
-    height: 4.375rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--line);
-    padding: 0 1.5rem;
-    background: var(--surface);
-}
-
-.app-brand,
-.current-user {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.app-brand div {
-    display: grid;
-    gap: 0.125rem;
-}
-
-.brand-dot {
-    width: 2.25rem;
-    height: 2.25rem;
-}
-
-.connection-state {
-    color: var(--muted);
-    font-size: 0.6875rem;
-}
-
-.connection-state.connected {
-    color: var(--signal);
-}
-
-.connection-state.disconnected {
-    color: var(--danger);
-}
-
-.current-user-copy {
+.chat-shell {
     min-width: 0;
-    display: grid;
-    justify-items: end;
-    gap: 0.125rem;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
-.current-user-avatar {
-    width: 2rem;
-    height: 2rem;
+.app-rail {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    border-right: 1px solid #284c53;
+    padding: 0.75rem 0.5rem;
+    color: #d8ebe9;
+    background: var(--ink);
+}
+
+.rail-brand .brand-dot {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-color: rgba(255, 255, 255, 0.34);
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.rail-avatar {
+    width: 2.75rem;
+    height: 2.75rem;
     display: grid;
     place-items: center;
-    border-radius: var(--radius-sm);
-    color: var(--signal-strong);
-    background: var(--signal-soft);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-md);
+    padding: 0;
+    color: var(--ink);
+    background: #d4ece9;
     font-weight: 800;
     overflow: hidden;
 }
 
-.current-user-avatar img {
+.rail-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.rail-avatar:hover {
+    border-color: white;
+}
+
+.rail-nav {
+    width: 100%;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.rail-nav-button {
+    position: relative;
+    width: 100%;
+    min-height: 3.75rem;
+    display: grid;
+    place-items: center;
+    gap: 0.125rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 0.375rem 0.125rem;
+    color: #aac4c3;
+    background: transparent;
+}
+
+.rail-nav-button:hover,
+.rail-nav-button.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.rail-nav-mark {
+    width: 1.875rem;
+    height: 1.875rem;
+    display: grid;
+    place-items: center;
+    border-radius: 0.375rem;
+    color: #cce4e1;
+    background: rgba(255, 255, 255, 0.09);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.rail-nav-button.active .rail-nav-mark {
+    color: var(--ink);
+    background: #e9f5f3;
+}
+
+.rail-nav-button small {
+    font-size: 0.625rem;
+}
+
+.rail-badge {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    min-width: 1.125rem;
+    border-radius: 999px;
+    padding: 0.0625rem 0.25rem;
+    color: white;
+    background: #d45d4c;
+    font-family: var(--font-data);
+    font-size: 0.5625rem;
+    line-height: 1.4;
+}
+
+.rail-footer {
+    margin-top: auto;
+    display: grid;
+    justify-items: center;
+    gap: 0.75rem;
+}
+
+.rail-connection {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #8ea5a5;
+}
+
+.rail-connection.connected {
+    background: #5ed0a7;
+}
+
+.rail-connection.connecting,
+.rail-connection.reconnecting {
+    background: #e5b65d;
+}
+
+.rail-connection.disconnected {
+    background: #dc756b;
+}
+
+.rail-logout {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-sm);
+    color: #c3d6d5;
+    background: transparent;
+    font-size: 0.6875rem;
+}
+
+.rail-logout:hover {
+    border-color: rgba(255, 255, 255, 0.45);
+    color: white;
 }
 
 .global-error {
@@ -435,22 +525,21 @@ a:focus-visible {
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--line);
-    padding: 1.125rem;
-    background: var(--surface-muted);
+    padding: 0.875rem 1rem;
+    background: #f5f8f8;
 }
 
 .conversation-heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.25rem 0.125rem 1.125rem;
+    padding: 0.25rem 0.125rem 0.875rem;
 }
 
 .conversation-heading h2 {
     margin: 0;
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    font-weight: 600;
+    font-size: 1.125rem;
+    font-weight: 700;
 }
 
 .conversation-heading-actions {
@@ -531,7 +620,7 @@ a:focus-visible {
 
 .conversation-item.active {
     border-left-color: var(--signal);
-    background: var(--surface);
+    background: #e8f1f0;
 }
 
 .conversation-open {
@@ -643,18 +732,19 @@ a:focus-visible {
 }
 
 .conversation-header {
-    min-height: 4.625rem;
+    min-height: 3.875rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid var(--line);
-    padding: 0.875rem 1.5rem;
+    padding: 0.75rem 1.25rem;
     background: var(--surface);
 }
 
 .conversation-header h1 {
     margin: 0 0 0.25rem;
-    font-size: 1.1875rem;
+    font-size: 1.0625rem;
+    font-weight: 700;
 }
 
 .conversation-header p {
@@ -671,6 +761,15 @@ a:focus-visible {
     border-bottom: 1px solid var(--line);
     padding: 0.625rem 1.5rem;
     background: color-mix(in srgb, var(--signal-soft) 45%, var(--surface));
+}
+
+.relationship-warning {
+    border-bottom: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+    padding: 0.75rem 1rem;
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 .group-member-label {
@@ -715,6 +814,7 @@ a:focus-visible {
     flex: 1;
     overflow-y: auto;
     padding: 1.5rem clamp(1rem, 4vw, 3.5rem);
+    background: #f2f6f5;
     scroll-behavior: smooth;
 }
 
@@ -1362,9 +1462,8 @@ a:focus-visible {
 
 .friends-header h2 {
     margin: 0;
-    font-family: var(--font-display);
-    font-size: 1.875rem;
-    font-weight: 600;
+    font-size: 1.25rem;
+    font-weight: 700;
 }
 
 .friends-header p {
@@ -1574,6 +1673,65 @@ a:focus-visible {
         padding: 1rem;
     }
 
+    .chat-page {
+        grid-template-columns: 1fr;
+        grid-template-rows: 3.75rem minmax(0, 1fr);
+    }
+
+    .app-rail {
+        flex-direction: row;
+        gap: 0.5rem;
+        border-right: 0;
+        border-bottom: 1px solid #284c53;
+        padding: 0.375rem 0.75rem;
+    }
+
+    .rail-brand .brand-dot {
+        width: 2rem;
+        height: 2rem;
+    }
+
+    .rail-avatar {
+        width: 2.125rem;
+        height: 2.125rem;
+        border-radius: var(--radius-sm);
+    }
+
+    .rail-nav {
+        width: auto;
+        display: flex;
+        gap: 0.375rem;
+    }
+
+    .rail-nav-button {
+        width: 2.75rem;
+        min-height: 2.75rem;
+        display: flex;
+        gap: 0.25rem;
+        padding: 0.25rem;
+    }
+
+    .rail-nav-button small {
+        display: none;
+    }
+
+    .rail-nav-mark {
+        width: 1.75rem;
+        height: 1.75rem;
+    }
+
+    .rail-footer {
+        margin-top: 0;
+        margin-left: auto;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .rail-logout {
+        width: 1.875rem;
+        height: 1.875rem;
+    }
+
     .chat-layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto minmax(0, 1fr);
@@ -1694,7 +1852,6 @@ a:focus-visible {
         max-width: 88%;
     }
 
-    .app-header,
     .conversation-header,
     .group-member-strip {
         padding-right: 0.875rem;
@@ -1703,11 +1860,7 @@ a:focus-visible {
 }
 
 @media (max-width: 26rem) {
-    .app-brand div strong {
-        display: none;
-    }
-
-    .current-user-copy {
+    .rail-brand {
         display: none;
     }
 

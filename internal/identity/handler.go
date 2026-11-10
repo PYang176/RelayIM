@@ -236,6 +236,21 @@ func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, userResponse(result))
 }
 
+// PublicProfile 处理 GET /api/v1/users/:user_id。
+func (h *Handler) PublicProfile(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	if err != nil || userID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 格式错误"})
+		return
+	}
+	result, err := h.service.Me(c.Request.Context(), userID)
+	if err != nil {
+		writeIdentityError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, userResponse(result))
+}
+
 // UpdateProfile 处理 PUT /api/v1/me。
 func (h *Handler) UpdateProfile(c *gin.Context) {
 	userID, ok := middleware.CurrentUserID(c)

@@ -343,6 +343,26 @@ paths:
           $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/users/{user_id}:
+    get:
+      tags: [Auth]
+      summary: 读取指定用户的公开资料
+      operationId: getUserProfile
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: 用户公开昵称、头像和个人简介
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/users/search:
     get:
       tags: [Friendship]
@@ -1710,7 +1730,8 @@ components:
           type: boolean
     Friend:
       type: object
-      required: [friendship_id, user, remark, blocked_by_me]
+      required:
+        [friendship_id, user, remark, blocked_by_me, relationship_active]
       properties:
         friendship_id:
           $ref: "#/components/schemas/SnowflakeID"
@@ -1721,6 +1742,9 @@ components:
         blocked_by_me:
           type: boolean
           description: 当前用户是否已拉黑该好友
+        relationship_active:
+          type: boolean
+          description: 双方都未删除好友时可以继续私聊和群邀请
     BlockedUser:
       type: object
       required: [user, created_at]
@@ -1791,6 +1815,7 @@ components:
           pinned,
           unread_count,
           member_count,
+          direct_friendship_active,
           updated_at,
         ]
       properties:
@@ -1829,6 +1854,9 @@ components:
           type: integer
           format: int64
           minimum: 1
+        direct_friendship_active:
+          type: boolean
+          description: 私聊双方都未删除好友时可以继续发送消息；群聊固定为 true
         updated_at:
           type: string
           format: date-time

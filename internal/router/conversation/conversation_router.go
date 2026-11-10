@@ -4,6 +4,7 @@ import (
 	conversationapp "github.com/PYang176/RelayIM/internal/conversation"
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"github.com/PYang176/RelayIM/internal/platform/observability"
+	realtimeapp "github.com/PYang176/RelayIM/internal/realtime"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,10 +25,11 @@ func Register(
 	db *gorm.DB,
 	requestLimiter middleware.RateLimitChecker,
 	metrics *observability.Metrics,
+	realtimeDelivery *realtimeapp.DeliveryRouter,
 ) {
 	repo := conversationapp.NewRepository(db)
 	service := conversationapp.NewService(repo)
-	handler := conversationapp.NewHandler(service)
+	handler := conversationapp.NewHandler(service, realtimeDelivery)
 
 	group := r.Group("/api/v1/conversations")
 	group.Use(middleware.AuthMiddleware())

@@ -15,7 +15,43 @@ const (
 
 	// ActionGroupInvitationCancelled 表示一条群邀请已被取消。
 	ActionGroupInvitationCancelled = "group_invitation_cancelled"
+
+	// ActionConversationCreated 表示用户被加入一个可访问的新私聊或群聊。
+	ActionConversationCreated = "conversation_created"
+
+	// ActionFriendRelationshipChanged 表示单向好友关系或联系人可见性发生变化。
+	ActionFriendRelationshipChanged = "friend_relationship_changed"
 )
+
+// FriendRelationshipMessage 是好友关系变化的实时通知。
+type FriendRelationshipMessage struct {
+	// Action 是好友关系变化信令。
+	Action string `json:"action"`
+
+	// PeerUserID 是关系另一方的 Snowflake 用户 ID 字符串。
+	PeerUserID string `json:"peer_user_id"`
+
+	// RelationshipActive 表示双方是否仍能继续发送私聊消息。
+	RelationshipActive bool `json:"relationship_active"`
+
+	// FriendVisible 表示接收方是否应继续在联系人列表中展示对方。
+	FriendVisible bool `json:"friend_visible"`
+
+	// TraceID 是产生该通知的 Trace 标识。
+	TraceID string `json:"trace_id,omitempty"`
+}
+
+// ConversationCreatedMessage 是会话创建或首次打开的实时刷新通知。
+type ConversationCreatedMessage struct {
+	// Action 是会话刷新信令。
+	Action string `json:"action"`
+
+	// ConversationID 是客户端需要刷新的会话 Snowflake ID 字符串。
+	ConversationID string `json:"conversation_id"`
+
+	// TraceID 是产生该通知的 Trace 标识。
+	TraceID string `json:"trace_id,omitempty"`
+}
 
 // GroupInvitationMessage 是群邀请实时通知帧。
 type GroupInvitationMessage struct {

@@ -236,6 +236,7 @@ func Run() error {
 			wsTicketLimiter,
 			presenceService,
 			realtimeRegistry,
+			deliveryRouter,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

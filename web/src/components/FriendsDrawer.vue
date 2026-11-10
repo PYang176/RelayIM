@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {nextTick, shallowRef, useTemplateRef, watch} from 'vue'
 
+import AddFriendPanel from '@/components/AddFriendPanel.vue'
 import FriendRequestRow from '@/components/FriendRequestRow.vue'
 import FriendRow from '@/components/FriendRow.vue'
 import {useFriendshipStore} from '@/stores/friendships'
@@ -12,22 +13,22 @@ const props = defineProps<{
 const emit = defineEmits<{
     close: []
     openDirect: [userID: string]
+    viewProfile: [userID: string]
+    friendRemoved: [userID: string]
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const closeButton = useTemplateRef<HTMLButtonElement>('closeButton')
 const friendships = useFriendshipStore()
 const activeTab = shallowRef<'friends' | 'requests' | 'blocked'>('friends')
-const searchQuery = shallowRef('')
+const activeView = shallowRef<'contacts' | 'add'>('contacts')
 const requestMode = shallowRef<'received' | 'sent'>('received')
-const requestingUserID = shallowRef('')
-const requestRemark = shallowRef('')
-const requestReasonError = shallowRef('')
 
 watch(
     () => props.open,
     async (open) => {
         if (open) {
+            activeView.value = 'contacts'
             dialog.value?.showModal()
             await friendships.loadAll()
             await nextTick()
@@ -39,39 +40,31 @@ watch(
     {immediate: true},
 )
 
-// submitSearch 提交用户搜索并更新搜索结果
-async function submitSearch() {
-    await friendships.search(searchQuery.value)
-}
-
 // close 关闭联系人抽屉
 function close() {
+    activeView.value = 'contacts'
+    friendships.clearSearch()
     emit('close')
 }
 
-// beginRequest 为指定用户打开好友申请输入
-function beginRequest(userID: string) {
-    requestingUserID.value = userID
-    requestRemark.value = ''
-    requestReasonError.value = ''
+// openAddFriend 切换到添加好友视图
+function openAddFriend() {
+    friendships.clearError()
+    friendships.clearSearch()
+    activeView.value = 'add'
 }
 
-// cancelRequest 取消好友申请输入
-function cancelRequest() {
-    requestingUserID.value = ''
-    requestRemark.value = ''
-    requestReasonError.value = ''
+// backToContacts 返回好友列表视图并清理搜索结果
+function backToContacts() {
+    friendships.clearError()
+    friendships.clearSearch()
+    activeView.value = 'contacts'
 }
 
-// submitRequest 提交带理由的好友申请
-async function submitRequest(userID: string) {
-    const remark = requestRemark.value.trim()
-    if (!remark) {
-        requestReasonError.value = '请填写好友申请理由'
-        return
-    }
-    if (await friendships.sendRequest(userID, remark)) {
-        cancelRequest()
+// removeFriend 单向删除好友并同步当前私聊权限
+async function removeFriend(friendUserID: string) {
+    if (await friendships.removeFriend(friendUserID)) {
+        emit('friendRemoved', friendUserID)
     }
 }
 </script>
@@ -87,21 +80,52 @@ async function submitRequest(userID: string) {
         <div class="friends-drawer">
             <header class="friends-header">
                 <div>
-                    <h2 id="friends-title">联系人</h2>
-                    <p>搜索用户、处理申请和设置独立好友备注。</p>
+                    <h2 id="friends-title">
+                        {{ activeView === 'add' ? '添加好友' : '联系人' }}
+                    </h2>
+                    <p>
+                        {{
+                            activeView === 'add'
+                                ? '查找用户并填写理由发送好友申请。'
+                                : '处理好友申请、备注和既有联系人。'
+                        }}
+                    </p>
                 </div>
-                <button
-                        ref="closeButton"
-                        class="icon-button"
-                        aria-label="关闭联系人"
-                        type="button"
-                        @click="close"
-                >
-                    ×
-                </button>
+                <div class="friends-header-actions">
+                    <button
+                            v-if="activeView === 'contacts'"
+                            class="primary-button compact"
+                            type="button"
+                            @click="openAddFriend"
+                    >
+                        添加好友
+                    </button>
+                    <button
+                            v-else
+                            class="ghost-button"
+                            type="button"
+                            @click="backToContacts"
+                    >
+                        返回联系人
+                    </button>
+                    <button
+                            ref="closeButton"
+                            class="icon-button"
+                            aria-label="关闭联系人"
+                            type="button"
+                            @click="close"
+                    >
+                        ×
+                    </button>
+                </div>
             </header>
 
-            <div class="friends-tabs" role="group" aria-label="联系人页面">
+            <div
+                    v-if="activeView === 'contacts'"
+                    class="friends-tabs"
+                    role="group"
+                    aria-label="联系人页面"
+            >
                 <button
                         :aria-pressed="activeTab === 'friends'"
                         :class="{ active: activeTab === 'friends' }"
@@ -131,91 +155,23 @@ async function submitRequest(userID: string) {
                 </button>
             </div>
 
-            <p v-if="friendships.error" class="form-error" role="alert">
+            <p
+                    v-if="activeView === 'contacts' && friendships.error"
+                    class="form-error"
+                    role="alert"
+            >
                 {{ friendships.error }}
                 <button class="text-button" type="button" @click="friendships.clearError">
                     关闭
                 </button>
             </p>
 
-            <template v-if="activeTab === 'friends'">
-                <form class="friend-search" role="search" @submit.prevent="submitSearch">
-                    <label class="sr-only" for="friend-search-input">搜索用户</label>
-                    <input
-                            id="friend-search-input"
-                            v-model="searchQuery"
-                            maxlength="50"
-                            placeholder="输入用户名或昵称"
-                            required
-                    />
-                    <button :disabled="friendships.searching" type="submit">
-                        {{ friendships.searching ? '搜索中' : '搜索' }}
-                    </button>
-                </form>
+            <AddFriendPanel
+                    v-if="activeView === 'add'"
+                    @view-profile="emit('viewProfile', $event)"
+            />
 
-                <section v-if="friendships.searchResults.length" class="drawer-section">
-                    <h3>搜索结果</h3>
-                    <article
-                            v-for="user in friendships.searchResults"
-                            :key="user.id"
-                            class="request-row"
-                    >
-            <span class="friend-avatar">
-              {{ (user.nickname || user.username).slice(0, 1) }}
-            </span>
-                        <div class="friend-copy">
-                            <strong>{{ user.nickname || user.username }}</strong>
-                            <small>@{{ user.username }}</small>
-                        </div>
-                        <div
-                                v-if="requestingUserID === user.id"
-                                class="friend-inline-form"
-                        >
-                            <label class="sr-only" :for="`request-remark-${user.id}`">
-                                好友申请理由
-                            </label>
-                            <input
-                                    :id="`request-remark-${user.id}`"
-                                    v-model="requestRemark"
-                                    maxlength="200"
-                                    placeholder="填写申请理由"
-                                    @keyup.enter="submitRequest(user.id)"
-                            />
-                            <button
-                                    :disabled="friendships.actionBusy"
-                                    type="button"
-                                    @click="submitRequest(user.id)"
-                            >
-                                发送申请
-                            </button>
-                            <button type="button" @click="cancelRequest">取消</button>
-                            <span
-                                    v-if="requestReasonError"
-                                    class="form-error"
-                                    role="alert"
-                            >
-                                {{ requestReasonError }}
-                            </span>
-                        </div>
-                        <div v-else class="friend-actions">
-                            <button
-                                    :disabled="friendships.actionBusy"
-                                    type="button"
-                                    @click="beginRequest(user.id)"
-                            >
-                                添加
-                            </button>
-                            <button
-                                    :disabled="friendships.actionBusy"
-                                    type="button"
-                                    @click="friendships.blockUser(user.id)"
-                            >
-                                拉黑
-                            </button>
-                        </div>
-                    </article>
-                </section>
-
+            <template v-else-if="activeTab === 'friends'">
                 <section class="drawer-section drawer-list" aria-live="polite">
                     <h3>好友</h3>
                     <p v-if="friendships.loading" role="status">加载好友中…</p>
@@ -228,8 +184,9 @@ async function submitRequest(userID: string) {
                             :busy="friendships.actionBusy"
                             :friend="friend"
                             @message="emit('openDirect', $event)"
+                            @profile="emit('viewProfile', $event)"
                             @block="friendships.blockUser(friend.user.id)"
-                            @remove="friendships.removeFriend(friend.user.id)"
+                            @remove="removeFriend(friend.user.id)"
                             @unblock="friendships.unblockUser(friend.user.id)"
                             @update-remark="friendships.updateRemark(friend.user.id, $event)"
                     />
@@ -345,3 +302,11 @@ async function submitRequest(userID: string) {
         </div>
     </dialog>
 </template>
+
+<style scoped>
+.friends-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+</style>

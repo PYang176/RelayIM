@@ -15,7 +15,7 @@ func TestRegisterRoutesAlongsideConversationRoutes(t *testing.T) {
 
 	// 两个模块共享 /api/v1/conversations 前缀，测试静态群路由与参数消息
 	// 路由可以同时注册，避免启动时发生 Gin 路由冲突。
-	conversation.Register(router, nil, nil, nil)
+	conversation.Register(router, nil, nil, nil, nil)
 	messagingrouter.Register(router, nil, nil, nil, nil)
 
 	wantRoutes := map[string]bool{

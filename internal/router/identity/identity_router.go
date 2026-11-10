@@ -87,6 +87,7 @@ func Register(
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
 	protected.GET("/me", handler.Me)
+	protected.GET("/users/:user_id", handler.PublicProfile)
 	protected.PUT(
 		"/me",
 		middleware.RateLimit(

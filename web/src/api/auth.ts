@@ -70,6 +70,14 @@ export function getMe(token: string): Promise<UserSummary> {
     return request('/me', {}, token)
 }
 
+// getUserProfile 读取指定用户的公开资料
+export function getUserProfile(
+    token: string,
+    userID: string,
+): Promise<UserSummary> {
+    return request(`/users/${userID}`, {}, token)
+}
+
 // updateProfile 保存昵称、简介和头像地址
 export function updateProfile(
     token: string,

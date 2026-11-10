@@ -41,6 +41,13 @@ func (r *Repository) CreateDirect(
 	peerUserID uint64,
 ) (*conversation, bool, error) {
 	lowID, highID := orderedUsers(userID, peerUserID)
+	activeFriendship, err := r.hasActiveFriendship(ctx, userID, peerUserID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !activeFriendship {
+		return nil, false, ErrNotFriend
+	}
 	blocked, err := hasBlockedPair(ctx, r.db, userID, peerUserID)
 	if err != nil {
 		return nil, false, err
@@ -260,6 +267,10 @@ func (r *Repository) conversationSummaryQuery(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
 				"c.last_seq, m.last_read_seq, c.updated_at, "+
 				conversationPinnedExpression+" AS pinned, "+
+				"CASE WHEN c.conversation_type = 2 THEN 1 "+
+				"WHEN f.id IS NOT NULL AND f.low_user_deleted_at IS NULL "+
+				"AND f.high_user_deleted_at IS NULL THEN 1 ELSE 0 END "+
+				"AS direct_friendship_active, "+
 				"CASE WHEN c.conversation_type = 1 "+
 				"AND c.direct_low_user_id = m.user_id "+
 				"THEN c.direct_high_user_id "+
@@ -1412,6 +1423,30 @@ func (r *Repository) userDisplayName(
 	return record.Title, nil
 }
 
+// hasActiveFriendship 判断双方是否仍维持未单向删除的好友关系。
+func (r *Repository) hasActiveFriendship(
+	ctx context.Context,
+	firstUserID uint64,
+	secondUserID uint64,
+) (bool, error) {
+	lowID, highID := orderedUsers(firstUserID, secondUserID)
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Table("friendships").
+		Where(
+			"user_low_id = ? AND user_high_id = ? AND status = ? "+
+				"AND low_user_deleted_at IS NULL "+
+				"AND high_user_deleted_at IS NULL",
+			lowID,
+			highID,
+			1,
+		).
+		Count(&count).Error; err != nil {
+		return false, fmt.Errorf("校验私聊好友关系: %w", err)
+	}
+	return count == 1, nil
+}
+
 // countFriends 统计指定好友关系数量，用于成员权限和状态校验
 func countFriends(
 	ctx context.Context,
@@ -1423,7 +1458,8 @@ func countFriends(
 	if err := tx.WithContext(ctx).
 		Table("friendships").
 		Where(
-			"status = ? AND ("+
+			"status = ? AND low_user_deleted_at IS NULL "+
+				"AND high_user_deleted_at IS NULL AND ("+
 				"(user_low_id = ? AND user_high_id IN ?) OR "+
 				"(user_high_id = ? AND user_low_id IN ?))",
 			1,

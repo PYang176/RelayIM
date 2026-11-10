@@ -137,6 +137,36 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话全部有效�
 
 客户端收到事件后立即刷新 `GET /api/v1/group-invitations`。WebSocket 只承担低延迟提醒，HTTP 邀请列表是最终事实来源；30 秒轮询继续作为事件丢失或离线恢复的兜底。
 
+## 4.2 会话实时出现
+
+一方首次打开私聊后，服务端向对方推送会话刷新通知：
+
+```json
+{
+  "action": "conversation_created",
+  "conversation_id": "1839281749283749120"
+}
+```
+
+客户端收到后调用 `GET /api/v1/conversations/:conversation_id`，将新会话插入左侧列表。该通知用于低延迟刷新，HTTP 会话列表仍是最终事实来源。
+
+## 4.3 好友关系变化
+
+用户单向删除好友后，服务端分别通知双方：
+
+```json
+{
+  "action": "friend_relationship_changed",
+  "peer_user_id": "1839281749283749001",
+  "relationship_active": false,
+  "friend_visible": true
+}
+```
+
+- 删除方收到 `friend_visible=false`，联系人立即移除。
+- 对方收到 `friend_visible=true` 且 `relationship_active=false`，联系人保留但标记为关系失效。
+- 双方已有私聊保留历史，但发送输入被禁用，服务端也会拒绝新消息。
+
 ## 5. 客户端回执
 
 收到消息后，客户端按设备发送送达回执：

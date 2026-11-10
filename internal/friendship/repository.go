@@ -104,7 +104,9 @@ func (r *Repository) sendRequest(
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("查询好友关系: %w", err)
 		}
-		if err == nil && existingFriendship.Status == friendshipStatusNormal {
+		if err == nil &&
+			existingFriendship.Status == friendshipStatusNormal &&
+			!friendshipDeletedForUser(existingFriendship, userID) {
 			return ErrAlreadyFriends
 		}
 
@@ -237,8 +239,10 @@ func (r *Repository) respondToRequest(
 		return tx.Model(&friendship{}).
 			Where("id = ?", relation.ID).
 			Updates(map[string]any{
-				"status":     friendshipStatusNormal,
-				"updated_at": now,
+				"status":               friendshipStatusNormal,
+				"low_user_deleted_at":  nil,
+				"high_user_deleted_at": nil,
+				"updated_at":           now,
 			}).Error
 	})
 }
@@ -289,8 +293,9 @@ func (r *Repository) listFriends(
 				Nickname:  record.Nickname,
 				AvatarURL: stringValue(record.AvatarURL),
 			},
-			Remark:      record.Remark,
-			BlockedByMe: record.BlockedByMe,
+			Remark:             record.Remark,
+			BlockedByMe:        record.BlockedByMe,
+			RelationshipActive: record.RelationshipActive,
 		})
 	}
 	page := FriendPage{
@@ -313,11 +318,13 @@ func (r *Repository) listFriendsBySide(
 ) ([]friendRecord, error) {
 	peerJoin := "JOIN users AS u ON u.id = f.user_high_id"
 	sideCondition := "f.user_low_id = ?"
-	tableName := "friendships AS f USE INDEX (idx_friendships_low_status_id)"
+	tableName := "friendships AS f USE INDEX (idx_friendships_low_active_id)"
+	deletedCondition := "f.low_user_deleted_at IS NULL"
 	if !lowSide {
 		peerJoin = "JOIN users AS u ON u.id = f.user_low_id"
 		sideCondition = "f.user_high_id = ?"
-		tableName = "friendships AS f USE INDEX (idx_friendships_high_status_id)"
+		tableName = "friendships AS f USE INDEX (idx_friendships_high_active_id)"
+		deletedCondition = "f.high_user_deleted_at IS NULL"
 	}
 
 	var records []friendRecord
@@ -327,7 +334,9 @@ func (r *Repository) listFriendsBySide(
 			"f.id AS friendship_id, u.id AS friend_user_id, "+
 				"u.username, p.nickname, p.avatar_url, "+
 				"COALESCE(r.remark, '') AS remark, "+
-				"(ub.blocker_id IS NOT NULL) AS blocked_by_me",
+				"(ub.blocker_id IS NOT NULL) AS blocked_by_me, "+
+				"(f.low_user_deleted_at IS NULL AND "+
+				"f.high_user_deleted_at IS NULL) AS relationship_active",
 		).
 		Joins(peerJoin).
 		Joins("JOIN user_profiles AS p ON p.user_id = u.id").
@@ -342,7 +351,7 @@ func (r *Repository) listFriendsBySide(
 			userID,
 		).
 		Where(
-			"f.status = ? AND "+sideCondition,
+			"f.status = ? AND "+deletedCondition+" AND "+sideCondition,
 			friendshipStatusNormal,
 			userID,
 		)
@@ -561,10 +570,13 @@ func (r *Repository) setRemark(
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var relation friendship
 		if err := tx.Where(
-			"user_low_id = ? AND user_high_id = ? AND status = ?",
+			"user_low_id = ? AND user_high_id = ? AND status = ? AND "+
+				"CASE WHEN user_low_id = ? THEN low_user_deleted_at "+
+				"ELSE high_user_deleted_at END IS NULL",
 			lowID,
 			highID,
 			friendshipStatusNormal,
+			userID,
 		).First(&relation).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrFriendshipNotFound
@@ -599,7 +611,7 @@ func (r *Repository) setRemark(
 	})
 }
 
-// deleteFriend 删除好友并遵循关联约束
+// deleteFriend 按当前用户单向隐藏好友，并保留对方联系人视图
 func (r *Repository) deleteFriend(
 	ctx context.Context,
 	userID uint64,
@@ -622,20 +634,36 @@ func (r *Repository) deleteFriend(
 			}
 			return fmt.Errorf("查询好友关系: %w", err)
 		}
+		deletedColumn := "low_user_deleted_at"
+		if relation.UserHighID == userID {
+			deletedColumn = "high_user_deleted_at"
+		}
 		if err := tx.Model(&friendship{}).
 			Where("id = ?", relation.ID).
 			Updates(map[string]any{
-				"status":     friendshipStatusDeleted,
-				"updated_at": now,
+				deletedColumn: now,
+				"updated_at":  now,
 			}).Error; err != nil {
 			return fmt.Errorf("删除好友关系: %w", err)
 		}
-		if err := tx.Where("friendship_id = ?", relation.ID).
+		if err := tx.Where(
+			"friendship_id = ? AND user_id = ?",
+			relation.ID,
+			userID,
+		).
 			Delete(&friendRemark{}).Error; err != nil {
 			return fmt.Errorf("删除好友备注: %w", err)
 		}
 		return nil
 	})
+}
+
+// friendshipDeletedForUser 判断当前用户是否已单向删除该好友。
+func friendshipDeletedForUser(relation friendship, userID uint64) bool {
+	if relation.UserLowID == userID {
+		return relation.LowUserDeletedAt != nil
+	}
+	return relation.HighUserDeletedAt != nil
 }
 
 // orderedUsers 按稳定顺序返回一对用户 ID，供数据库唯一键和查询使用

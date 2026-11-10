@@ -311,6 +311,10 @@
             ],
             "type": "integer"
           },
+          "direct_friendship_active": {
+            "description": "私聊双方都未删除好友时可以继续发送消息；群聊固定为 true",
+            "type": "boolean"
+          },
           "id": {
             "$ref": "#/components/schemas/SnowflakeID"
           },
@@ -366,6 +370,7 @@
           "pinned",
           "unread_count",
           "member_count",
+          "direct_friendship_active",
           "updated_at"
         ],
         "type": "object"
@@ -516,6 +521,10 @@
           "friendship_id": {
             "$ref": "#/components/schemas/SnowflakeID"
           },
+          "relationship_active": {
+            "description": "双方都未删除好友时可以继续私聊和群邀请",
+            "type": "boolean"
+          },
           "remark": {
             "type": "string"
           },
@@ -527,7 +536,8 @@
           "friendship_id",
           "user",
           "remark",
-          "blocked_by_me"
+          "blocked_by_me",
+          "relationship_active"
         ],
         "type": "object"
       },
@@ -3454,6 +3464,41 @@
         "summary": "搜索用户",
         "tags": [
           "Friendship"
+        ]
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "get": {
+        "operationId": "getUserProfile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSummary"
+                }
+              }
+            },
+            "description": "用户公开昵称、头像和个人简介"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "读取指定用户的公开资料",
+        "tags": [
+          "Auth"
         ]
       }
     },

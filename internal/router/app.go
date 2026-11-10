@@ -27,6 +27,7 @@ func Router(
 	wsTicketLimiter middleware.WSTicketRateLimiter,
 	presenceService *presenceapp.Service,
 	realtimeRoutes *realtimeapp.Registry,
+	realtimeDelivery *realtimeapp.DeliveryRouter,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -58,10 +59,22 @@ func Router(
 	)
 
 	// 会话路由
-	conversationrouter.Register(r, db, requestLimiter, metrics)
+	conversationrouter.Register(
+		r,
+		db,
+		requestLimiter,
+		metrics,
+		realtimeDelivery,
+	)
 
 	// 好友路由
-	friendshiprouter.Register(r, db, requestLimiter, metrics)
+	friendshiprouter.Register(
+		r,
+		db,
+		requestLimiter,
+		metrics,
+		realtimeDelivery,
+	)
 
 	// 消息路由
 	messagingrouter.Register(r, db, storage, requestLimiter, metrics)

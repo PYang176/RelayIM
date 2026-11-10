@@ -17,6 +17,7 @@ import MessageComposer from '@/components/MessageComposer.vue'
 import MessageHistoryDialog from '@/components/MessageHistoryDialog.vue'
 import MessageList from '@/components/MessageList.vue'
 import ProfileDialog from '@/components/ProfileDialog.vue'
+import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import {useAuthStore} from '@/stores/auth'
 import {useChatStore} from '@/stores/chat'
 import {useFriendshipStore} from '@/stores/friendships'
@@ -41,6 +42,8 @@ const profileError = shallowRef('')
 const avatarBusy = shallowRef(false)
 const avatarError = shallowRef('')
 const messageHistoryOpen = shallowRef(false)
+const userProfileOpen = shallowRef(false)
+const userProfileID = shallowRef('')
 let presenceTimer = 0
 
 const connectionLabel = computed(() => {
@@ -95,6 +98,20 @@ const currentMemberRole = computed(
     () =>
         chat.activeMembers.find((member) => member.user_id === auth.user?.id)
             ?.role ?? 1,
+)
+const activeConversationCanSend = computed(() => {
+    const conversation = chat.activeConversation
+    if (!conversation) return false
+    return (
+        conversation.conversation_type === 2 ||
+        conversation.direct_friendship_active
+    )
+})
+const profileCanMessage = computed(
+    () =>
+        friendships.friends.find(
+            (friend) => friend.user.id === userProfileID.value,
+        )?.relationship_active ?? false,
 )
 
 // selectConversation 切换当前会话并同步页面状态
@@ -384,6 +401,28 @@ async function openFriendDirect(userID: string) {
     }
 }
 
+// openUserProfile 打开好友或搜索用户的只读资料
+function openUserProfile(userID: string) {
+    userProfileID.value = userID
+    userProfileOpen.value = true
+}
+
+// closeUserProfile 关闭只读用户资料弹窗
+function closeUserProfile() {
+    userProfileOpen.value = false
+}
+
+// messageFromProfile 从用户资料弹窗进入私聊
+async function messageFromProfile(userID: string) {
+    userProfileOpen.value = false
+    await openFriendDirect(userID)
+}
+
+// handleFriendRemoved 同步本地会话中的单向好友发送权限
+function handleFriendRemoved(userID: string) {
+    chat.applyFriendRelationshipChange(userID, false)
+}
+
 onMounted(async () => {
     document.addEventListener('visibilitychange', markVisibleConversationRead)
     try {
@@ -412,189 +451,232 @@ onBeforeUnmount(() => {
 <template>
     <main class="chat-page">
         <a class="skip-link" href="#message-log">跳到消息内容</a>
-        <header class="app-header">
-            <div class="app-brand">
+        <aside class="app-rail" aria-label="主导航">
+            <div class="rail-brand" title="RelayIM">
                 <span class="brand-dot">G</span>
-                <div>
-                    <strong>RelayIM</strong>
-                    <small :class="['connection-state', chat.connectionState]">
-                        {{ connectionLabel }}
-                    </small>
-                </div>
             </div>
-            <div class="current-user">
-                <span class="current-user-avatar" aria-hidden="true">
-                    <img
-                            v-if="auth.user?.avatar_url"
-                            :alt="auth.user.nickname || auth.user.username"
-                            :src="auth.user.avatar_url"
-                    />
-                    <template v-else>
-                        {{
-                            (auth.user?.nickname || auth.user?.username || '我')
-                                .slice(0, 1)
-                        }}
-                    </template>
-                </span>
-                <span class="current-user-copy">
-                    <strong>{{ auth.user?.nickname || auth.user?.username }}</strong>
-                </span>
-                <button class="ghost-button" type="button" @click="openProfile">
-                    资料
-                </button>
-                <button class="ghost-button" type="button" @click="friendsOpen = true">
-                    好友
+            <button
+                    class="rail-avatar"
+                    :aria-label="`打开${auth.user?.nickname || auth.user?.username || '我的'}资料`"
+                    type="button"
+                    @click="openProfile"
+            >
+                <img
+                        v-if="auth.user?.avatar_url"
+                        :alt="auth.user.nickname || auth.user.username"
+                        :src="auth.user.avatar_url"
+                />
+                <template v-else>
+                    {{
+                        (auth.user?.nickname || auth.user?.username || '我')
+                            .slice(0, 1)
+                    }}
+                </template>
+            </button>
+            <nav class="rail-nav" aria-label="功能入口">
+                <button
+                        class="rail-nav-button active"
+                        type="button"
+                        aria-current="page"
+                >
+                    <span class="rail-nav-mark">聊</span>
+                    <small>消息</small>
                 </button>
                 <button
-                        class="ghost-button"
+                        class="rail-nav-button"
+                        type="button"
+                        @click="friendsOpen = true"
+                >
+                    <span class="rail-nav-mark">联</span>
+                    <small>联系人</small>
+                </button>
+                <button
+                        class="rail-nav-button"
                         type="button"
                         @click="groupInvitationsOpen = true"
                 >
-                    群邀请
-                    <template v-if="groupInvitations.invitations.length">
+                    <span class="rail-nav-mark">邀</span>
+                    <small>群邀请</small>
+                    <span
+                            v-if="groupInvitations.invitations.length"
+                            class="rail-badge"
+                    >
                         {{ groupInvitations.invitations.length
                         }}{{ groupInvitations.hasMore ? '+' : '' }}
-                    </template>
+                    </span>
                 </button>
-                <button class="ghost-button" type="button" @click="logout">退出</button>
+            </nav>
+            <div class="rail-footer">
+                <span
+                        :aria-label="connectionLabel"
+                        :class="['rail-connection', chat.connectionState]"
+                        :title="connectionLabel"
+                />
+                <button
+                        class="rail-logout"
+                        aria-label="退出登录"
+                        title="退出登录"
+                        type="button"
+                        @click="logout"
+                >
+                    退
+                </button>
             </div>
-        </header>
+        </aside>
 
-        <div v-if="chat.error" class="global-error" role="alert">
-            <span>{{ chat.error }}</span>
-            <button aria-label="关闭错误提示" type="button" @click="chat.clearError">
-                关闭
-            </button>
-        </div>
+        <div class="chat-shell">
+            <div v-if="chat.error" class="global-error" role="alert">
+                <span>{{ chat.error }}</span>
+                <button aria-label="关闭错误提示" type="button" @click="chat.clearError">
+                    关闭
+                </button>
+            </div>
 
-        <section class="chat-layout">
-            <ConversationList
-                    :active-id="chat.activeConversationId"
-                    :conversations="chat.displayedConversations"
-                    :has-more="chat.hasMoreDisplayedConversations"
-                    :loading="chat.loadingConversations"
-                    :loading-more="chat.loadingMoreConversations"
-                    :search-query="chat.conversationSearchQuery"
-                    :searching="chat.searchingConversations"
-                    @clear-search="chat.clearConversationSearch"
-                    @create-group="openGroupCreator"
-                    @load-more="chat.loadMoreConversations"
-                    @open-friends="friendsOpen = true"
-                    @search="chat.searchConversations"
-                    @select="selectConversation"
-                    @toggle-pin="chat.setConversationPinned"
-            />
+            <section class="chat-layout">
+                <ConversationList
+                        :active-id="chat.activeConversationId"
+                        :conversations="chat.displayedConversations"
+                        :has-more="chat.hasMoreDisplayedConversations"
+                        :loading="chat.loadingConversations"
+                        :loading-more="chat.loadingMoreConversations"
+                        :search-query="chat.conversationSearchQuery"
+                        :searching="chat.searchingConversations"
+                        @clear-search="chat.clearConversationSearch"
+                        @create-group="openGroupCreator"
+                        @load-more="chat.loadMoreConversations"
+                        @open-friends="friendsOpen = true"
+                        @search="chat.searchConversations"
+                        @select="selectConversation"
+                        @toggle-pin="chat.setConversationPinned"
+                />
 
-            <section class="conversation-main">
-                <template v-if="chat.activeConversation">
-                    <header class="conversation-header">
-                        <div>
-                            <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
-                            <p>
-                                最后序号 {{ chat.activeConversation.last_seq }}
-                                <span
-                                        v-if="
-                                            chat.activeConversation.conversation_type === 2
-                                        "
-                                >
-                                    · {{ chat.activeConversation.member_count }} 位成员
-                                </span>
-                                <span
-                                        v-if="
-                                            chat.activeConversation.conversation_type === 2 &&
-                                            chat.activeConversation.last_seq > 0
-                                        "
-                                >
-                                    · {{ groupReadLabel }}
-                                </span>
-                                <span
-                                        v-else-if="
-                                            chat.activeConversation.conversation_type === 1 &&
-                                            chat.activeReadStates.length
-                                        "
-                                >
-                  · 对方已读 {{ chat.activeReadStates[0].last_read_seq }}
-                                </span>
-                                <span v-if="activePresenceLabel">
-                                    · {{ activePresenceLabel }}
-                                </span>
-                            </p>
+                <section class="conversation-main">
+                    <template v-if="chat.activeConversation">
+                        <header class="conversation-header">
+                            <div>
+                                <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
+                                <p>
+                                    最后序号 {{ chat.activeConversation.last_seq }}
+                                    <span
+                                            v-if="
+                                                chat.activeConversation.conversation_type === 2
+                                            "
+                                    >
+                                        · {{ chat.activeConversation.member_count }} 位成员
+                                    </span>
+                                    <span
+                                            v-if="
+                                                chat.activeConversation.conversation_type === 2 &&
+                                                chat.activeConversation.last_seq > 0
+                                            "
+                                    >
+                                        · {{ groupReadLabel }}
+                                    </span>
+                                    <span
+                                            v-else-if="
+                                                chat.activeConversation.conversation_type === 1 &&
+                                                chat.activeReadStates.length
+                                            "
+                                    >
+                      · 对方已读 {{ chat.activeReadStates[0].last_read_seq }}
+                                    </span>
+                                    <span v-if="activePresenceLabel">
+                                        · {{ activePresenceLabel }}
+                                    </span>
+                                </p>
+                            </div>
+                            <button
+                                    class="ghost-button"
+                                    type="button"
+                                    @click="messageHistoryOpen = true"
+                            >
+                                聊天记录
+                            </button>
+                        </header>
+
+                        <div
+                                v-if="
+                                    chat.activeConversation.conversation_type === 1 &&
+                                    !activeConversationCanSend
+                                "
+                                class="relationship-warning"
+                                role="status"
+                        >
+                            双方当前不是好友，无法继续发送消息。你仍可以查看历史记录。
                         </div>
-                        <button
-                                class="ghost-button"
-                                type="button"
-                                @click="messageHistoryOpen = true"
-                        >
-                            聊天记录
-                        </button>
-                    </header>
 
-                    <div
-                            v-if="chat.activeConversation.conversation_type === 2"
-                            class="group-member-strip"
-                            aria-label="群成员"
-                    >
-                        <span class="group-member-label">
-                            <span v-if="chat.loadingMembers">成员加载中</span>
-                            <span v-else>群成员</span>
-                        </span>
-                        <span
-                                v-for="member in visibleGroupMembers"
-                                :key="member.user_id"
-                                class="group-member-chip"
+                        <div
+                                v-if="chat.activeConversation.conversation_type === 2"
+                                class="group-member-strip"
+                                aria-label="群成员"
                         >
-                            {{ memberName(member) }}
-                            <small v-if="member.role === 3">群主</small>
-                        </span>
-                        <span
-                                v-if="hiddenGroupMemberCount > 0"
-                                class="group-member-chip more"
-                        >
-                            +{{ hiddenGroupMemberCount }}
-                        </span>
-                        <button
-                                class="text-button group-manage-button"
-                                type="button"
-                                @click="openGroupMembers"
-                        >
-                            管理成员
-                        </button>
+                            <span class="group-member-label">
+                                <span v-if="chat.loadingMembers">成员加载中</span>
+                                <span v-else>群成员</span>
+                            </span>
+                            <span
+                                    v-for="member in visibleGroupMembers"
+                                    :key="member.user_id"
+                                    class="group-member-chip"
+                            >
+                                {{ memberName(member) }}
+                                <small v-if="member.role === 3">群主</small>
+                            </span>
+                            <span
+                                    v-if="hiddenGroupMemberCount > 0"
+                                    class="group-member-chip more"
+                            >
+                                +{{ hiddenGroupMemberCount }}
+                            </span>
+                            <button
+                                    class="text-button group-manage-button"
+                                    type="button"
+                                    @click="openGroupMembers"
+                            >
+                                管理成员
+                            </button>
+                        </div>
+
+                        <MessageList
+                                ref="messageList"
+                                :conversation-type="
+                                    chat.activeConversation?.conversation_type ?? 1
+                                "
+                                :current-user-id="auth.user?.id ?? ''"
+                                :current-user-role="currentMemberRole"
+                                :has-more="Boolean(chat.hasMoreByConversation[chat.activeConversationId])"
+                                :loading="chat.loadingMessages"
+                                :messages="chat.activeMessages"
+                                @load-older="chat.loadOlderMessages"
+                                @recall="recallMessage"
+                        />
+                        <MessageComposer
+                                :disabled="
+                                    chat.connectionState !== 'connected' ||
+                                    !activeConversationCanSend
+                                "
+                                :upload-progress="chat.uploadProgress"
+                                :uploading="chat.uploadingAttachment"
+                                @send-file="sendFile"
+                                @send="sendMessage"
+                        />
+                    </template>
+
+                    <div v-else class="empty-workspace">
+                        <span class="empty-logo">G</span>
+                        <h1>选择一个会话</h1>
+                        <p>使用左侧“+”创建私聊，或点击“群”邀请好友创建群聊。</p>
                     </div>
-
-                    <MessageList
-                            ref="messageList"
-                            :conversation-type="
-                                chat.activeConversation?.conversation_type ?? 1
-                            "
-                            :current-user-id="auth.user?.id ?? ''"
-                            :current-user-role="currentMemberRole"
-                            :has-more="Boolean(chat.hasMoreByConversation[chat.activeConversationId])"
-                            :loading="chat.loadingMessages"
-                            :messages="chat.activeMessages"
-                            @load-older="chat.loadOlderMessages"
-                            @recall="recallMessage"
-                    />
-                    <MessageComposer
-                            :disabled="chat.connectionState !== 'connected'"
-                            :upload-progress="chat.uploadProgress"
-                            :uploading="chat.uploadingAttachment"
-                            @send-file="sendFile"
-                            @send="sendMessage"
-                    />
-                </template>
-
-                <div v-else class="empty-workspace">
-                    <span class="empty-logo">G</span>
-                    <h1>选择一个会话</h1>
-                    <p>使用左侧“+”创建私聊，或点击“群”邀请好友创建群聊。</p>
-                </div>
+                </section>
             </section>
-        </section>
+        </div>
 
         <FriendsDrawer
                 :open="friendsOpen"
                 @close="friendsOpen = false"
+                @friend-removed="handleFriendRemoved"
                 @open-direct="openFriendDirect"
+                @view-profile="openUserProfile"
         />
 
         <GroupInvitationsDialog
@@ -665,6 +747,14 @@ onBeforeUnmount(() => {
                 @remove-avatar="removeAvatar"
                 @save="saveProfile"
                 @upload-avatar="uploadAvatar"
+        />
+
+        <UserProfileDialog
+                :can-message="profileCanMessage"
+                :open="userProfileOpen"
+                :user-id="userProfileID"
+                @close="closeUserProfile"
+                @message="messageFromProfile"
         />
     </main>
 </template>

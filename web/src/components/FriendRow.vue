@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {shallowRef, watch} from 'vue'
+import {computed, shallowRef, watch} from 'vue'
 
 import type {Friend} from '@/types/api'
 
@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     message: [userID: string]
+    profile: [userID: string]
     updateRemark: [remark: string]
     block: []
     unblock: []
@@ -20,6 +21,13 @@ const editing = shallowRef(false)
 const confirmingDelete = shallowRef(false)
 const confirmingBlock = shallowRef(false)
 const remarkDraft = shallowRef(props.friend.remark)
+
+const displayName = computed(
+    () =>
+        props.friend.remark ||
+        props.friend.user.nickname ||
+        props.friend.user.username,
+)
 
 watch(
     () => props.friend.remark,
@@ -39,9 +47,10 @@ watch(
     },
 )
 
-// displayName 计算好友备注、昵称或用户名的展示名称
-function displayName() {
-    return props.friend.remark || props.friend.user.nickname || props.friend.user.username
+// openConversation 双击有效好友时打开私聊
+function openConversation() {
+    if (!props.friend.relationship_active || props.friend.blocked_by_me) return
+    emit('message', props.friend.user.id)
 }
 
 // saveRemark 提交好友备注更新并退出编辑状态
@@ -58,17 +67,43 @@ function cancelEdit() {
 </script>
 
 <template>
-    <article class="friend-row">
-    <span class="friend-avatar">
-      {{ displayName().slice(0, 1) }}
-    </span>
+    <article
+            :class="{inactive: !friend.relationship_active}"
+            class="friend-row"
+            :title="
+                friend.relationship_active && !friend.blocked_by_me
+                    ? '双击打开私聊'
+                    : undefined
+            "
+            @dblclick="openConversation"
+    >
+        <button
+                class="friend-avatar friend-avatar-button"
+                :aria-label="`查看${displayName}的资料`"
+                type="button"
+                @click.stop="emit('profile', friend.user.id)"
+                @dblclick.stop
+        >
+            <img
+                    v-if="friend.user.avatar_url"
+                    :alt="displayName"
+                    :src="friend.user.avatar_url"
+            />
+            <template v-else>{{ displayName.slice(0, 1) }}</template>
+        </button>
         <div class="friend-copy">
-            <strong>{{ displayName() }}</strong>
+            <strong>{{ displayName }}</strong>
             <small>@{{ friend.user.username }}</small>
             <p v-if="friend.remark">昵称：{{ friend.user.nickname }}</p>
+            <p
+                    v-if="!friend.relationship_active"
+                    class="friend-relationship-warning"
+            >
+                双方当前不是好友，无法发送消息
+            </p>
         </div>
 
-        <div v-if="editing" class="friend-inline-form">
+        <div v-if="editing" class="friend-inline-form" @dblclick.stop>
             <label class="sr-only" :for="`remark-${friend.user.id}`">好友备注</label>
             <input
                     :id="`remark-${friend.user.id}`"
@@ -80,28 +115,32 @@ function cancelEdit() {
             <button type="button" @click="cancelEdit">取消</button>
         </div>
 
-        <div v-else-if="confirmingDelete" class="friend-inline-form">
+        <div v-else-if="confirmingDelete" class="friend-inline-form" @dblclick.stop>
             <span>确认删除好友？</span>
             <button :disabled="busy" type="button" @click="emit('remove')">确认</button>
             <button type="button" @click="confirmingDelete = false">取消</button>
         </div>
 
-        <div v-else-if="confirmingBlock" class="friend-inline-form">
+        <div v-else-if="confirmingBlock" class="friend-inline-form" @dblclick.stop>
             <span>拉黑后双方将不能私聊或发送好友申请</span>
             <button :disabled="busy" type="button" @click="emit('block')">确认拉黑</button>
             <button type="button" @click="confirmingBlock = false">取消</button>
         </div>
 
-        <div v-else class="friend-actions">
+        <div v-else class="friend-actions" @dblclick.stop>
             <button
-                    v-if="!friend.blocked_by_me"
+                    v-if="friend.relationship_active && !friend.blocked_by_me"
                     :disabled="busy"
                     type="button"
                     @click="emit('message', friend.user.id)"
             >
                 发消息
             </button>
-            <button v-if="!friend.blocked_by_me" type="button" @click="editing = true">
+            <button
+                    v-if="friend.relationship_active && !friend.blocked_by_me"
+                    type="button"
+                    @click="editing = true"
+            >
                 备注
             </button>
             <button
@@ -123,3 +162,36 @@ function cancelEdit() {
         </div>
     </article>
 </template>
+
+<style scoped>
+.friend-row {
+    cursor: default;
+}
+
+.friend-row:not(.inactive):hover {
+    background: color-mix(in srgb, var(--surface-muted) 65%, transparent);
+}
+
+.friend-avatar-button {
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.friend-avatar-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.friend-avatar-button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
+.friend-relationship-warning {
+    color: var(--danger) !important;
+    white-space: normal !important;
+}
+</style>

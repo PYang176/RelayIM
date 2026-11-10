@@ -3,8 +3,7 @@ package friendship
 import "time"
 
 const (
-	friendshipStatusNormal  = 1
-	friendshipStatusDeleted = 2
+	friendshipStatusNormal = 1
 
 	requestStatusPending  = 1
 	requestStatusAccepted = 2
@@ -21,8 +20,14 @@ type friendship struct {
 	// UserHighID 是用户对中较大的 Snowflake 用户 ID。
 	UserHighID uint64 `gorm:"column:user_high_id"`
 
-	// Status 表示关系状态，1 正常、2 已删除。
+	// Status 表示关系状态，1 正常、2 历史删除状态。
 	Status int `gorm:"column:status"`
+
+	// LowUserDeletedAt 是较小用户单向删除好友的 UTC 时间，空表示仍保留关系。
+	LowUserDeletedAt *time.Time `gorm:"column:low_user_deleted_at"`
+
+	// HighUserDeletedAt 是较大用户单向删除好友的 UTC 时间，空表示仍保留关系。
+	HighUserDeletedAt *time.Time `gorm:"column:high_user_deleted_at"`
 
 	// CreatedAt 是关系创建的 UTC 时间。
 	CreatedAt time.Time `gorm:"column:created_at"`
@@ -123,6 +128,9 @@ type friendRecord struct {
 	AvatarURL    *string `gorm:"column:avatar_url"`
 	Remark       string  `gorm:"column:remark"`
 	BlockedByMe  bool    `gorm:"column:blocked_by_me"`
+
+	// RelationshipActive 表示双方都未删除好友，可以继续私聊和群邀请。
+	RelationshipActive bool `gorm:"column:relationship_active"`
 }
 
 type blockedUserRecord struct {

@@ -84,6 +84,11 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // clearSearch 清空用户搜索结果
+    function clearSearch() {
+        searchResults.value = []
+    }
+
     // loadMoreFriends 加载好友列表下一页
     async function loadMoreFriends() {
         if (!friendHasMore.value || !friendNextCursor.value || loadingMore.value) {
@@ -233,16 +238,43 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
-    // removeFriend 删除好友并刷新好友列表
-    async function removeFriend(friendUserID: string) {
+    // removeFriend 单向删除好友并刷新联系人状态
+    async function removeFriend(friendUserID: string): Promise<boolean> {
         actionBusy.value = true
         try {
             await friendApi.deleteFriend(auth.token, friendUserID)
             await loadAll()
+            return true
         } catch (cause) {
             reportError(cause, '删除好友失败')
+            return false
         } finally {
             actionBusy.value = false
+        }
+    }
+
+    // applyRelationshipChange 实时更新联系人和私聊发送权限
+    function applyRelationshipChange(
+        peerUserID: string,
+        active: boolean,
+        visible: boolean,
+    ) {
+        if (!visible) {
+            friends.value = friends.value.filter(
+                (friend) => friend.user.id !== peerUserID,
+            )
+            return
+        }
+        const index = friends.value.findIndex(
+            (friend) => friend.user.id === peerUserID,
+        )
+        if (index >= 0) {
+            const next = [...friends.value]
+            next[index] = {
+                ...next[index],
+                relationship_active: active,
+            }
+            friends.value = next
         }
     }
 
@@ -309,6 +341,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         error,
         loadAll,
         search,
+        clearSearch,
         loadMoreFriends,
         loadMoreReceivedRequests,
         loadMoreSentRequests,
@@ -318,6 +351,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         rejectRequest,
         updateRemark,
         removeFriend,
+        applyRelationshipChange,
         blockUser,
         unblockUser,
         clearError,

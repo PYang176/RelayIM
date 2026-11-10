@@ -1,23 +1,37 @@
 package friendship
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"github.com/PYang176/RelayIM/internal/middleware"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/ws"
 	"github.com/gin-gonic/gin"
 )
 
+// RelationshipDelivery 把好友关系变化通知到在线用户。
+type RelationshipDelivery interface {
+	Route(ctx context.Context, userIDs []uint64, payload []byte) error
+}
+
 // Handler 处理好友 HTTP 请求。
 type Handler struct {
-	service *Service
+	service  *Service
+	delivery RelationshipDelivery
 }
 
 // NewHandler 创建好友 Handler。
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, delivery RelationshipDelivery) *Handler {
+	return &Handler{
+		service:  service,
+		delivery: delivery,
+	}
 }
 
 type sendRequestPayload struct {
@@ -187,10 +201,11 @@ func (h *Handler) ListFriends(c *gin.Context) {
 	response := make([]friendResponse, 0, len(result.Friends))
 	for _, item := range result.Friends {
 		response = append(response, friendResponse{
-			FriendshipID: strconv.FormatUint(item.FriendshipID, 10),
-			User:         toUserResponse(item.User),
-			Remark:       item.Remark,
-			BlockedByMe:  item.BlockedByMe,
+			FriendshipID:       strconv.FormatUint(item.FriendshipID, 10),
+			User:               toUserResponse(item.User),
+			Remark:             item.Remark,
+			BlockedByMe:        item.BlockedByMe,
+			RelationshipActive: item.RelationshipActive,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -322,7 +337,56 @@ func (h *Handler) DeleteFriend(c *gin.Context) {
 		writeFriendshipError(c, err)
 		return
 	}
+	h.notifyRelationshipChanged(
+		c.Request.Context(),
+		userID,
+		friendUserID,
+		false,
+		false,
+	)
+	h.notifyRelationshipChanged(
+		c.Request.Context(),
+		friendUserID,
+		userID,
+		false,
+		true,
+	)
 	c.JSON(http.StatusOK, gin.H{"message": "好友已删除"})
+}
+
+// notifyRelationshipChanged 通知单个用户刷新联系人及私聊发送权限。
+func (h *Handler) notifyRelationshipChanged(
+	ctx context.Context,
+	targetUserID uint64,
+	peerUserID uint64,
+	active bool,
+	visible bool,
+) {
+	if h.delivery == nil || targetUserID == 0 || peerUserID == 0 {
+		return
+	}
+	payload, err := json.Marshal(ws.FriendRelationshipMessage{
+		Action:             ws.ActionFriendRelationshipChanged,
+		PeerUserID:         strconv.FormatUint(peerUserID, 10),
+		RelationshipActive: active,
+		FriendVisible:      visible,
+		TraceID:            observability.TraceID(ctx),
+	})
+	if err != nil {
+		slog.Warn("序列化好友关系通知失败", "error", err)
+		return
+	}
+	if err := h.delivery.Route(ctx, []uint64{targetUserID}, payload); err != nil {
+		slog.Warn(
+			"推送好友关系通知失败，等待客户端下次同步",
+			"target_user_id",
+			targetUserID,
+			"peer_user_id",
+			peerUserID,
+			"error",
+			err,
+		)
+	}
 }
 
 type userResponse struct {
@@ -351,6 +415,9 @@ type friendResponse struct {
 
 	// BlockedByMe 表示当前用户是否已拉黑该好友。
 	BlockedByMe bool `json:"blocked_by_me"`
+
+	// RelationshipActive 表示双方当前是否仍维持有效好友关系。
+	RelationshipActive bool `json:"relationship_active"`
 }
 
 type blockedUserResponse struct {

@@ -39,6 +39,9 @@ type FriendResult struct {
 	User         UserResult
 	Remark       string
 	BlockedByMe  bool
+
+	// RelationshipActive 表示双方当前是否仍维持有效好友关系。
+	RelationshipActive bool
 }
 
 // BlockedUserResult 是当前用户拉黑列表项。

@@ -812,6 +812,8 @@ func writeMessagingError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotMember.Error()})
 	case errors.Is(err, ErrUserBlocked):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrUserBlocked.Error()})
+	case errors.Is(err, ErrNotFriends):
+		c.JSON(http.StatusForbidden, gin.H{"error": ErrNotFriends.Error()})
 	case errors.Is(err, ErrDeviceUnavailable):
 		c.JSON(http.StatusForbidden, gin.H{"error": ErrDeviceUnavailable.Error()})
 	case errors.Is(err, ErrInvalidAttachment):
