@@ -1,6 +1,7 @@
 /internal/config/app.yml
 /internal/config/app.env
 /deploy/.env
+/deploy/app.env
 /.env
 /.env.*
 !/.env.example

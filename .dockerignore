@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.tmp
+deploy
+docs
+loadtest
+scripts
+web
+*.md
+
+internal/config/app.yml
+internal/config/app.env
+**/*_test.go

@@ -139,3 +139,22 @@ jobs:
 
       - name: 生产构建
         run: npm run build
+
+  containers:
+    name: Container image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - backend
+      - frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建后端镜像
+        run: docker build --target runtime -t relayim-app:ci .
+
+      - name: 构建迁移镜像
+        run: docker build --target migration -t relayim-migrate:ci .
+
+      - name: 构建前端镜像
+        run: docker build -t relayim-web:ci web

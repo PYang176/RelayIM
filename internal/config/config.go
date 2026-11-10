@@ -67,6 +67,9 @@ type ObjectStorageConfig struct {
 	// Endpoint 是 S3 API 的 host:port，不包含协议前缀。
 	Endpoint string `mapstructure:"endpoint"`
 
+	// PublicEndpoint 是浏览器访问预签名对象的完整 URL，容器部署时与 Endpoint 分离。
+	PublicEndpoint string `mapstructure:"public_endpoint"`
+
 	// AccessKey 是 S3 访问密钥。
 	AccessKey string `mapstructure:"access_key"`
 

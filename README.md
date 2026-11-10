@@ -81,6 +81,7 @@ HTTP 发送
 | 对象存储 | SeaweedFS S3 兼容接口、MinIO Go SDK |
 | 可观测性 | OpenTelemetry、Tempo、Prometheus、Grafana、slog、Request ID |
 | 前端 | Vue 3、TypeScript、Vite、Pinia、Vue Router |
+| 部署 | Docker 多阶段构建、Nginx、Docker Compose |
 | 压测 | k6 |
 | 质量门禁 | GitHub Actions、go vet、go test、race、govulncheck、npm audit、vue-tsc、Vite build |
 
@@ -95,7 +96,31 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 
 默认启动 RabbitMQ、Redis、SeaweedFS、Tempo、Prometheus 和 Grafana。MySQL 使用本机已有实例，不要求重装。
 
-### 2. 初始化数据库
+### 2. 全容器启动
+
+该方式会额外启动 MySQL、执行 Goose migration、构建 Go 后端和 Nginx 前端，不依赖本机 Go、Node 或 MySQL：
+
+```powershell
+Copy-Item deploy\.env.example deploy\.env
+Copy-Item deploy\app.env.example deploy\app.env
+```
+
+修改两个 env 文件中的密码和 JWT 密钥，然后执行：
+
+```powershell
+docker compose `
+  --env-file deploy\.env `
+  --env-file deploy\app.env `
+  -f deploy\docker-compose.yml `
+  -f deploy\docker-compose.app.yml `
+  up -d --build
+```
+
+打开 `http://localhost:8080`。后端直连地址为 `http://localhost:8081`，容器 MySQL 映射到 `127.0.0.1:3307`。迁移容器每次执行 `goose up`，已应用的版本会自动跳过。
+
+全容器启动后不需要继续执行下面基于本机工具链的数据库、后端和前端步骤。
+
+### 3. 初始化本机数据库
 
 ```powershell
 go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
@@ -104,7 +129,7 @@ goose -dir migrations mysql "root:你的密码@tcp(127.0.0.1:3306)/relayim?chars
 
 数据库字段、索引和约束说明见 [数据库开发指南](docs/数据库开发指南.md)。
 
-### 3. 配置并启动后端
+### 4. 配置并启动本机后端
 
 ```powershell
 Copy-Item internal\config\app.env.example internal\config\app.env
@@ -113,7 +138,7 @@ Copy-Item internal\config\app.env.example internal\config\app.env
 
 本地配置不会提交 Git。至少需要填写 MySQL、JWT、Redis、RabbitMQ 和 S3 凭据，具体变量见 [配置管理指南](docs/配置管理指南.md)。
 
-### 4. 启动前端
+### 5. 启动本机前端
 
 ```powershell
 Set-Location web
@@ -262,7 +287,7 @@ cmd/server/        服务入口
 internal/          业务模块与基础设施适配
 migrations/        MySQL Goose 迁移
 web/               Vue 3 前端
-deploy/            Docker Compose、Prometheus 和 Grafana
+deploy/            Docker Compose、Nginx 配置、Prometheus 和 Grafana
 loadtest/          k6 脚本与实测报告
 docs/              需求、协议、数据库和运维文档
 ```

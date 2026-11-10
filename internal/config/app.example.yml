@@ -36,6 +36,8 @@ rabbitmq:
 
 s3:
   endpoint: 127.0.0.1:8333
+  # 容器部署可通过 RELAYIM_S3_PUBLIC_ENDPOINT 指定浏览器可访问的预签名地址。
+  public_endpoint: ""
   access_key: ""
   secret_key: ""
   bucket: relayim-media

@@ -1,6 +1,11 @@
-# RelayIM Docker 基础设施
+# RelayIM Docker 部署
 
-这套 Compose 配置用于启动项目依赖，暂时不要求把 Go 应用也放进容器：
+Compose 支持两种启动方式：
+
+- 只启动基础设施，Go 和 Vue 继续使用本机开发服务器。
+- 启动完整环境，由 Docker 构建 MySQL、Go 后端和 Nginx 前端。
+
+基础设施包括：
 
 - RabbitMQ 4.3.7，包含管理界面和 Prometheus 指标插件。
 - Redis 7.4，启用 AOF 持久化和密码认证。
@@ -9,9 +14,9 @@
 - Prometheus，负责采集指标。
 - Grafana，负责展示指标面板。
 
-MySQL 暂不放入 Compose。开发环境继续使用 Windows 本机的 MySQL 8.0.34。
+基础 Compose 不包含 MySQL。全容器方式会额外启动 MySQL 8.0.34，不要求本机安装数据库。
 
-`deploy/.env` 只保存 Compose 基础设施变量，不会自动注入 Windows 上直接运行的 Go 应用。
+`deploy/.env` 保存 Compose 基础设施变量，不会自动注入 Windows 上直接运行的 Go 应用。
 应用配置及其 `RELAYIM_*` 环境变量说明见
 [配置管理指南](../docs/配置管理指南.md)。
 
@@ -32,6 +37,79 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 ```
 
 默认会启动 RabbitMQ、Redis、SeaweedFS、Prometheus 和 Grafana。
+
+## 全容器启动
+
+首次运行时创建应用容器变量文件：
+
+```powershell
+Copy-Item deploy\app.env.example deploy\app.env
+```
+
+填写 `deploy\.env` 和 `deploy\app.env` 中的密码、JWT 密钥，然后在项目根目录执行：
+
+```powershell
+docker compose `
+  --env-file deploy\.env `
+  --env-file deploy\app.env `
+  -f deploy\docker-compose.yml `
+  -f deploy\docker-compose.app.yml `
+  up -d --build
+```
+
+启动顺序如下：
+
+1. MySQL、Redis、RabbitMQ 通过健康检查。
+2. 一次性 `migrate` 容器执行 `goose up`。
+3. Go 后端启动并通过健康检查。
+4. Nginx 提供前端静态文件、API 和 WebSocket 反向代理。
+
+访问地址：
+
+| 服务 | 地址 |
+| --- | --- |
+| RelayIM Web | http://localhost:8080 |
+| Go API | http://localhost:8081 |
+| 容器 MySQL | `127.0.0.1:3307` |
+
+构建产物使用多阶段镜像：
+
+- 根目录 `Dockerfile` 的 `runtime` target 构建静态 Go 二进制，以非 root 用户运行。
+- 根目录 `Dockerfile` 的 `migration` target 提供 Goose 和 migration 文件。
+- `web/Dockerfile` 构建 Vue 静态资源并复制到 Nginx。
+
+`app.env` 中的 `RELAYIM_S3_PUBLIC_ENDPOINT` 控制浏览器看到的附件预签名地址。默认值 `http://localhost:8333` 直接指向宿主机映射的 SeaweedFS 端口；外部部署时应改成浏览器实际可访问的对象存储域名。
+
+查看完整栈状态和日志：
+
+```powershell
+docker compose `
+  --env-file deploy\.env `
+  --env-file deploy\app.env `
+  -f deploy\docker-compose.yml `
+  -f deploy\docker-compose.app.yml `
+  ps
+
+docker compose `
+  --env-file deploy\.env `
+  --env-file deploy\app.env `
+  -f deploy\docker-compose.yml `
+  -f deploy\docker-compose.app.yml `
+  logs -f app web
+```
+
+停止完整栈并保留 MySQL、RabbitMQ、Redis 等数据卷：
+
+```powershell
+docker compose `
+  --env-file deploy\.env `
+  --env-file deploy\app.env `
+  -f deploy\docker-compose.yml `
+  -f deploy\docker-compose.app.yml `
+  down
+```
+
+只有明确接受全部业务数据丢失时，才追加 `-v` 删除数据卷。
 
 查看状态和日志：
 

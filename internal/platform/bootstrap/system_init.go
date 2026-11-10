@@ -73,6 +73,7 @@ func bindConfigEnv(v *viper.Viper) error {
 		"rabbitmq.claim_lease_seconds":           "RELAYIM_RABBITMQ_CLAIM_LEASE_SECONDS",
 		"rabbitmq.prefetch":                      "RELAYIM_RABBITMQ_PREFETCH",
 		"s3.endpoint":                            "RELAYIM_S3_ENDPOINT",
+		"s3.public_endpoint":                     "RELAYIM_S3_PUBLIC_ENDPOINT",
 		"s3.access_key":                          "RELAYIM_S3_ACCESS_KEY",
 		"s3.secret_key":                          "RELAYIM_S3_SECRET_KEY",
 		"s3.bucket":                              "RELAYIM_S3_BUCKET",
@@ -233,12 +234,13 @@ func LoadObjectStorageConfig() config.ObjectStorageConfig {
 // loadObjectStorageConfig 加载对象存储配置所需数据
 func loadObjectStorageConfig(v *viper.Viper) config.ObjectStorageConfig {
 	cfg := config.ObjectStorageConfig{
-		Endpoint:  strings.TrimSpace(v.GetString("s3.endpoint")),
-		AccessKey: strings.TrimSpace(v.GetString("s3.access_key")),
-		SecretKey: strings.TrimSpace(v.GetString("s3.secret_key")),
-		Bucket:    strings.TrimSpace(v.GetString("s3.bucket")),
-		Region:    strings.TrimSpace(v.GetString("s3.region")),
-		UseSSL:    v.GetBool("s3.use_ssl"),
+		Endpoint:       strings.TrimSpace(v.GetString("s3.endpoint")),
+		PublicEndpoint: strings.TrimSpace(v.GetString("s3.public_endpoint")),
+		AccessKey:      strings.TrimSpace(v.GetString("s3.access_key")),
+		SecretKey:      strings.TrimSpace(v.GetString("s3.secret_key")),
+		Bucket:         strings.TrimSpace(v.GetString("s3.bucket")),
+		Region:         strings.TrimSpace(v.GetString("s3.region")),
+		UseSSL:         v.GetBool("s3.use_ssl"),
 	}
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = "127.0.0.1:8333"

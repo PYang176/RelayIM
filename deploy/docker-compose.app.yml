@@ -1,0 +1,126 @@
+services:
+  mysql:
+    image: mysql:8.0.34
+    container_name: relayim-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${RELAYIM_MYSQL_ROOT_PASSWORD:?请设置 RELAYIM_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: relayim
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+    networks:
+      - backend
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: migration
+    image: relayim-migrate:local
+    environment:
+      RELAYIM_MYSQL_DSN: "root:${RELAYIM_MYSQL_ROOT_PASSWORD:?}@tcp(mysql:3306)/relayim?charset=utf8mb4&parseTime=true&loc=UTC"
+    command:
+      [
+        "sh",
+        "-c",
+        "exec goose -dir /migrations mysql \"$$RELAYIM_MYSQL_DSN\" up",
+      ]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - backend
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: runtime
+    image: relayim-app:local
+    container_name: relayim-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      RELAYIM_CONFIG_FILE: /app/internal/config/app.yml
+      RELAYIM_SERVER_ADDR: ":8081"
+      RELAYIM_MYSQL_HOST: mysql
+      RELAYIM_MYSQL_PORT: 3306
+      RELAYIM_MYSQL_USER: root
+      RELAYIM_MYSQL_PASSWORD: ${RELAYIM_MYSQL_ROOT_PASSWORD:?}
+      RELAYIM_MYSQL_DBNAME: relayim
+      RELAYIM_JWT_SECRET: ${RELAYIM_JWT_SECRET:?请设置 RELAYIM_JWT_SECRET}
+      RELAYIM_REDIS_HOST: redis
+      RELAYIM_REDIS_PORT: 6379
+      RELAYIM_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      RELAYIM_RABBITMQ_URL: "amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/${RABBITMQ_VHOST}"
+      RELAYIM_S3_ENDPOINT: seaweedfs:8333
+      RELAYIM_S3_PUBLIC_ENDPOINT: ${RELAYIM_S3_PUBLIC_ENDPOINT:-http://localhost:8333}
+      RELAYIM_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      RELAYIM_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      RELAYIM_S3_BUCKET: ${S3_BUCKET:-relayim-media}
+      RELAYIM_S3_REGION: us-east-1
+      RELAYIM_S3_USE_SSL: "false"
+      RELAYIM_TRACING_ENABLED: ${RELAYIM_TRACING_ENABLED:-true}
+      RELAYIM_TRACING_OTLP_ENDPOINT: http://tempo:4318
+      RELAYIM_ATTACHMENT_CLEANUP_ENABLED: ${RELAYIM_ATTACHMENT_CLEANUP_ENABLED:-true}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+      tempo:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1:8081/health/ready >/dev/null || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    image: relayim-web:local
+    container_name: relayim-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1/healthz >/dev/null || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
+volumes:
+  mysql_data:

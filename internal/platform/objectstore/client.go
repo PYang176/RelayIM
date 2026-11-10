@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/PYang176/RelayIM/internal/config"
@@ -15,8 +16,9 @@ import (
 
 // Client 负责附件对象的上传、读取和删除。
 type Client struct {
-	client *minio.Client
-	bucket string
+	client        *minio.Client
+	presignClient *minio.Client
+	bucket        string
 }
 
 // NewClient 创建 S3 客户端并确保附件 Bucket 存在。
@@ -36,6 +38,10 @@ func NewClient(
 	if err != nil {
 		return nil, fmt.Errorf("创建 S3 客户端: %w", err)
 	}
+	presignClient, err := newPresignClient(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	exists, err := client.BucketExists(ctx, cfg.Bucket)
 	if err != nil {
@@ -51,9 +57,51 @@ func NewClient(
 		}
 	}
 	return &Client{
-		client: client,
-		bucket: cfg.Bucket,
+		client:        client,
+		presignClient: presignClient,
+		bucket:        cfg.Bucket,
 	}, nil
+}
+
+// newPresignClient 创建仅用于生成浏览器可访问预签名地址的 S3 客户端。
+func newPresignClient(cfg config.ObjectStorageConfig) (*minio.Client, error) {
+	host, secure, err := parsePublicEndpoint(cfg.PublicEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	if host == "" {
+		return nil, nil
+	}
+	client, err := minio.New(host, &minio.Options{
+		Creds: credentials.NewStaticV4(
+			cfg.AccessKey,
+			cfg.SecretKey,
+			"",
+		),
+		Secure: secure,
+		Region: cfg.Region,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("创建 S3 公网预签名客户端: %w", err)
+	}
+	return client, nil
+}
+
+// parsePublicEndpoint 校验浏览器访问 S3 对象使用的完整地址。
+func parsePublicEndpoint(raw string) (string, bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false, nil
+	}
+	endpoint, err := url.Parse(raw)
+	if err != nil || endpoint.Host == "" ||
+		(endpoint.Scheme != "http" && endpoint.Scheme != "https") ||
+		(endpoint.Path != "" && endpoint.Path != "/") ||
+		endpoint.RawQuery != "" || endpoint.Fragment != "" ||
+		endpoint.User != nil {
+		return "", false, fmt.Errorf("S3 公网地址必须是合法的 HTTP(S) 源地址")
+	}
+	return endpoint.Host, endpoint.Scheme == "https", nil
 }
 
 // PutObject 上传附件对象。
@@ -131,7 +179,11 @@ func (c *Client) PresignedGetURL(
 	objectKey string,
 	expiry time.Duration,
 ) (string, error) {
-	value, err := c.client.PresignedGetObject(
+	signClient := c.client
+	if c.presignClient != nil {
+		signClient = c.presignClient
+	}
+	value, err := signClient.PresignedGetObject(
 		ctx,
 		c.bucket,
 		objectKey,
