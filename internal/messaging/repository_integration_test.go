@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// TestRepositorySendTextIntegration 覆盖消息事务、序号、附件、Outbox 和搜索的完整链路
 func TestRepositorySendTextIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -714,6 +715,7 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	}
 }
 
+// messageSequences 提取测试消息列表中的会话序号
 func messageSequences(messages []MessageResult) []uint64 {
 	sequences := make([]uint64, 0, len(messages))
 	for _, message := range messages {
@@ -722,6 +724,7 @@ func messageSequences(messages []MessageResult) []uint64 {
 	return sequences
 }
 
+// equalSequences 判断两组消息序号是否完全一致
 func equalSequences(got []uint64, want []uint64) bool {
 	if len(got) != len(want) {
 		return false
@@ -734,10 +737,12 @@ func equalSequences(got []uint64, want []uint64) bool {
 	return true
 }
 
+// timePointer 返回时间值指针，供测试构造可空时间字段
 func timePointer(value time.Time) *time.Time {
 	return &value
 }
 
+// hasReadState 判断ReadState是否存在
 func hasReadState(states []ReadStateResult, userID uint64, seq uint64) bool {
 	for _, state := range states {
 		if state.UserID == userID && state.LastReadSeq == seq {

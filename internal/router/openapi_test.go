@@ -15,6 +15,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// TestOpenAPIContractMatchesRouter 覆盖 OpenAPI 路径、方法和真实路由的一致性
 func TestOpenAPIContractMatchesRouter(t *testing.T) {
 	document := loadOpenAPIDocument(t)
 	engine := NewTestRouter()
@@ -48,6 +49,7 @@ func TestOpenAPIContractMatchesRouter(t *testing.T) {
 	}
 }
 
+// TestOpenAPIYAMLAndJSONStayInSync 覆盖 OpenAPI YAML 与生成 JSON 的同步
 func TestOpenAPIYAMLAndJSONStayInSync(t *testing.T) {
 	yamlDocument := normalizeOpenAPIDocument(t, readFile(t, "openapi.yaml"))
 	jsonDocument := normalizeOpenAPIDocument(t, readFile(t, "openapi.json"))
@@ -56,6 +58,7 @@ func TestOpenAPIYAMLAndJSONStayInSync(t *testing.T) {
 	}
 }
 
+// TestOpenAPIReferencesAndOperationIDs 覆盖 OpenAPI 引用完整性和 Operation ID 唯一性
 func TestOpenAPIReferencesAndOperationIDs(t *testing.T) {
 	document := loadOpenAPIDocument(t)
 	if !strings.HasPrefix(document.OpenAPI, "3.") {
@@ -99,6 +102,7 @@ type openAPIDocument struct {
 	} `yaml:"paths"`
 }
 
+// loadOpenAPIDocument 加载打开APIDocument所需数据
 func loadOpenAPIDocument(t *testing.T) openAPIDocument {
 	t.Helper()
 	var document openAPIDocument
@@ -108,6 +112,7 @@ func loadOpenAPIDocument(t *testing.T) openAPIDocument {
 	return document
 }
 
+// normalizeOpenAPIDocument 规范化 OpenAPI 文档结构，便于稳定比较
 func normalizeOpenAPIDocument(t *testing.T, content []byte) any {
 	t.Helper()
 	var decoded any
@@ -130,6 +135,7 @@ func normalizeOpenAPIDocument(t *testing.T, content []byte) any {
 	return decoded
 }
 
+// readFile 读取测试文件内容，供 OpenAPI 契约测试使用
 func readFile(t *testing.T, name string) []byte {
 	t.Helper()
 	path := filepath.Join("..", "..", "docs", name)
@@ -140,6 +146,7 @@ func readFile(t *testing.T, name string) []byte {
 	return content
 }
 
+// assertReferencesExist 递归检查 OpenAPI 引用，确保所有引用都能被解析
 func assertReferencesExist(t *testing.T, root any, node any, location string) {
 	t.Helper()
 	switch value := node.(type) {
@@ -167,6 +174,7 @@ func assertReferencesExist(t *testing.T, root any, node any, location string) {
 	}
 }
 
+// resolveJSONPointer 解析JSONPointer
 func resolveJSONPointer(root any, pointer string) any {
 	current := root
 	for _, segment := range strings.Split(strings.TrimPrefix(pointer, "#/"), "/") {
@@ -183,6 +191,7 @@ func resolveJSONPointer(root any, pointer string) any {
 	return current
 }
 
+// routeShape 计算Shape目标并完成路由
 func routeShape(path string) string {
 	segments := strings.Split(path, "/")
 	for index, segment := range segments {
@@ -197,6 +206,7 @@ func routeShape(path string) string {
 	return strings.Join(segments, "/")
 }
 
+// isHTTPMethod 判断字符串是否为受支持的 HTTP 方法
 func isHTTPMethod(value string) bool {
 	switch strings.ToLower(value) {
 	case "get", "post", "put", "patch", "delete", "head", "options", "trace":
@@ -206,6 +216,7 @@ func isHTTPMethod(value string) bool {
 	}
 }
 
+// difference 计算两个字符串切片之间的差集，服务于 OpenAPI 路由覆盖检查
 func difference(left map[string]bool, right map[string]bool) []string {
 	var result []string
 	for route := range left {
@@ -217,6 +228,7 @@ func difference(left map[string]bool, right map[string]bool) []string {
 	return result
 }
 
+// NewTestRouter 创建测试路由并注入认证上下文
 func NewTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	return Router(

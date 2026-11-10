@@ -4,6 +4,7 @@ import "github.com/gin-gonic/gin"
 
 type IndexHandler struct{}
 
+// NewIndexHandler 创建 Index 处理器并初始化首页入口
 func NewIndexHandler() *IndexHandler {
 	return &IndexHandler{}
 }

@@ -8,6 +8,7 @@ import type {
     SendMessageResponse,
 } from '@/types/api'
 
+// listMessages 按游标查询会话历史消息
 export function listMessages(
     token: string,
     conversationId: string,
@@ -20,6 +21,7 @@ export function listMessages(
     return request(`/conversations/${conversationId}/messages?${params}`, {}, token)
 }
 
+// searchMessages 在当前会话内搜索消息正文
 export function searchMessages(
     token: string,
     conversationId: string,
@@ -39,6 +41,7 @@ export function searchMessages(
     )
 }
 
+// sendText 发送幂等文本消息
 export function sendText(
     token: string,
     conversationId: string,
@@ -58,6 +61,7 @@ export function sendText(
     )
 }
 
+// sendAttachmentMessage 发送图片或文件消息并绑定附件
 export function sendAttachmentMessage(
     token: string,
     conversationId: string,
@@ -81,6 +85,7 @@ export function sendAttachmentMessage(
     )
 }
 
+// recallMessage 撤回指定消息
 export function recallMessage(
     token: string,
     conversationId: string,
@@ -93,6 +98,7 @@ export function recallMessage(
     )
 }
 
+// uploadAttachment 上传附件并返回附件元数据和访问地址
 export function uploadAttachment(
     token: string,
     file: File,
@@ -134,6 +140,7 @@ export function uploadAttachment(
     })
 }
 
+// getAttachmentInfo 换取附件短时预签名地址
 export function getAttachmentInfo(
     token: string,
     attachmentId: string,
@@ -141,6 +148,7 @@ export function getAttachmentInfo(
     return request(`/attachments/${attachmentId}`, {}, token)
 }
 
+// listReadStates 查询会话成员的已读游标
 export async function listReadStates(
     token: string,
     conversationId: string,
@@ -153,6 +161,7 @@ export async function listReadStates(
     return response.read_states
 }
 
+// getDeliverySummary 查询消息已送达设备和用户数量
 export function getDeliverySummary(
     token: string,
     conversationId: string,

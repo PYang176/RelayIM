@@ -168,6 +168,7 @@ func (r *DeliveryRouter) Close() error {
 	return err
 }
 
+// publishToInstance 发布ToInstance并等待消息系统确认
 func (r *DeliveryRouter) publishToInstance(
 	ctx context.Context,
 	targetInstanceID string,

@@ -8,6 +8,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// TestMessageEventResult 覆盖消费者成功、重试和死信结果分类
 func TestMessageEventResult(t *testing.T) {
 	tests := []struct {
 		name    string

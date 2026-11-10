@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// TestClientConcurrentProducersUseSingleWriter 覆盖多个生产者并发提交时仍由单一写协程发送
 func TestClientConcurrentProducersUseSingleWriter(t *testing.T) {
 	manager := NewConnManager()
 	server := httptest.NewServer(http.HandlerFunc(func(
@@ -80,6 +81,7 @@ func TestClientConcurrentProducersUseSingleWriter(t *testing.T) {
 	waitFor(t, func() bool { return !manager.IsOnline(7) })
 }
 
+// waitFor 在超时时间内轮询状态，供异步测试等待结果
 func waitFor(t *testing.T, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)

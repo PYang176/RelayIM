@@ -22,6 +22,8 @@ const DEVICE_KEY = 'ginchat.device_id'
  * 管理一次性 Ticket、WebSocket 生命周期和指数退避重连。
  * 领域消息处理、会话状态与 DOM 展示不在这里实现。
  */
+
+// useChatSocket 创建单连接 WebSocket 生命周期和消息分发能力
 export function useChatSocket(options: ChatSocketOptions) {
     const connectionState = shallowRef<ConnectionState>('disconnected')
 
@@ -31,6 +33,7 @@ export function useChatSocket(options: ChatSocketOptions) {
     let intentionallyClosed = false
     let connecting = false
 
+    // connect 申请 Ticket 并建立 WebSocket 连接
     async function connect() {
         if (connecting) return
         const token = options.getToken()
@@ -98,6 +101,7 @@ export function useChatSocket(options: ChatSocketOptions) {
         }
     }
 
+    // scheduleReconnect 在断线后安排带退避的重连
     function scheduleReconnect() {
         clearTimeout(reconnectTimer)
         reconnectAttempt += 1
@@ -108,12 +112,14 @@ export function useChatSocket(options: ChatSocketOptions) {
         }, delay)
     }
 
+    // send 仅在连接可用时发送 WebSocket 信令
     function send(payload: WsMessage): boolean {
         if (!socket || socket.readyState !== WebSocket.OPEN) return false
         socket.send(JSON.stringify(payload))
         return true
     }
 
+    // disconnect 主动关闭连接并停止重连
     function disconnect() {
         intentionallyClosed = true
         clearTimeout(reconnectTimer)

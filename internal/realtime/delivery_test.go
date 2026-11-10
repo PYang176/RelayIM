@@ -16,6 +16,7 @@ type stubRouteResolver struct {
 	err    error
 }
 
+// QueryInstances 查询Instances
 func (s stubRouteResolver) QueryInstances(
 	context.Context,
 	[]uint64,
@@ -34,6 +35,7 @@ type stubRawPublisher struct {
 	err      error
 }
 
+// PublishRaw 发布Raw并等待消息系统确认
 func (s *stubRawPublisher) PublishRaw(
 	_ context.Context,
 	exchange string,
@@ -51,10 +53,12 @@ func (s *stubRawPublisher) PublishRaw(
 	return s.err
 }
 
+// Close 关闭并释放底层资源
 func (s *stubRawPublisher) Close() error {
 	return nil
 }
 
+// TestDeliveryRouterGroupsUsersByInstance 覆盖实时投递按目标实例聚合用户
 func TestDeliveryRouterGroupsUsersByInstance(t *testing.T) {
 	resolver := stubRouteResolver{
 		routes: map[uint64][]string{
@@ -104,6 +108,7 @@ func TestDeliveryRouterGroupsUsersByInstance(t *testing.T) {
 	}
 }
 
+// TestDeliveryRouterIgnoresUnroutableNode 覆盖节点已退出时实时投递的降级处理
 func TestDeliveryRouterIgnoresUnroutableNode(t *testing.T) {
 	publisher := &stubRawPublisher{err: rabbitmq.ErrPublishUnroutable}
 	router := NewDeliveryRouter(
@@ -125,6 +130,7 @@ func TestDeliveryRouterIgnoresUnroutableNode(t *testing.T) {
 	}
 }
 
+// TestDeliveryRouterReturnsResolverError 覆盖实例路由查询失败向调用链传播
 func TestDeliveryRouterReturnsResolverError(t *testing.T) {
 	router := NewDeliveryRouter(
 		stubRouteResolver{err: errors.New("redis unavailable")},

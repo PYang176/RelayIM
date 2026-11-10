@@ -546,6 +546,7 @@ func (s *Service) EnsureDevice(
 	}, nil
 }
 
+// validUsername 校验用户名长度、字符集和空白边界
 func validUsername(username string) bool {
 	length := utf8.RuneCountInString(username)
 	return length >= minUsernameRunes &&
@@ -553,6 +554,7 @@ func validUsername(username string) bool {
 		usernamePattern.MatchString(username)
 }
 
+// validAvatarURL 校验头像 URL 只允许受支持的本地资源路径
 func validAvatarURL(value string) bool {
 	if value == "" {
 		return true
@@ -567,6 +569,7 @@ func validAvatarURL(value string) bool {
 	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
+// stringValue 读取字符串值并去除首尾空白
 func stringValue(value *string) string {
 	if value == nil {
 		return ""

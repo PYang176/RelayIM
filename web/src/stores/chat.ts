@@ -98,14 +98,17 @@ export const useChatStore = defineStore('chat', () => {
     })
     const connectionState = realtime.connectionState
 
+    // setError 设置聊天页面的当前错误信息
     function setError(message: string) {
         error.value = message
     }
 
+    // clearError 清空聊天页面错误信息
     function clearError() {
         error.value = ''
     }
 
+    // sequenceStateFor 获取或初始化指定会话的连续序号状态
     function sequenceStateFor(
         conversationId: string,
         contiguousSeq = 0,
@@ -125,6 +128,7 @@ export const useChatStore = defineStore('chat', () => {
         return created
     }
 
+    // clearSequenceState 清除指定会话的序号和缺口缓存
     function clearSequenceState(conversationId: string) {
         const state = sequenceStates.get(conversationId)
         if (state?.retryTimer) {
@@ -133,6 +137,7 @@ export const useChatStore = defineStore('chat', () => {
         sequenceStates.delete(conversationId)
     }
 
+    // storeMessage 按消息 ID 去重并写入会话消息列表
     function storeMessage(conversationId: string, message: ChatMessage) {
         upsertMessage(conversationId, message)
         if (message.realtime_attachment_path) {
@@ -144,6 +149,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // flushPendingMessages 把已补齐缺口的待处理消息写入列表
     function flushPendingMessages(
         conversationId: string,
         state: ConversationSequenceState,
@@ -157,6 +163,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // acceptMessageSequence 推进会话连续序号并检测乱序缺口
     function acceptMessageSequence(
         conversationId: string,
         message: ChatMessage,
@@ -183,6 +190,7 @@ export const useChatStore = defineStore('chat', () => {
         return observation
     }
 
+    // scheduleGapRepair 为存在缺口的会话安排补拉
     function scheduleGapRepair(conversationId: string, immediate = true) {
         const state = sequenceStateFor(conversationId)
         if (state.resyncing || state.repairing) return
@@ -196,6 +204,7 @@ export const useChatStore = defineStore('chat', () => {
         }, delay)
     }
 
+    // repairConversationGap 按连续水位补拉会话缺失消息
     async function repairConversationGap(conversationId: string) {
         const state = sequenceStateFor(conversationId)
         if (state.resyncing) return
@@ -282,10 +291,12 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // conversationTitle 计算会话展示标题
     function conversationTitle(conversation: Conversation): string {
         return conversation.title || conversation.name || '私聊'
     }
 
+    // conversationIDCompare 稳定比较 Snowflake 会话 ID 字符串
     function conversationIDCompare(left: string, right: string): number {
         const leftID = BigInt(left)
         const rightID = BigInt(right)
@@ -293,6 +304,7 @@ export const useChatStore = defineStore('chat', () => {
         return leftID > rightID ? -1 : 1
     }
 
+    // sortConversations 按置顶和最近活动时间排序会话
     function sortConversations(items: Conversation[]): Conversation[] {
         return [...items].sort((left, right) => {
             if (left.pinned !== right.pinned) {
@@ -307,6 +319,7 @@ export const useChatStore = defineStore('chat', () => {
         })
     }
 
+    // upsertConversation 插入或更新会话摘要并重新排序
     function upsertConversation(conversation: Conversation) {
         conversations.value = upsertConversationInto(
             conversations.value,
@@ -322,6 +335,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // upsertConversationInto 在指定列表中插入或合并会话摘要
     function upsertConversationInto(
         items: Conversation[],
         conversation: Conversation,
@@ -336,6 +350,7 @@ export const useChatStore = defineStore('chat', () => {
         return sortConversations(next)
     }
 
+    // upsertMessage 插入、替换或去重一条消息
     function upsertMessage(conversationId: string, message: ChatMessage) {
         const current = messagesByConversation.value[conversationId] ?? []
         const index = current.findIndex((item) => item.message_id === message.message_id)
@@ -362,6 +377,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // markMessageRecalled 更新消息撤回状态并清除正文内容
     function markMessageRecalled(
         conversationId: string,
         messageId: string,
@@ -407,6 +423,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // updateConversationFromMessage 根据新消息更新会话摘要和未读数
     function updateConversationFromMessage(message: Message) {
         const matches = [
             conversations.value.find(
@@ -444,6 +461,7 @@ export const useChatStore = defineStore('chat', () => {
         )
     }
 
+    // loadConversations 加载首个会话列表窗口
     async function loadConversations() {
         loadingConversations.value = true
         try {
@@ -476,6 +494,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // loadMoreConversations 使用复合游标加载更多会话
     async function loadMoreConversations() {
         if (conversationSearchQuery.value) {
             await loadMoreSearchResults()
@@ -513,6 +532,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // loadMoreSearchResults 加载会话搜索结果的下一页
     async function loadMoreSearchResults() {
         const query = conversationSearchQuery.value
         if (
@@ -551,6 +571,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // searchConversations 按标题搜索会话
     async function searchConversations(rawQuery: string) {
         const query = rawQuery.trim()
         const generation = ++searchGeneration
@@ -593,6 +614,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // clearConversationSearch 清空会话搜索并恢复普通列表
     function clearConversationSearch() {
         searchGeneration += 1
         conversationSearchQuery.value = ''
@@ -602,6 +624,7 @@ export const useChatStore = defineStore('chat', () => {
         searchingConversations.value = false
     }
 
+    // refreshConversation 刷新单个会话摘要和最新消息窗口
     async function refreshConversation(conversationId: string) {
         try {
             const conversation = await conversationApi.getConversation(
@@ -614,6 +637,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // setConversationPinned 更新会话个人置顶状态
     async function setConversationPinned(
         conversationId: string,
         pinned: boolean,
@@ -641,6 +665,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // createDirect 创建私聊并切换到新会话
     async function createDirect(peerUserId: string) {
         clearError()
         const conversation = await conversationApi.createDirect(
@@ -651,6 +676,7 @@ export const useChatStore = defineStore('chat', () => {
         await selectConversation(conversation.id)
     }
 
+    // createGroup 创建群聊并写入会话列表
     async function createGroup(
         name: string,
         memberUserIds: string[],
@@ -667,6 +693,7 @@ export const useChatStore = defineStore('chat', () => {
         await selectConversation(conversation.id)
     }
 
+    // selectConversation 切换当前会话并加载成员和最新消息
     async function selectConversation(conversationId: string) {
         const searchMatch = conversationSearchResults.value.find(
             (item) => item.id === conversationId,
@@ -701,6 +728,7 @@ export const useChatStore = defineStore('chat', () => {
         await refreshPresence()
     }
 
+    // loadMembers 加载当前会话成员及角色
     async function loadMembers(conversationId: string, force = false) {
         if (!force && membersByConversation.value[conversationId]) {
             return
@@ -722,6 +750,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // inviteGroupMembers 邀请好友加入当前群聊
     async function inviteGroupMembers(
         memberUserIds: string[],
         inviteRemark: string,
@@ -740,6 +769,7 @@ export const useChatStore = defineStore('chat', () => {
         return invitedCount
     }
 
+    // removeGroupMember 从当前群聊移除指定成员
     async function removeGroupMember(targetUserID: string) {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
@@ -760,6 +790,7 @@ export const useChatStore = defineStore('chat', () => {
         ).length
     }
 
+    // setGroupMemberRole 调整当前群成员角色
     async function setGroupMemberRole(
         targetUserID: string,
         role: 1 | 2,
@@ -777,6 +808,7 @@ export const useChatStore = defineStore('chat', () => {
         await loadMembers(conversationId, true)
     }
 
+    // transferGroupOwner 转让当前群主身份
     async function transferGroupOwner(targetUserID: string) {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
@@ -790,6 +822,7 @@ export const useChatStore = defineStore('chat', () => {
         await loadMembers(conversationId, true)
     }
 
+    // dissolveActiveGroup 解散当前群聊并清理本地状态
     async function dissolveActiveGroup() {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
@@ -799,6 +832,7 @@ export const useChatStore = defineStore('chat', () => {
         await removeConversationFromState(conversationId)
     }
 
+    // updateGroupProfile 更新当前群资料
     async function updateGroupProfile(name: string, avatarUrl: string) {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
@@ -815,6 +849,7 @@ export const useChatStore = defineStore('chat', () => {
         conversation.avatar_url = response.avatar_url
     }
 
+    // removeConversationFromState 从本地会话列表移除不可访问会话
     async function removeConversationFromState(conversationId: string) {
         conversations.value = conversations.value.filter(
             (item) => item.id !== conversationId,
@@ -829,6 +864,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // resyncConversationLatestWindow 重载会话最新窗口并重建序号基线
     async function resyncConversationLatestWindow(conversationId: string) {
         const state = sequenceStateFor(conversationId)
         const generation = state.generation + 1
@@ -917,6 +953,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // ensureConversationLatestWindow 确保当前会话具备可用最新消息窗口
     async function ensureConversationLatestWindow(
         conversation: Conversation,
     ) {
@@ -938,6 +975,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // loadOlderMessages 按 before_seq 加载更早历史消息
     async function loadOlderMessages() {
         const conversationId = activeConversationId.value
         const messages = messagesByConversation.value[conversationId] ?? []
@@ -964,6 +1002,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // sendMessage 发送文本消息并处理 ACK、缺口和摘要刷新
     async function sendMessage(content: string) {
         const conversationId = activeConversationId.value
         const trimmed = content.trim()
@@ -1006,6 +1045,7 @@ export const useChatStore = defineStore('chat', () => {
         }, 1200)
     }
 
+    // sendAttachment 上传附件并发送图片或文件消息
     async function sendAttachment(file: File) {
         const conversationId = activeConversationId.value
         if (!conversationId) return
@@ -1070,6 +1110,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // refreshDelivery 刷新消息送达统计
     async function refreshDelivery(conversationId: string, messageId: string) {
         try {
             const delivery = await messageApi.getDeliverySummary(
@@ -1087,6 +1128,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // recallMessage 撤回消息并同步本地状态
     async function recallMessage(messageId: string) {
         const conversationId = activeConversationId.value
         if (!conversationId) return
@@ -1099,6 +1141,7 @@ export const useChatStore = defineStore('chat', () => {
         )
     }
 
+    // resolveRealtimeAttachment 把实时附件路径换取为短时下载地址
     async function resolveRealtimeAttachment(
         conversationId: string,
         messageId: string,
@@ -1122,6 +1165,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // refreshReadStates 刷新当前会话成员已读游标
     async function refreshReadStates() {
         const conversationId = activeConversationId.value
         if (!conversationId) return
@@ -1132,6 +1176,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // refreshPresence 刷新当前成员在线状态
     async function refreshPresence() {
         const conversation = activeConversation.value
         if (!conversation) {
@@ -1158,10 +1203,12 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // sendSocket 通过 WebSocket 发送 ACK 或已读信令
     function sendSocket(payload: WsMessage) {
         return realtime.send(payload)
     }
 
+    // sendAck 提交消息设备送达回执
     function sendAck(messageId: string) {
         sendSocket({
             action: 'ack',
@@ -1169,6 +1216,7 @@ export const useChatStore = defineStore('chat', () => {
         })
     }
 
+    // markRead 单调推进当前会话已读位置
     async function markRead() {
         const conversation = activeConversation.value
         if (!conversation) return
@@ -1192,6 +1240,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // handleSocketMessage 根据动作类型处理实时消息、撤回和群邀请
     function handleSocketMessage(payload: WsMessage) {
         if (
             payload.action === 'group_invitation' ||
@@ -1255,6 +1304,7 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // handleSocketConnected 连接恢复后重建最新窗口和会话摘要
     async function handleSocketConnected() {
         const activeConversationBeforeReconnect = activeConversationId.value
         await loadConversations()
@@ -1267,6 +1317,7 @@ export const useChatStore = defineStore('chat', () => {
         await markRead()
     }
 
+    // reconcileActiveConversation 定时对账当前会话最新窗口
     async function reconcileActiveConversation() {
         const conversationId = activeConversationId.value
         if (!conversationId) return
@@ -1302,14 +1353,17 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // connectWebSocket 为当前登录用户建立实时连接
     function connectWebSocket() {
         return realtime.connect()
     }
 
+    // disconnectWebSocket 断开实时连接并清理定时任务
     function disconnectWebSocket() {
         realtime.disconnect()
     }
 
+    // reset 重置聊天 Store 的会话、消息和连接状态
     function reset() {
         disconnectWebSocket()
         for (const conversationId of [...sequenceStates.keys()]) {

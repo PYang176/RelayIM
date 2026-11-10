@@ -35,10 +35,12 @@ watch(
     {immediate: true},
 )
 
+// close 关闭群邀请对话框
 function close() {
     emit('close')
 }
 
+// formatExpiry 把邀请过期时间格式化为本地时间
 function formatExpiry(value: string) {
     return new Intl.DateTimeFormat('zh-CN', {
         month: '2-digit',
@@ -48,6 +50,7 @@ function formatExpiry(value: string) {
     }).format(new Date(value))
 }
 
+// accept 接受指定群邀请
 async function accept(invitationID: string) {
     const result = await invitations.acceptInvitation(
         invitationID,
@@ -58,6 +61,7 @@ async function accept(invitationID: string) {
     }
 }
 
+// reject 拒绝指定群邀请
 async function reject(invitationID: string) {
     await invitations.rejectInvitation(
         invitationID,

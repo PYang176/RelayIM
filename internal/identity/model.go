@@ -27,6 +27,7 @@ type user struct {
 	DeletedAt *time.Time `gorm:"column:deleted_at"`
 }
 
+// TableName 返回 user 模型对应的数据库表名
 func (user) TableName() string {
 	return "users"
 }
@@ -54,6 +55,7 @@ type userProfile struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
+// TableName 返回 userProfile 模型对应的数据库表名
 func (userProfile) TableName() string {
 	return "user_profiles"
 }
@@ -81,6 +83,7 @@ type device struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
+// TableName 返回 device 模型对应的数据库表名
 func (device) TableName() string {
 	return "devices"
 }
@@ -108,6 +111,7 @@ type refreshToken struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
+// TableName 返回 refreshToken 模型对应的数据库表名
 func (refreshToken) TableName() string {
 	return "refresh_tokens"
 }

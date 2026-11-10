@@ -237,6 +237,7 @@ func (s *Service) GetAttachmentInfo(
 	}, nil
 }
 
+// safeFilename 清理上传文件名中的路径和非法字符
 func safeFilename(filename string) string {
 	filename = strings.TrimSpace(path.Base(strings.ReplaceAll(filename, "\\", "/")))
 	filename = strings.ReplaceAll(filename, "\x00", "")
@@ -249,6 +250,7 @@ func safeFilename(filename string) string {
 	return filename
 }
 
+// messageTypeForMIME 根据服务端检测到的 MIME 类型映射消息类型
 func messageTypeForMIME(contentType string) int {
 	if strings.HasPrefix(contentType, "image/") {
 		return messageTypeImage

@@ -16,6 +16,7 @@ type stubCleanupStore struct {
 	claimErr   error
 }
 
+// claimOrphanAttachments 领取超过 TTL 且未绑定消息的孤儿附件
 func (s *stubCleanupStore) claimOrphanAttachments(
 	context.Context,
 	time.Time,
@@ -26,6 +27,7 @@ func (s *stubCleanupStore) claimOrphanAttachments(
 	return s.candidates, s.claimErr
 }
 
+// markAttachmentCleanupFailed 把清理失败附件放回可重试状态
 func (s *stubCleanupStore) markAttachmentCleanupFailed(
 	_ context.Context,
 	attachmentID uint64,
@@ -34,6 +36,7 @@ func (s *stubCleanupStore) markAttachmentCleanupFailed(
 	return nil
 }
 
+// deleteCleanedAttachmentMetadata 删除Cleaned附件Metadata并遵循关联约束
 func (s *stubCleanupStore) deleteCleanedAttachmentMetadata(
 	_ context.Context,
 	attachmentID uint64,
@@ -47,6 +50,7 @@ type stubCleanupStorage struct {
 	removed []string
 }
 
+// RemoveObject 移除对象并同步清理关联状态
 func (s *stubCleanupStorage) RemoveObject(
 	_ context.Context,
 	objectKey string,
@@ -62,10 +66,12 @@ type stubCleanupMetrics struct {
 	results []string
 }
 
+// RecordAttachmentCleanup 记录附件清理
 func (s *stubCleanupMetrics) RecordAttachmentCleanup(result string) {
 	s.results = append(s.results, result)
 }
 
+// TestAttachmentCleanupDeletesAndRetries 覆盖孤儿附件成功删除，以及对象存储失败后回到可重试状态
 func TestAttachmentCleanupDeletesAndRetries(t *testing.T) {
 	store := &stubCleanupStore{
 		candidates: []attachmentCleanupCandidate{

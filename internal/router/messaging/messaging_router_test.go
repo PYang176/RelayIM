@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestRegisterRoutesAlongsideConversationRoutes 覆盖消息路由与会话路由的路径冲突检测
 func TestRegisterRoutesAlongsideConversationRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

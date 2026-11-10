@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// TestOutboxRepositoryIntegration 覆盖 Outbox 领取、租约、发布和重试状态转换
 func TestOutboxRepositoryIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {

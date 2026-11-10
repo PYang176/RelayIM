@@ -6,6 +6,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// TestRetryQueueForCount 覆盖 RabbitMQ 重试次数对应的队列选择
 func TestRetryQueueForCount(t *testing.T) {
 	tests := []struct {
 		count int
@@ -22,6 +23,7 @@ func TestRetryQueueForCount(t *testing.T) {
 	}
 }
 
+// TestDeliveryRetryCount 覆盖 RabbitMQ 投递重试次数的读取与边界
 func TestDeliveryRetryCount(t *testing.T) {
 	tests := []struct {
 		name    string

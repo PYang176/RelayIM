@@ -26,14 +26,17 @@ export const useFriendshipStore = defineStore('friendships', () => {
     const loadingMore = shallowRef(false)
     const error = shallowRef('')
 
+    // reportError 记录好友功能的统一错误信息
     function reportError(cause: unknown, fallback: string) {
         error.value = cause instanceof Error ? cause.message : fallback
     }
 
+    // clearError 清空好友功能错误信息
     function clearError() {
         error.value = ''
     }
 
+    // loadAll 并行加载好友、申请和拉黑列表
     async function loadAll() {
         loading.value = true
         clearError()
@@ -63,6 +66,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // search 搜索可添加的用户
     async function search(query: string) {
         const value = query.trim()
         if (!value) {
@@ -80,6 +84,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // loadMoreFriends 加载好友列表下一页
     async function loadMoreFriends() {
         if (!friendHasMore.value || !friendNextCursor.value || loadingMore.value) {
             return
@@ -100,6 +105,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // loadMoreReceivedRequests 加载收到的申请下一页
     async function loadMoreReceivedRequests() {
         if (
             !receivedHasMore.value ||
@@ -124,6 +130,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // loadMoreSentRequests 加载发出的申请下一页
     async function loadMoreSentRequests() {
         if (!sentHasMore.value || !sentNextCursor.value || loadingMore.value) {
             return
@@ -144,6 +151,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // loadMoreBlockedUsers 加载拉黑列表下一页
     async function loadMoreBlockedUsers() {
         if (!blockedHasMore.value || !blockedNextCursor.value || loadingMore.value) {
             return
@@ -164,6 +172,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // sendRequest 发送好友申请并刷新申请列表
     async function sendRequest(
         targetUserID: string,
         remark: string,
@@ -185,6 +194,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // acceptRequest 接受好友申请并刷新好友数据
     async function acceptRequest(requestID: string) {
         actionBusy.value = true
         try {
@@ -197,6 +207,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // rejectRequest 拒绝好友申请并刷新列表
     async function rejectRequest(requestID: string) {
         actionBusy.value = true
         try {
@@ -209,6 +220,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // updateRemark 更新好友备注并同步缓存
     async function updateRemark(friendUserID: string, remark: string) {
         actionBusy.value = true
         try {
@@ -221,6 +233,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // removeFriend 删除好友并刷新好友列表
     async function removeFriend(friendUserID: string) {
         actionBusy.value = true
         try {
@@ -233,6 +246,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // blockUser 拉黑用户并刷新关系和列表
     async function blockUser(targetUserID: string) {
         actionBusy.value = true
         clearError()
@@ -246,6 +260,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // unblockUser 解除拉黑并刷新关系和列表
     async function unblockUser(targetUserID: string) {
         actionBusy.value = true
         clearError()
@@ -259,6 +274,7 @@ export const useFriendshipStore = defineStore('friendships', () => {
         }
     }
 
+    // reset 重置好友 Store 状态
     function reset() {
         friends.value = []
         receivedRequests.value = []

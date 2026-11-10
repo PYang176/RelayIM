@@ -134,6 +134,7 @@ func (c *Consumer) Consume(
 	}
 }
 
+// handleDelivery 解码消费投递并返回 ACK、重试或死信决策
 func (c *Consumer) handleDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
@@ -177,6 +178,7 @@ func (c *Consumer) handleDelivery(
 	return nil
 }
 
+// retryDelivery 重新安排投递重试
 func (c *Consumer) retryDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
@@ -242,6 +244,7 @@ func DeliveryRetryCount(headers amqp.Table) int {
 	}
 }
 
+// retryQueueForCount 按投递重试次数选择对应的延迟队列
 func retryQueueForCount(retryCount int) string {
 	switch retryCount {
 	case 0:

@@ -22,10 +22,12 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
     const actionBusy = shallowRef(false)
     const error = shallowRef('')
 
+    // reportError 记录群邀请功能的统一错误信息
     function reportError(cause: unknown, fallback: string) {
         error.value = cause instanceof Error ? cause.message : fallback
     }
 
+    // loadReceived 加载当前用户收到的群邀请
     async function loadReceived() {
         loading.value = true
         clearError()
@@ -41,6 +43,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
+    // loadMoreReceived 加载群邀请列表下一页
     async function loadMoreReceived() {
         if (!hasMore.value || !nextCursor.value || loadingMore.value) return
         loadingMore.value = true
@@ -59,6 +62,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
+    // loadGroupInvitations 加载指定群的邀请记录
     async function loadGroupInvitations(
         conversationID: string,
         reset = true,
@@ -97,6 +101,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
+    // acceptInvitation 接受群邀请并刷新会话数据
     async function acceptInvitation(
         invitationID: string,
         responseRemark = '',
@@ -121,6 +126,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
+    // rejectInvitation 拒绝群邀请并刷新列表
     async function rejectInvitation(
         invitationID: string,
         responseRemark = '',
@@ -143,6 +149,7 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
+    // cancelInvitation 取消群内待处理邀请
     async function cancelInvitation(
         conversationID: string,
         invitationID: string,
@@ -163,10 +170,12 @@ export const useGroupInvitationStore = defineStore('group-invitations', () => {
         }
     }
 
+    // clearError 清空群邀请功能错误信息
     function clearError() {
         error.value = ''
     }
 
+    // reset 重置群邀请 Store 状态
     function reset() {
         invitations.value = []
         groupHistory.value = {}

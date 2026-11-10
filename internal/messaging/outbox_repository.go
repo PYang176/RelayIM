@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// claimOutbox 在同一事务内领取待发布或租约已过期的 Outbox 事件。
+// claimOutbox 领取待发布或租约已过期的 Outbox 事件
 func (r *Repository) claimOutbox(
 	ctx context.Context,
 	workerID string,
@@ -79,7 +79,7 @@ func (r *Repository) claimOutbox(
 	return events, nil
 }
 
-// markOutboxPublished 在收到 Publisher Confirm 后标记事件发布成功。
+// markOutboxPublished 收到 Publisher Confirm 后标记 Outbox 事件已发布
 func (r *Repository) markOutboxPublished(
 	ctx context.Context,
 	eventID uint64,
@@ -100,7 +100,7 @@ func (r *Repository) markOutboxPublished(
 	)
 }
 
-// retryOutbox 把可重试发布失败放回待发布状态，并延迟下一次领取时间。
+// retryOutbox 把可重试失败放回待发布状态并延迟再次领取
 func (r *Repository) retryOutbox(
 	ctx context.Context,
 	eventID uint64,
@@ -122,7 +122,7 @@ func (r *Repository) retryOutbox(
 	)
 }
 
-// markOutboxDead 将超过最大发布次数的异常事件留在数据库供人工排查。
+// markOutboxDead 达到最大重试次数后把 Outbox 事件标记为死信
 func (r *Repository) markOutboxDead(
 	ctx context.Context,
 	eventID uint64,
@@ -142,6 +142,7 @@ func (r *Repository) markOutboxDead(
 	)
 }
 
+// updateClaimedOutbox 更新领取edOutbox并维护相关不变量
 func (r *Repository) updateClaimedOutbox(
 	ctx context.Context,
 	eventID uint64,

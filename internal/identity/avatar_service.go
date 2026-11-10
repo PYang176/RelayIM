@@ -192,6 +192,7 @@ func (s *Service) OpenAvatar(
 	}, nil
 }
 
+// cleanupAvatarObject 清理头像对象遗留资源
 func (s *Service) cleanupAvatarObject(ctx context.Context, objectKey string) {
 	if s.avatars == nil || objectKey == "" {
 		return

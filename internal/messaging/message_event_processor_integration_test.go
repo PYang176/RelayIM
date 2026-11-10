@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// TestMessageEventProcessorIntegration 覆盖消息事件的幂等处理和实时投递事实
 func TestMessageEventProcessorIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -285,6 +286,7 @@ func TestMessageEventProcessorIntegration(t *testing.T) {
 	}
 }
 
+// containsUserID 判断目标用户 ID 是否存在于给定集合
 func containsUserID(userIDs []uint64, target uint64) bool {
 	for _, userID := range userIDs {
 		if userID == target {
@@ -299,6 +301,7 @@ type stubEventDeliveryRouter struct {
 	messages [][]byte
 }
 
+// Route 计算目标并完成路由
 func (s *stubEventDeliveryRouter) Route(
 	_ context.Context,
 	userIDs []uint64,

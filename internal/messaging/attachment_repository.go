@@ -21,6 +21,7 @@ type attachmentCleanupCandidate struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
+// createAttachment 创建附件并在事务内维护关联状态
 func (r *Repository) createAttachment(
 	ctx context.Context,
 	record *attachment,
@@ -31,6 +32,7 @@ func (r *Repository) createAttachment(
 	return nil
 }
 
+// finalizeAttachment 把待确认附件切换为可用状态，并记录最终确认时间
 func (r *Repository) finalizeAttachment(
 	ctx context.Context,
 	attachmentID uint64,
@@ -52,6 +54,7 @@ func (r *Repository) finalizeAttachment(
 	return nil
 }
 
+// deleteAttachmentMetadata 删除附件Metadata并遵循关联约束
 func (r *Repository) deleteAttachmentMetadata(
 	ctx context.Context,
 	attachmentID uint64,
@@ -61,7 +64,7 @@ func (r *Repository) deleteAttachmentMetadata(
 		Delete(&attachment{}).Error
 }
 
-// claimOrphanAttachments 领取超过 TTL 且未绑定消息的附件。
+// claimOrphanAttachments 领取超过 TTL 且未绑定消息的孤儿附件
 func (r *Repository) claimOrphanAttachments(
 	ctx context.Context,
 	now time.Time,
@@ -120,7 +123,7 @@ func (r *Repository) claimOrphanAttachments(
 	return candidates, nil
 }
 
-// markAttachmentCleanupFailed 把清理失败附件放回可重试状态。
+// markAttachmentCleanupFailed 把清理失败附件放回可重试状态
 func (r *Repository) markAttachmentCleanupFailed(
 	ctx context.Context,
 	attachmentID uint64,
@@ -181,6 +184,7 @@ func (r *Repository) CountOrphanAttachments(
 	return count, nil
 }
 
+// findAccessibleAttachment 按附件归属或会话成员关系校验访问权限
 func (r *Repository) findAccessibleAttachment(
 	ctx context.Context,
 	userID uint64,
@@ -221,6 +225,7 @@ func (r *Repository) findAccessibleAttachment(
 	return &record, nil
 }
 
+// usableAttachment 校验附件归属、状态和未绑定约束，返回可绑定附件
 func usableAttachment(
 	ctx context.Context,
 	tx *gorm.DB,

@@ -107,6 +107,7 @@ func (c *NodeConsumer) Run(ctx context.Context) {
 	}
 }
 
+// processDelivery 解码节点投递命令并写入本实例 WebSocket 队列
 func (c *NodeConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
@@ -169,6 +170,7 @@ func (c *NodeConsumer) processDelivery(
 	return nil
 }
 
+// waitNodeReconnect 等待节点消费者重连或上下文取消
 func waitNodeReconnect(ctx context.Context) bool {
 	timer := time.NewTimer(nodeReconnectDelay)
 	defer timer.Stop()
@@ -180,6 +182,7 @@ func waitNodeReconnect(ctx context.Context) bool {
 	}
 }
 
+// nodeQueueName 根据实例 ID 生成节点投递队列名
 func nodeQueueName(instanceID string) string {
 	return fmt.Sprintf(
 		"%s%s",

@@ -101,6 +101,7 @@ func RateLimit(
 	}
 }
 
+// rateLimitRequestSubject 从认证上下文提取限流主体和范围
 func rateLimitRequestSubject(
 	c *gin.Context,
 	subjectType RateLimitSubject,
@@ -132,6 +133,7 @@ func rateLimitRequestSubject(
 	}
 }
 
+// abortRateLimited 中断被限流请求，并写入 Retry-After 与限流范围响应头
 func abortRateLimited(c *gin.Context, decision ratelimit.Decision) {
 	retryAfter := int(math.Ceil(decision.RetryAfter.Seconds()))
 	if retryAfter < 1 {

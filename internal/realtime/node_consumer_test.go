@@ -14,12 +14,14 @@ type stubLocalSender struct {
 	messages [][]byte
 }
 
+// SendToUsers 执行To用户流程并完成持久化准备
 func (s *stubLocalSender) SendToUsers(userIDs []uint64, message []byte) int {
 	s.userIDs = append([]uint64(nil), userIDs...)
 	s.messages = append(s.messages, append([]byte(nil), message...))
 	return len(userIDs)
 }
 
+// TestNodeConsumerDispatchesLocalUsers 覆盖节点投递命令向本实例用户分发
 func TestNodeConsumerDispatchesLocalUsers(t *testing.T) {
 	local := &stubLocalSender{}
 	consumer := NewNodeConsumer(
@@ -50,6 +52,7 @@ func TestNodeConsumerDispatchesLocalUsers(t *testing.T) {
 	}
 }
 
+// TestNodeConsumerDropsMalformedCommand 覆盖非法节点投递命令的丢弃策略
 func TestNodeConsumerDropsMalformedCommand(t *testing.T) {
 	local := &stubLocalSender{}
 	consumer := NewNodeConsumer(

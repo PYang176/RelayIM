@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// TestFriendshipRepositoryIntegration 覆盖好友申请、关系、备注和拉黑的数据一致性
 func TestFriendshipRepositoryIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -220,6 +221,7 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 	}
 }
 
+// TestFriendshipPaginationIntegration 覆盖好友、申请和拉黑列表的游标分页
 func TestFriendshipPaginationIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {

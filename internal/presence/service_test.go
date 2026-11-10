@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// TestNormalizeUserIDs 覆盖在线状态批量查询用户 ID 的规范化
 func TestNormalizeUserIDs(t *testing.T) {
 	got, err := normalizeUserIDs([]uint64{2, 1, 2})
 	if err != nil {
@@ -26,6 +27,7 @@ func TestNormalizeUserIDs(t *testing.T) {
 	}
 }
 
+// TestPresenceServiceIntegration 覆盖 Redis 多设备在线状态的写入、查询和清理
 func TestPresenceServiceIntegration(t *testing.T) {
 	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if address == "" {

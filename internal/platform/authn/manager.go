@@ -222,6 +222,7 @@ func (m *Manager) ConsumeWSTicket(
 	}, nil
 }
 
+// wsTicketKey 生成 WebSocket Ticket 限流 Redis Key
 func wsTicketKey(ticket string) string {
 	digest := sha256.Sum256([]byte(ticket))
 	return fmt.Sprintf("ws_ticket:%x", digest)

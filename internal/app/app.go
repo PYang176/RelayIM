@@ -246,6 +246,7 @@ func Run() error {
 	return runServer(ctx, server)
 }
 
+// setupLogging 配置Logging运行时依赖
 func setupLogging() {
 	handler := slog.NewJSONHandler(
 		os.Stdout,
@@ -259,6 +260,7 @@ type outboxStatusCount struct {
 	Count  int64 `gorm:"column:count"`
 }
 
+// loadOutboxStats 加载Outbox统计所需数据
 func loadOutboxStats(
 	ctx context.Context,
 	db *gorm.DB,
@@ -287,6 +289,7 @@ func loadOutboxStats(
 	return result, nil
 }
 
+// serverAddr 读取服务监听地址配置，缺省时返回默认端口
 func serverAddr() string {
 	if addr := strings.TrimSpace(os.Getenv("GINCHAT_SERVER_ADDR")); addr != "" {
 		return addr
@@ -294,6 +297,7 @@ func serverAddr() string {
 	return defaultServerAddr
 }
 
+// runServer 运行服务端直到上下文结束
 func runServer(ctx context.Context, server *http.Server) error {
 	// 缓冲 1 个错误，确保 ListenAndServe 退出时不会因无人接收而泄漏 Goroutine。
 	serverErr := make(chan error, 1)
@@ -321,6 +325,7 @@ func runServer(ctx context.Context, server *http.Server) error {
 	}
 }
 
+// instanceID 生成包含主机、进程和启动时间的实例标识
 func instanceID() string {
 	hostname, err := os.Hostname()
 	if err != nil || strings.TrimSpace(hostname) == "" {

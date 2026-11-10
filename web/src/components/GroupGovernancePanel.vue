@@ -36,10 +36,12 @@ watch(
     {immediate: true},
 )
 
+// memberName 计算群成员的展示名称
 function memberName(member: ConversationMember) {
     return member.nickname || member.username
 }
 
+// selectedMemberName 返回当前转让目标成员的展示名称
 function selectedMemberName() {
     const member = successors.value.find(
         (item) => item.user_id === transferTargetId.value,
@@ -47,10 +49,12 @@ function selectedMemberName() {
     return member ? memberName(member) : '所选成员'
 }
 
+// changeTransferTarget 更新群主转让目标
 function changeTransferTarget() {
     confirmingTransfer.value = false
 }
 
+// transferOwner 提交群主转让操作
 function transferOwner() {
     if (!transferTargetId.value || props.busy) return
     if (!confirmingTransfer.value) {
@@ -61,6 +65,7 @@ function transferOwner() {
     emit('transferOwner', transferTargetId.value)
 }
 
+// dissolve 确认并提交解散群操作
 function dissolve() {
     if (props.busy) return
     if (!confirmingDissolve.value) {

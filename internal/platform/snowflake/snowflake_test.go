@@ -7,6 +7,7 @@ import (
 	depsnowflake "github.com/bwmarrin/snowflake"
 )
 
+// TestTimestampMatchesGeneratedID 覆盖雪花 ID 时间戳解码的一致性
 func TestTimestampMatchesGeneratedID(t *testing.T) {
 	node, err := depsnowflake.NewNode(1)
 	if err != nil {

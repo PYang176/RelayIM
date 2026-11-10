@@ -5,12 +5,14 @@ import type {
     InvitationAcceptance,
 } from '@/types/api'
 
+// pageParams 构造群邀请分页查询参数
 function pageParams(beforeID = ''): URLSearchParams {
     const params = new URLSearchParams({limit: '20'})
     if (beforeID) params.set('before_id', beforeID)
     return params
 }
 
+// listReceivedInvitations 分页查询当前用户收到的群邀请
 export function listReceivedInvitations(
     token: string,
     beforeID = '',
@@ -23,6 +25,7 @@ export function listReceivedInvitations(
     )
 }
 
+// acceptInvitation 接受群邀请并提交审批回复
 export function acceptInvitation(
     token: string,
     invitationID: string,
@@ -38,6 +41,7 @@ export function acceptInvitation(
     )
 }
 
+// rejectInvitation 拒绝群邀请并提交审批回复
 export function rejectInvitation(
     token: string,
     invitationID: string,
@@ -53,6 +57,7 @@ export function rejectInvitation(
     )
 }
 
+// cancelInvitation 取消群内仍待处理的邀请
 export function cancelInvitation(
     token: string,
     conversationID: string,
@@ -65,6 +70,7 @@ export function cancelInvitation(
     )
 }
 
+// listGroupInvitations 分页查询指定群的邀请记录
 export function listGroupInvitations(
     token: string,
     conversationID: string,

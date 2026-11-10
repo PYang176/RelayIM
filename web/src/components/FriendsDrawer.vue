@@ -39,26 +39,31 @@ watch(
     {immediate: true},
 )
 
+// submitSearch 提交用户搜索并更新搜索结果
 async function submitSearch() {
     await friendships.search(searchQuery.value)
 }
 
+// close 关闭联系人抽屉
 function close() {
     emit('close')
 }
 
+// beginRequest 为指定用户打开好友申请输入
 function beginRequest(userID: string) {
     requestingUserID.value = userID
     requestRemark.value = ''
     requestReasonError.value = ''
 }
 
+// cancelRequest 取消好友申请输入
 function cancelRequest() {
     requestingUserID.value = ''
     requestRemark.value = ''
     requestReasonError.value = ''
 }
 
+// submitRequest 提交带理由的好友申请
 async function submitRequest(userID: string) {
     const remark = requestRemark.value.trim()
     if (!remark) {

@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// TestHealthHandlers 覆盖存活和就绪检查的状态码与响应结构
 func TestHealthHandlers(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -73,6 +74,7 @@ func TestHealthHandlers(t *testing.T) {
 	}
 }
 
+// TestLiveHandler 覆盖进程存活检查不依赖外部服务
 func TestLiveHandler(t *testing.T) {
 	response := httptest.NewRecorder()
 	NewHealth().LiveHandler().ServeHTTP(

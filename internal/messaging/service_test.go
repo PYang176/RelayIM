@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestServiceSendTextValidation 覆盖文本消息发送的类型、附件和幂等参数校验
 func TestServiceSendTextValidation(t *testing.T) {
 	service := NewService(nil)
 	replyID := uint64(0)
@@ -79,6 +80,7 @@ func TestServiceSendTextValidation(t *testing.T) {
 	}
 }
 
+// TestServiceListMessagesValidation 覆盖历史消息查询的成员和游标校验
 func TestServiceListMessagesValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -122,6 +124,7 @@ func TestServiceListMessagesValidation(t *testing.T) {
 	}
 }
 
+// TestServiceSearchMessagesValidation 覆盖消息搜索的成员权限和关键词边界
 func TestServiceSearchMessagesValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -180,6 +183,7 @@ func TestServiceSearchMessagesValidation(t *testing.T) {
 	}
 }
 
+// TestServiceReceiptValidation 覆盖送达和已读回执的身份与序号校验
 func TestServiceReceiptValidation(t *testing.T) {
 	service := NewService(nil)
 	if err := service.AcknowledgeMessage(
@@ -200,6 +204,7 @@ func TestServiceReceiptValidation(t *testing.T) {
 	}
 }
 
+// TestServiceRecallValidation 覆盖消息撤回的发送者、时限和管理员权限
 func TestServiceRecallValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []RecallMessageCommand{

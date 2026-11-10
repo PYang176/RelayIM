@@ -12,6 +12,7 @@ import (
 	"ginChatProject/internal/config"
 )
 
+// TestObjectStorageIntegration 覆盖 SeaweedFS 对象写入、读取和删除
 func TestObjectStorageIntegration(t *testing.T) {
 	endpoint := os.Getenv("GINCHAT_TEST_S3_ENDPOINT")
 	accessKey := os.Getenv("GINCHAT_TEST_S3_ACCESS_KEY")

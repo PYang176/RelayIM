@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestRouterOnlyExposesVersionedApplicationAPI 覆盖仅暴露版本化业务接口的路由白名单
 func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := Router(

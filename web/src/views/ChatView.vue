@@ -97,11 +97,13 @@ const currentMemberRole = computed(
             ?.role ?? 1,
 )
 
+// selectConversation 切换当前会话并同步页面状态
 async function selectConversation(conversationId: string) {
     await chat.selectConversation(conversationId)
     messageList.value?.scrollToBottom()
 }
 
+// openGroupMembers 打开群成员管理窗口
 function openGroupMembers() {
     memberActionError.value = ''
     groupMembersOpen.value = true
@@ -113,6 +115,7 @@ function openGroupMembers() {
     void friendships.loadAll()
 }
 
+// inviteMembers 邀请好友加入当前群聊
 async function inviteMembers(userIds: string[], inviteRemark: string) {
     const succeeded = await runMemberAction(
         async () => {
@@ -128,6 +131,7 @@ async function inviteMembers(userIds: string[], inviteRemark: string) {
     }
 }
 
+// loadMoreGroupInvitations 加载更多待处理群邀请
 function loadMoreGroupInvitations() {
     if (chat.activeConversationId) {
         void groupInvitations.loadGroupInvitations(
@@ -137,6 +141,7 @@ function loadMoreGroupInvitations() {
     }
 }
 
+// cancelGroupInvitation 取消指定群邀请
 async function cancelGroupInvitation(invitationID: string) {
     if (chat.activeConversationId) {
         await groupInvitations.cancelInvitation(
@@ -146,6 +151,7 @@ async function cancelGroupInvitation(invitationID: string) {
     }
 }
 
+// handleGroupInvitationAccepted 接受邀请后切换到目标群会话
 async function handleGroupInvitationAccepted(conversationID: string) {
     groupInvitationsOpen.value = false
     await chat.loadConversations()
@@ -153,6 +159,7 @@ async function handleGroupInvitationAccepted(conversationID: string) {
     messageList.value?.scrollToBottom()
 }
 
+// removeMember 移除当前群成员
 async function removeMember(userID: string) {
     await runMemberAction(async () => {
         await chat.removeGroupMember(userID)
@@ -162,6 +169,7 @@ async function removeMember(userID: string) {
     }, '移除群成员失败')
 }
 
+// setMemberRole 调整当前群成员角色
 async function setMemberRole(userID: string, role: 1 | 2) {
     await runMemberAction(
         () => chat.setGroupMemberRole(userID, role),
@@ -169,6 +177,7 @@ async function setMemberRole(userID: string, role: 1 | 2) {
     )
 }
 
+// transferOwner 转让当前群主身份
 async function transferOwner(userID: string) {
     await runMemberAction(
         () => chat.transferGroupOwner(userID),
@@ -176,6 +185,7 @@ async function transferOwner(userID: string) {
     )
 }
 
+// dissolveGroup 解散当前群聊
 async function dissolveGroup() {
     const dissolved = await runMemberAction(
         () => chat.dissolveActiveGroup(),
@@ -186,6 +196,7 @@ async function dissolveGroup() {
     }
 }
 
+// updateGroupProfile 保存群名称和群头像
 async function updateGroupProfile(payload: {
     name: string
     avatarUrl: string
@@ -196,6 +207,7 @@ async function updateGroupProfile(payload: {
     )
 }
 
+// runMemberAction 统一执行成员管理操作并处理错误
 async function runMemberAction(
     action: () => Promise<void>,
     fallback: string,
@@ -215,11 +227,13 @@ async function runMemberAction(
     }
 }
 
+// openGroupCreator 打开创建群聊对话框
 function openGroupCreator() {
     groupDialogOpen.value = true
     void friendships.loadAll()
 }
 
+// createGroup 创建群聊并切换到新会话
 async function createGroup(payload: {
     name: string
     memberUserIds: string[]
@@ -241,6 +255,7 @@ async function createGroup(payload: {
     }
 }
 
+// memberName 计算群成员展示名称
 function memberName(member: {
     nickname: string
     username: string
@@ -248,6 +263,7 @@ function memberName(member: {
     return member.nickname || member.username
 }
 
+// sendMessage 发送文本消息并刷新当前会话
 async function sendMessage(content: string) {
     try {
         await chat.sendMessage(content)
@@ -257,6 +273,7 @@ async function sendMessage(content: string) {
     }
 }
 
+// recallMessage 撤回指定消息并刷新状态
 async function recallMessage(messageId: string) {
     try {
         await chat.recallMessage(messageId)
@@ -265,12 +282,14 @@ async function recallMessage(messageId: string) {
     }
 }
 
+// openProfile 打开当前用户资料对话框
 function openProfile() {
     profileError.value = ''
     avatarError.value = ''
     profileDialogOpen.value = true
 }
 
+// saveProfile 保存个人资料修改
 async function saveProfile(payload: {
     nickname: string
     bio: string
@@ -292,6 +311,7 @@ async function saveProfile(payload: {
     }
 }
 
+// uploadAvatar 上传并保存个人头像
 async function uploadAvatar(file: File) {
     avatarBusy.value = true
     avatarError.value = ''
@@ -309,6 +329,7 @@ async function uploadAvatar(file: File) {
     }
 }
 
+// removeAvatar 移除个人头像
 async function removeAvatar() {
     avatarBusy.value = true
     avatarError.value = ''
@@ -326,6 +347,7 @@ async function removeAvatar() {
     }
 }
 
+// sendFile 上传附件并发送图片或文件消息
 async function sendFile(file: File) {
     try {
         await chat.sendAttachment(file)
@@ -335,12 +357,14 @@ async function sendFile(file: File) {
     }
 }
 
+// markVisibleConversationRead 页面重新可见时推进当前会话已读位置
 function markVisibleConversationRead() {
     if (document.visibilityState === 'visible') {
         void chat.markRead()
     }
 }
 
+// logout 退出登录并返回登录页
 async function logout() {
     chat.reset()
     friendships.reset()
@@ -349,6 +373,7 @@ async function logout() {
     await router.replace('/login')
 }
 
+// openFriendDirect 从好友列表打开或创建私聊
 async function openFriendDirect(userID: string) {
     friendsOpen.value = false
     try {

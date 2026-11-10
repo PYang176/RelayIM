@@ -17,6 +17,7 @@ type stubQuerier struct {
 	err     error
 }
 
+// Query 查询
 func (s stubQuerier) Query(
 	context.Context,
 	[]uint64,
@@ -24,6 +25,7 @@ func (s stubQuerier) Query(
 	return s.results, s.err
 }
 
+// TestPresenceHandlerQuery 覆盖在线状态查询接口的响应转换
 func TestPresenceHandlerQuery(t *testing.T) {
 	tests := []struct {
 		name       string

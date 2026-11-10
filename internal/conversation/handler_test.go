@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestParseConversationPageQuery 覆盖会话分页查询参数的解析和边界
 func TestParseConversationPageQuery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	validCursor := encodeConversationCursor(
@@ -93,6 +94,7 @@ func TestParseConversationPageQuery(t *testing.T) {
 	}
 }
 
+// TestConversationCursorRoundTrip 覆盖会话游标编码和解码后的一致性
 func TestConversationCursorRoundTrip(t *testing.T) {
 	wantTime := time.Date(2026, 11, 10, 8, 30, 0, 123000000, time.UTC)
 	const wantID uint64 = 1839281749283749120
@@ -114,6 +116,7 @@ func TestConversationCursorRoundTrip(t *testing.T) {
 	}
 }
 
+// TestConversationCursorRejectsInvalidPayload 覆盖非法会话游标载荷的拒绝路径
 func TestConversationCursorRejectsInvalidPayload(t *testing.T) {
 	invalid := []string{
 		"",

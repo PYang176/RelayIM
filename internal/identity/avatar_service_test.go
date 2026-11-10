@@ -17,6 +17,7 @@ type memoryAvatarStorage struct {
 	removedKeys []string
 }
 
+// newMemoryAvatarStorage 创建Memory头像存储并完成必要依赖注入
 func newMemoryAvatarStorage() *memoryAvatarStorage {
 	return &memoryAvatarStorage{
 		objects: make(map[string][]byte),
@@ -24,6 +25,7 @@ func newMemoryAvatarStorage() *memoryAvatarStorage {
 	}
 }
 
+// PutObject 写入测试对象数据，供附件链路测试使用
 func (s *memoryAvatarStorage) PutObject(
 	ctx context.Context,
 	objectKey string,
@@ -48,6 +50,7 @@ func (s *memoryAvatarStorage) PutObject(
 	return nil
 }
 
+// OpenObject 打开测试对象并返回内容类型和长度
 func (s *memoryAvatarStorage) OpenObject(
 	ctx context.Context,
 	objectKey string,
@@ -67,6 +70,7 @@ func (s *memoryAvatarStorage) OpenObject(
 		nil
 }
 
+// RemoveObject 移除对象并同步清理关联状态
 func (s *memoryAvatarStorage) RemoveObject(
 	ctx context.Context,
 	objectKey string,
@@ -82,6 +86,7 @@ func (s *memoryAvatarStorage) RemoveObject(
 	return nil
 }
 
+// TestServiceAvatarValidation 覆盖头像 MIME、大小和对象清理规则
 func TestServiceAvatarValidation(t *testing.T) {
 	service := NewServiceWithAvatarStorage(nil, nil, newMemoryAvatarStorage())
 	tests := []struct {

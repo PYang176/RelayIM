@@ -504,6 +504,7 @@ func (s *Service) GetDeliverySummary(
 	return s.repo.getDeliverySummary(ctx, userID, conversationID, messageID)
 }
 
+// stringValue 读取字符串值并去除首尾空白
 func stringValue(value *string) string {
 	if value == nil {
 		return ""

@@ -89,6 +89,7 @@ func (m *ConnManager) SendToUsers(userIDs []uint64, message []byte) int {
 	return delivered
 }
 
+// sendUser 向单个用户的所有在线连接投递消息
 func (m *ConnManager) sendUser(userID uint64, message []byte) int {
 	connections := m.snapshotUser(userID)
 	delivered := 0
@@ -103,6 +104,7 @@ func (m *ConnManager) sendUser(userID uint64, message []byte) int {
 	return delivered
 }
 
+// snapshotUser 复制当前用户连接快照，避免持锁执行网络写入
 func (m *ConnManager) snapshotUser(userID uint64) []managedConnection {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()

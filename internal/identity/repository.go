@@ -218,12 +218,14 @@ func (r *Repository) TouchDevice(
 	return nil
 }
 
+// isDuplicateKey 判断重复键条件
 func isDuplicateKey(err error) bool {
 	// GORM 会包装事务内部错误，errors.As 用于提取底层 MySQL 错误。
 	var mysqlErr *mysql.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }
 
+// nullableString 把空字符串转换为数据库可空值
 func nullableString(value string) *string {
 	if value == "" {
 		return nil

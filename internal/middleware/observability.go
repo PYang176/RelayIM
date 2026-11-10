@@ -71,6 +71,7 @@ func RequestIDFromContext(ctx context.Context) string {
 	return value
 }
 
+// normalizedRequestID 校验 Request ID 格式，非法值由服务端重新生成
 func normalizedRequestID(value string) string {
 	if len(value) >= 8 && len(value) <= 128 && safeRequestID(value) {
 		return value
@@ -86,6 +87,7 @@ func normalizedRequestID(value string) string {
 	)
 }
 
+// safeRequestID 校验客户端 Request ID 是否只包含安全字符
 func safeRequestID(value string) bool {
 	for _, character := range value {
 		switch {
@@ -100,6 +102,7 @@ func safeRequestID(value string) bool {
 	return true
 }
 
+// shouldLogAccess 判断当前路径是否需要写入访问日志
 func shouldLogAccess(path string) bool {
 	switch path {
 	case "/metrics", "/health/live", "/health/ready", "/ws":

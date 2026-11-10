@@ -20,6 +20,7 @@ import (
 
 const maxSnowflakeClockRollbackWait = 5 * time.Second
 
+// InitConfig 初始化配置运行状态
 func InitConfig() error {
 	v := viper.GetViper()
 	if err := bindConfigEnv(v); err != nil {
@@ -39,6 +40,7 @@ func InitConfig() error {
 	return nil
 }
 
+// bindConfigEnv 绑定 GINCHAT 环境变量到配置键，保证运行参数覆盖 YAML
 func bindConfigEnv(v *viper.Viper) error {
 	// 前缀、键名替换和 AutomaticEnv 为后续普通字段提供统一覆盖规则；
 	// 下面显式绑定关键字段，保证嵌套 YAML 键的环境变量名稳定可控。
@@ -105,6 +107,7 @@ func LoadTracingConfig() config.TracingConfig {
 	return loadTracingConfig(viper.GetViper())
 }
 
+// loadTracingConfig 加载Tracing配置所需数据
 func loadTracingConfig(v *viper.Viper) config.TracingConfig {
 	cfg := config.TracingConfig{
 		Enabled:      v.GetBool("tracing.enabled"),
@@ -129,6 +132,7 @@ func LoadAttachmentCleanupConfig() config.AttachmentCleanupConfig {
 	return loadAttachmentCleanupConfig(viper.GetViper())
 }
 
+// loadAttachmentCleanupConfig 加载附件清理配置所需数据
 func loadAttachmentCleanupConfig(
 	v *viper.Viper,
 ) config.AttachmentCleanupConfig {
@@ -159,6 +163,7 @@ func LoadWSTicketRateLimitConfig() config.WSTicketRateLimitConfig {
 	return loadWSTicketRateLimitConfig(viper.GetViper())
 }
 
+// loadWSTicketRateLimitConfig 加载WS票据速率限制配置所需数据
 func loadWSTicketRateLimitConfig(
 	v *viper.Viper,
 ) config.WSTicketRateLimitConfig {
@@ -184,6 +189,7 @@ func LoadRabbitMQConfig() config.RabbitMQConfig {
 	return loadRabbitMQConfig(viper.GetViper())
 }
 
+// loadRabbitMQConfig 加载RabbitMQ配置所需数据
 func loadRabbitMQConfig(v *viper.Viper) config.RabbitMQConfig {
 	cfg := config.RabbitMQConfig{
 		URL:                      strings.TrimSpace(v.GetString("rabbitmq.url")),
@@ -224,6 +230,7 @@ func LoadObjectStorageConfig() config.ObjectStorageConfig {
 	return loadObjectStorageConfig(viper.GetViper())
 }
 
+// loadObjectStorageConfig 加载对象存储配置所需数据
 func loadObjectStorageConfig(v *viper.Viper) config.ObjectStorageConfig {
 	cfg := config.ObjectStorageConfig{
 		Endpoint:  strings.TrimSpace(v.GetString("s3.endpoint")),
@@ -251,6 +258,7 @@ func LoadMySQLConfig() config.MySQLConfig {
 	return loadMySQLConfig(viper.GetViper())
 }
 
+// loadMySQLConfig 加载MySQL配置所需数据
 func loadMySQLConfig(v *viper.Viper) config.MySQLConfig {
 	return config.MySQLConfig{
 		Host:     v.GetString("mysql.host"),
@@ -353,6 +361,7 @@ func InitSnowFlake(ctx context.Context, db *gorm.DB) error {
 	return nil
 }
 
+// latestSnowflakeTime 查询数据库中已有雪花 ID 的最大时间水位
 func latestSnowflakeTime(
 	ctx context.Context,
 	db *gorm.DB,
@@ -382,6 +391,7 @@ FROM (
 	return snowflake.Timestamp(maxID.Int64), nil
 }
 
+// ensureSnowflakeClockAhead 校验系统时钟是否追平雪花时间水位
 func ensureSnowflakeClockAhead(
 	ctx context.Context,
 	latest time.Time,

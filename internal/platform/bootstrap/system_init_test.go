@@ -63,6 +63,7 @@ func TestEnsureSnowflakeClockAhead(t *testing.T) {
 	}
 }
 
+// TestEnsureSnowflakeClockAheadCanceled 覆盖等待雪花时钟追平时的上下文取消
 func TestEnsureSnowflakeClockAheadCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -77,6 +78,7 @@ func TestEnsureSnowflakeClockAheadCanceled(t *testing.T) {
 	}
 }
 
+// TestLatestSnowflakeTimeIntegration 覆盖从真实数据库读取雪花时间水位
 func TestLatestSnowflakeTimeIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -119,6 +121,7 @@ func TestLatestSnowflakeTimeIntegration(t *testing.T) {
 	}
 }
 
+// TestBindConfigEnv 覆盖 GINCHAT 环境变量到配置键的绑定
 func TestBindConfigEnv(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -190,6 +193,7 @@ func TestBindConfigEnv(t *testing.T) {
 	}
 }
 
+// TestLoadRabbitMQConfigFromEnvironment 覆盖 RabbitMQ 配置的环境变量覆盖和默认值
 func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_RABBITMQ_URL", "amqp://user:password@127.0.0.1:5672/ginchat")
 	t.Setenv("GINCHAT_RABBITMQ_PUBLISH_TIMEOUT_SECONDS", "6")
@@ -218,6 +222,7 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadTracingConfigFromEnvironment 覆盖 Trace 配置的环境变量覆盖和采样边界
 func TestLoadTracingConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_TRACING_ENABLED", "true")
 	t.Setenv("GINCHAT_TRACING_SERVICE_NAME", "ginchat-test")
@@ -240,6 +245,7 @@ func TestLoadTracingConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadAttachmentCleanupConfigFromEnvironment 覆盖附件清理配置的环境变量覆盖和默认值
 func TestLoadAttachmentCleanupConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_ENABLED", "true")
 	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_INTERVAL_SECONDS", "60")
@@ -268,6 +274,7 @@ func TestLoadAttachmentCleanupConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadObjectStorageConfigFromEnvironment 覆盖对象存储配置的环境变量覆盖和默认值
 func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_S3_ENDPOINT", "127.0.0.1:8333")
 	t.Setenv("GINCHAT_S3_ACCESS_KEY", "test-access")
@@ -292,6 +299,7 @@ func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadWSTicketRateLimitConfigFromEnvironment 覆盖 Ticket 限流配置的环境变量覆盖
 func TestLoadWSTicketRateLimitConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_GLOBAL", "500")
 	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_USER", "20")
@@ -313,6 +321,7 @@ func TestLoadWSTicketRateLimitConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadMySQLConfigFromEnvironment 覆盖 MySQL 配置的环境变量覆盖
 func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_MYSQL_HOST", "127.0.0.1")
 	t.Setenv("GINCHAT_MYSQL_PORT", "3307")

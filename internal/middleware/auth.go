@@ -74,6 +74,7 @@ func CurrentUserID(context *gin.Context) (uint64, bool) {
 	return userID, true
 }
 
+// authorizationToken 从 Authorization 请求头提取 Bearer Token
 func authorizationToken(header string) string {
 	header = strings.TrimSpace(header)
 	parts := strings.Fields(header)

@@ -48,12 +48,14 @@ watch(
     {immediate: true},
 )
 
+// close 关闭个人资料对话框
 function close() {
     if (!props.busy && !props.avatarBusy) {
         emit('close')
     }
 }
 
+// submit 提交个人资料修改
 function submit() {
     if (props.busy || !nickname.value.trim()) return
     emit('save', {
@@ -62,12 +64,14 @@ function submit() {
     })
 }
 
+// chooseAvatar 打开头像文件选择器
 function chooseAvatar() {
     if (!props.avatarBusy) {
         avatarInput.value?.click()
     }
 }
 
+// handleAvatar 选择头像文件并触发上传
 function handleAvatar(event: Event) {
     const input = event.target as HTMLInputElement
     const file = input.files?.[0]

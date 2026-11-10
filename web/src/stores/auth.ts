@@ -10,10 +10,12 @@ const DEVICE_KEY = 'ginchat.device_id'
 const DEVICE_IDS_KEY = 'ginchat.device_ids'
 const USER_KEY = 'ginchat.user'
 
+// accountDeviceKey 生成账号维度的设备缓存键
 function accountDeviceKey(username: string) {
     return username.trim().toLocaleLowerCase()
 }
 
+// readDeviceIDs 读取并校验本地多账号设备 ID 映射
 function readDeviceIDs(): Record<string, string> {
     const value = localStorage.getItem(DEVICE_IDS_KEY)
     if (!value) return {}
@@ -31,10 +33,12 @@ function readDeviceIDs(): Record<string, string> {
     }
 }
 
+// readAccountDeviceID 读取指定账号保存的设备 ID
 function readAccountDeviceID(username: string): string {
     return readDeviceIDs()[accountDeviceKey(username)] ?? ''
 }
 
+// readStoredUser 从 localStorage 恢复用户摘要
 function readStoredUser(): UserSummary | null {
     const value = localStorage.getItem(USER_KEY)
     if (!value) return null
@@ -54,6 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const isAuthenticated = computed(() => Boolean(token.value))
 
+    // persist 持久化令牌、设备和用户摘要
     function persist(
         nextToken: string,
         nextRefreshToken: string,
@@ -75,6 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
     }
 
+    // login 调用登录接口并写入认证状态
     async function login(username: string, password: string) {
         /*
          * 同一浏览器可以依次登录多个账号。优先读取该账号自己的
@@ -95,6 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
         )
     }
 
+    // register 注册账号并自动建立登录会话
     async function register(input: {
         username: string
         password: string
@@ -110,6 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
         await login(input.username, input.password)
     }
 
+    // refreshSession 刷新访问令牌并保持本地会话有效
     async function refreshSession() {
         if (!refreshToken.value) {
             throw new Error('Refresh Token 不存在')
@@ -121,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token)
     }
 
+    // restoreUser 使用当前令牌重新拉取用户资料
     async function restoreUser() {
         if (!token.value) return
         try {
@@ -135,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     }
 
+    // updateProfile 更新用户资料并同步本地缓存
     async function updateProfile(input: {
         nickname: string
         bio: string
@@ -146,16 +156,19 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     }
 
+    // uploadAvatar 上传头像并同步用户摘要
     async function uploadAvatar(file: File) {
         user.value = await authApi.uploadAvatar(token.value, file)
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     }
 
+    // removeAvatar 移除头像并同步用户摘要
     async function removeAvatar() {
         user.value = await authApi.removeAvatar(token.value)
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     }
 
+    // clearSession 清空认证状态和本地缓存
     function clearSession() {
         token.value = ''
         refreshToken.value = ''
@@ -165,6 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.removeItem(USER_KEY)
     }
 
+    // logout 撤销服务端会话并清理本地登录状态
     async function logout() {
         try {
             if (token.value) {

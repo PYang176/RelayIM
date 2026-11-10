@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestRegisterValidation 覆盖注册用户名、密码和昵称边界
 func TestRegisterValidation(t *testing.T) {
 	service := NewService(nil, nil)
 
@@ -75,6 +76,7 @@ func TestRegisterValidation(t *testing.T) {
 	}
 }
 
+// TestLoginValidation 覆盖登录用户名、密码和设备参数校验
 func TestLoginValidation(t *testing.T) {
 	service := NewService(nil, nil)
 
@@ -102,6 +104,7 @@ func TestLoginValidation(t *testing.T) {
 	}
 }
 
+// TestUpdateProfileValidation 覆盖个人昵称、简介和头像更新边界
 func TestUpdateProfileValidation(t *testing.T) {
 	service := NewService(nil, nil)
 	tests := []struct {
@@ -163,6 +166,7 @@ func TestUpdateProfileValidation(t *testing.T) {
 	}
 }
 
+// testStringPointer 返回字符串指针，供资料更新测试构造可空字段
 func testStringPointer(value string) *string {
 	return &value
 }

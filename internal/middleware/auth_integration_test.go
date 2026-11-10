@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestAuthMiddlewareIntegration 覆盖认证中间件对有效、缺失和已撤销凭证的处理
 func TestAuthMiddlewareIntegration(t *testing.T) {
 	redisAddr := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if redisAddr == "" {
@@ -111,6 +112,7 @@ func TestAuthMiddlewareIntegration(t *testing.T) {
 	}
 }
 
+// performAuthRequest 发起认证集成测试 HTTP 请求并返回响应记录器
 func performAuthRequest(router http.Handler, authorization string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodGet, "/private", nil)
 	if authorization != "" {
@@ -121,6 +123,7 @@ func performAuthRequest(router http.Handler, authorization string) *httptest.Res
 	return response
 }
 
+// Example_authorizationToken 展示认证请求处理的标准用法
 func Example_authorizationToken() {
 	fmt.Println(authorizationToken("Bearer example-token"))
 	// Output: example-token

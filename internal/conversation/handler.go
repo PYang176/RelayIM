@@ -297,7 +297,7 @@ func (h *Handler) InviteMembers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"invited_count": invitedCount})
 }
 
-// ListReceivedInvitations 处理 GET /api/v1/group-invitations。
+// ListReceivedInvitations 查询当前用户收到的群邀请并应用游标分页
 func (h *Handler) ListReceivedInvitations(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
@@ -347,6 +347,7 @@ func (h *Handler) RejectInvitation(c *gin.Context) {
 	h.respondInvitation(c, false)
 }
 
+// respondInvitation 处理邀请审批响应并推进状态
 func (h *Handler) respondInvitation(c *gin.Context, accept bool) {
 	userID, ok := currentUserID(c)
 	if !ok {
@@ -391,7 +392,7 @@ func (h *Handler) respondInvitation(c *gin.Context, accept bool) {
 	})
 }
 
-// ListGroupInvitations 处理群待审批邀请查询。
+// ListGroupInvitations 查询指定群的邀请记录并校验管理权限
 func (h *Handler) ListGroupInvitations(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
@@ -441,7 +442,7 @@ func (h *Handler) ListGroupInvitations(c *gin.Context) {
 	})
 }
 
-// CancelInvitation 处理群主或管理员取消待处理邀请。
+// CancelInvitation 取消待处理群邀请，并校验操作人和邀请状态
 func (h *Handler) CancelInvitation(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
@@ -624,6 +625,7 @@ func (h *Handler) UpdateGroupProfile(c *gin.Context) {
 	})
 }
 
+// currentUserID 从上下文读取用户 ID
 func currentUserID(c *gin.Context) (uint64, bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -633,6 +635,7 @@ func currentUserID(c *gin.Context) (uint64, bool) {
 	return userID, true
 }
 
+// conversationResponse 将会话查询结果转换为对外响应，隐藏内部字段
 func conversationResponse(result Result) gin.H {
 	peerUserID := ""
 	if result.PeerUserID > 0 {
@@ -654,6 +657,7 @@ func conversationResponse(result Result) gin.H {
 	}
 }
 
+// parseConversationPageQuery 解析会话分页查询并校验参数边界
 func parseConversationPageQuery(
 	c *gin.Context,
 ) (ConversationPageQuery, bool) {
@@ -686,6 +690,7 @@ func parseConversationPageQuery(
 	return page, true
 }
 
+// encodeConversationCursor 编码会话游标生成对外传输值
 func encodeConversationCursor(
 	pinned bool,
 	updatedAt time.Time,
@@ -706,6 +711,7 @@ func encodeConversationCursor(
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
+// decodeConversationCursor 解码并校验会话游标
 func decodeConversationCursor(
 	value string,
 ) (bool, time.Time, uint64, error) {
@@ -736,6 +742,7 @@ func decodeConversationCursor(
 	return pinned, time.UnixMilli(milliseconds).UTC(), conversationID, nil
 }
 
+// parseConversationID 解析会话 ID并校验参数边界
 func parseConversationID(c *gin.Context) (uint64, bool) {
 	conversationID, err := strconv.ParseUint(
 		c.Param("conversation_id"),
@@ -749,6 +756,7 @@ func parseConversationID(c *gin.Context) (uint64, bool) {
 	return conversationID, true
 }
 
+// parsePathUserID 解析路径中的用户 ID 并拒绝零值
 func parsePathUserID(c *gin.Context, parameter string) (uint64, bool) {
 	userID, err := strconv.ParseUint(c.Param(parameter), 10, 64)
 	if err != nil || userID == 0 {
@@ -758,6 +766,7 @@ func parsePathUserID(c *gin.Context, parameter string) (uint64, bool) {
 	return userID, true
 }
 
+// parseGroupMemberIDs 解析群成员 ID 列表并拒绝非法值
 func parseGroupMemberIDs(
 	c *gin.Context,
 	rawIDs []string,
@@ -774,6 +783,7 @@ func parseGroupMemberIDs(
 	return result, true
 }
 
+// parseInvitationPageQuery 解析邀请分页查询并校验参数边界
 func parseInvitationPageQuery(
 	c *gin.Context,
 ) (InvitationPageQuery, bool) {
@@ -800,6 +810,7 @@ func parseInvitationPageQuery(
 	return page, true
 }
 
+// parseInvitationResponse 解析邀请响应并校验参数边界
 func parseInvitationResponse(c *gin.Context) (string, bool) {
 	if c.Request.ContentLength == 0 {
 		return "", true
@@ -815,6 +826,7 @@ func parseInvitationResponse(c *gin.Context) (string, bool) {
 	return request.ResponseRemark, true
 }
 
+// formatInvitationCursor 格式化邀请游标生成稳定表示
 func formatInvitationCursor(cursor uint64) string {
 	if cursor == 0 {
 		return ""
@@ -822,6 +834,7 @@ func formatInvitationCursor(cursor uint64) string {
 	return strconv.FormatUint(cursor, 10)
 }
 
+// writeConversationError 把会话错误映射为 HTTP 响应
 func writeConversationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrSameUser):

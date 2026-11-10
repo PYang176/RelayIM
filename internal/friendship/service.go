@@ -98,7 +98,7 @@ func (s *Service) SearchUsers(
 	return s.repo.searchUsers(ctx, userID, query)
 }
 
-// SendRequest 创建或重新激活一条好友申请。
+// SendRequest 创建好友申请并处理重复申请、拉黑和唯一约束
 func (s *Service) SendRequest(
 	ctx context.Context,
 	userID uint64,
@@ -142,7 +142,7 @@ func (s *Service) RejectRequest(
 	return s.repo.respondToRequest(ctx, userID, requestID, false)
 }
 
-// ListFriends 返回当前用户的有效好友。
+// ListFriends 查询当前用户的好友关系并应用游标分页
 func (s *Service) ListFriends(
 	ctx context.Context,
 	userID uint64,
@@ -190,7 +190,7 @@ func (s *Service) UnblockUser(
 	return s.repo.unblockUser(ctx, userID, targetUserID)
 }
 
-// ListRequests 返回当前用户收到或发出的好友申请。
+// ListRequests 查询好友申请列表并应用游标分页
 func (s *Service) ListRequests(
 	ctx context.Context,
 	userID uint64,
@@ -203,6 +203,7 @@ func (s *Service) ListRequests(
 	return s.repo.listRequests(ctx, userID, received, page.Limit, page.BeforeID)
 }
 
+// validPageQuery 校验好友列表分页大小和游标参数
 func validPageQuery(page PageQuery) bool {
 	return page.Limit > 0 && page.Limit <= maxPageSize
 }

@@ -454,7 +454,7 @@ func (s *Service) InviteMembers(
 	)
 }
 
-// ListReceivedInvitations 返回当前用户待处理的群邀请。
+// ListReceivedInvitations 查询当前用户收到的群邀请并应用游标分页
 func (s *Service) ListReceivedInvitations(
 	ctx context.Context,
 	userID uint64,
@@ -526,7 +526,7 @@ func (s *Service) RejectInvitation(
 	return err
 }
 
-// CancelInvitation 由群主或管理员取消待处理邀请。
+// CancelInvitation 取消待处理群邀请，并校验操作人和邀请状态
 func (s *Service) CancelInvitation(
 	ctx context.Context,
 	command CancelInvitationCommand,
@@ -544,7 +544,7 @@ func (s *Service) CancelInvitation(
 	)
 }
 
-// ListGroupInvitations 返回群主或管理员可见的待处理邀请。
+// ListGroupInvitations 查询指定群的邀请记录并校验管理权限
 func (s *Service) ListGroupInvitations(
 	ctx context.Context,
 	actorID uint64,
@@ -794,6 +794,7 @@ func (s *Service) SetPinned(
 	return s.repo.SetPinned(ctx, userID, conversationID, pinned)
 }
 
+// normalizeGroupMemberIDs 规范化群组成员 ID
 func normalizeGroupMemberIDs(
 	ownerID uint64,
 	userIDs []uint64,
@@ -816,6 +817,7 @@ func normalizeGroupMemberIDs(
 	return normalized, nil
 }
 
+// stringValue 读取字符串值并去除首尾空白
 func stringValue(value *string) string {
 	if value == nil {
 		return ""
@@ -823,6 +825,7 @@ func stringValue(value *string) string {
 	return *value
 }
 
+// uint64Value 读取配置并转换为无符号 64 位整数
 func uint64Value(value *uint64) uint64 {
 	if value == nil {
 		return 0
@@ -830,10 +833,12 @@ func uint64Value(value *uint64) uint64 {
 	return *value
 }
 
+// validInvitationPage 校验群邀请分页大小和游标范围
 func validInvitationPage(page InvitationPageQuery) bool {
 	return page.Limit > 0 && page.Limit <= maxPageSize
 }
 
+// normalizeInvitationRemark 规范化邀请备注
 func normalizeInvitationRemark(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -845,6 +850,7 @@ func normalizeInvitationRemark(value string) (string, error) {
 	return value, nil
 }
 
+// normalizeInvitationResponse 规范化邀请响应
 func normalizeInvitationResponse(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if utf8.RuneCountInString(value) > maxInvitationResponseRunes {
@@ -853,6 +859,7 @@ func normalizeInvitationResponse(value string) (string, error) {
 	return value, nil
 }
 
+// validGroupAvatarURL 校验群头像 URL 只允许受支持的本地资源路径
 func validGroupAvatarURL(value string) bool {
 	if value == "" {
 		return true

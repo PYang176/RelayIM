@@ -65,6 +65,7 @@ func (h *Health) ReadyHandler() http.Handler {
 	})
 }
 
+// writeHealthResponse 把健康检查响应映射为 HTTP 响应
 func writeHealthResponse(
 	writer http.ResponseWriter,
 	status int,

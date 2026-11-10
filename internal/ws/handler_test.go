@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestCheckOrigin 覆盖同 Host、回环地址和第三方 Origin 的允许规则
 func TestCheckOrigin(t *testing.T) {
 	tests := []struct {
 		name   string

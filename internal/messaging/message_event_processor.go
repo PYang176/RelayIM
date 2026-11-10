@@ -20,14 +20,17 @@ type permanentEventError struct {
 	err error
 }
 
+// Error 返回测试错误实现的错误文本
 func (e permanentEventError) Error() string {
 	return e.err.Error()
 }
 
+// Unwrap 返回测试包装错误中的原始错误
 func (e permanentEventError) Unwrap() error {
 	return e.err
 }
 
+// Permanent 标识测试错误是否为不可重试错误
 func (e permanentEventError) Permanent() bool {
 	return true
 }
@@ -79,6 +82,7 @@ func (p *EventProcessor) Process(
 	}
 }
 
+// processMessageCreated 处理消息创建事件并完成事实校验和实时投递
 func (p *EventProcessor) processMessageCreated(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
@@ -243,6 +247,7 @@ func (p *EventProcessor) processMessageCreated(
 	return nil
 }
 
+// processMessageRecalled 处理消息撤回事件并推送撤回状态
 func (p *EventProcessor) processMessageRecalled(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
@@ -372,6 +377,7 @@ func (p *EventProcessor) processMessageRecalled(
 	})
 }
 
+// processGroupInvitationCreated 处理群邀请创建事件并通知被邀请人
 func (p *EventProcessor) processGroupInvitationCreated(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
@@ -458,6 +464,7 @@ func (p *EventProcessor) processGroupInvitationCreated(
 	})
 }
 
+// processGroupInvitationCancelled 处理群邀请取消事件并通知被邀请人
 func (p *EventProcessor) processGroupInvitationCancelled(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
@@ -518,6 +525,7 @@ func (p *EventProcessor) processGroupInvitationCancelled(
 	})
 }
 
+// parseInvitationEvent 解析群邀请事件中的邀请、会话和被邀请人 ID
 func parseInvitationEvent(
 	envelope rabbitmq.EventEnvelope,
 ) (uint64, uint64, uint64, uint64, error) {
@@ -567,6 +575,7 @@ func parseInvitationEvent(
 	return eventID, invitationID, conversationID, inviteeID, nil
 }
 
+// parseMessageCreatedPayload 解析消息创建载荷并校验消息、会话和发送者 ID
 func parseMessageCreatedPayload(
 	payload messageCreatedPayload,
 ) (uint64, uint64, uint64, error) {

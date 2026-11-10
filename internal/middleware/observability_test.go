@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestObserveRequestPreservesSafeRequestID 覆盖安全 Request ID 的原样透传
 func TestObserveRequestPreservesSafeRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	metrics := observability.NewMetrics()
@@ -34,6 +35,7 @@ func TestObserveRequestPreservesSafeRequestID(t *testing.T) {
 	}
 }
 
+// TestObserveRequestReplacesUnsafeRequestID 覆盖非法 Request ID 的服务端替换
 func TestObserveRequestReplacesUnsafeRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -58,6 +60,7 @@ type stubWSTicketLimiter struct {
 	err      error
 }
 
+// Allow 判断当前测试请求是否允许通过限流，并记录调用参数
 func (s stubWSTicketLimiter) Allow(
 	context.Context,
 	uint64,
@@ -65,6 +68,7 @@ func (s stubWSTicketLimiter) Allow(
 	return s.decision, s.err
 }
 
+// TestWSTicketRateLimitReturns429 覆盖 Ticket 限流触发时的 429 和响应头
 func TestWSTicketRateLimitReturns429(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

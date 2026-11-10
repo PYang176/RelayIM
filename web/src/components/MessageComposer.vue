@@ -19,6 +19,7 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const remaining = computed(() => 8000 - [...content.value].length)
 const maxAttachmentBytes = 25 * 1024 * 1024
 
+// submit 校验输入并发送文本消息
 async function submit() {
     const value = content.value.trim()
     if (!value || props.disabled || sending.value) return
@@ -31,6 +32,7 @@ async function submit() {
     }
 }
 
+// handleKeydown 处理快捷键发送和输入法组合键
 function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault()
@@ -38,11 +40,13 @@ function handleKeydown(event: KeyboardEvent) {
     }
 }
 
+// chooseFile 打开本地文件选择器
 function chooseFile() {
     attachmentError.value = ''
     fileInput.value?.click()
 }
 
+// handleFile 校验附件大小并触发文件发送
 function handleFile(event: Event) {
     const input = event.target as HTMLInputElement
     const file = input.files?.[0]

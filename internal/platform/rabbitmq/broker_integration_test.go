@@ -15,6 +15,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
+// TestPublisherIntegration 覆盖 RabbitMQ 持久化发布、Confirm 和 Trace Header
 func TestPublisherIntegration(t *testing.T) {
 	rabbitURL := os.Getenv("GINCHAT_TEST_RABBITMQ_URL")
 	if rabbitURL == "" {

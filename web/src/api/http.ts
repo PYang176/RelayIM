@@ -12,6 +12,7 @@ export class ApiError extends Error {
     }
 }
 
+// request 发送带认证信息的 API 请求并统一映射错误
 export async function request<T>(
     path: string,
     options: RequestInit = {},

@@ -11,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// TestRegistryIntegration 覆盖 Redis 实例路由的注册、查询和失效清理
 func TestRegistryIntegration(t *testing.T) {
 	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if address == "" {
@@ -94,6 +95,7 @@ func TestRegistryIntegration(t *testing.T) {
 	}
 }
 
+// TestNormalizeRouteUserIDs 覆盖实时路由用户 ID 的规范化和去重
 func TestNormalizeRouteUserIDs(t *testing.T) {
 	got, err := normalizeRouteUserIDs([]uint64{2, 1, 2})
 	if err != nil || !slices.Equal(got, []uint64{2, 1}) {

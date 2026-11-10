@@ -249,6 +249,7 @@ func (r *Repository) GetForUser(
 	return &result, nil
 }
 
+// conversationSummaryQuery 构造会话摘要查询，统一成员、置顶和未读字段计算
 func (r *Repository) conversationSummaryQuery(
 	ctx context.Context,
 	userID uint64,
@@ -427,6 +428,7 @@ func (r *Repository) InviteMembers(
 	return invitedCount, nil
 }
 
+// createGroupInvitations 批量创建群邀请及对应 Outbox 事件
 func createGroupInvitations(
 	tx *gorm.DB,
 	conversationID uint64,
@@ -545,6 +547,7 @@ func createGroupInvitations(
 	return invitedCount, nil
 }
 
+// createGroupInvitationOutboxEvent 写入群邀请领域事件，供 RabbitMQ 后续投递
 func createGroupInvitationOutboxEvent(
 	tx *gorm.DB,
 	invitation groupInvitation,
@@ -578,6 +581,7 @@ func createGroupInvitationOutboxEvent(
 	return nil
 }
 
+// respondToInvitation 处理群邀请审批并更新邀请与成员状态
 func (r *Repository) respondToInvitation(
 	ctx context.Context,
 	userID uint64,
@@ -732,6 +736,7 @@ func (r *Repository) respondToInvitation(
 	return &invitation, memberCount, nil
 }
 
+// cancelInvitation 取消待处理群邀请，并校验操作人和邀请状态
 func (r *Repository) cancelInvitation(
 	ctx context.Context,
 	actorID uint64,
@@ -806,6 +811,7 @@ func (r *Repository) cancelInvitation(
 	})
 }
 
+// listReceivedInvitations 查询当前用户收到的群邀请并应用游标分页
 func (r *Repository) listReceivedInvitations(
 	ctx context.Context,
 	userID uint64,
@@ -871,6 +877,7 @@ func (r *Repository) listReceivedInvitations(
 	return page, nil
 }
 
+// listGroupInvitations 查询指定群的邀请记录并校验管理权限
 func (r *Repository) listGroupInvitations(
 	ctx context.Context,
 	actorID uint64,
@@ -1283,6 +1290,7 @@ func (r *Repository) ListMembers(
 	return records, nil
 }
 
+// lockOwnedGroup 锁定群会话并校验当前用户是否具备群主权限
 func lockOwnedGroup(
 	ctx context.Context,
 	tx *gorm.DB,
@@ -1328,6 +1336,7 @@ func lockOwnedGroup(
 	return &conversationRecord, nil
 }
 
+// findDirect 查询私聊
 func (r *Repository) findDirect(
 	ctx context.Context,
 	lowID uint64,
@@ -1348,6 +1357,7 @@ func (r *Repository) findDirect(
 	return &result, nil
 }
 
+// orderedUsers 按稳定顺序返回一对用户 ID，供数据库唯一键和查询使用
 func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 	if first < second {
 		return first, second
@@ -1355,6 +1365,7 @@ func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 	return second, first
 }
 
+// hasBlockedPair 判断拉黑Pair是否存在
 func hasBlockedPair(
 	ctx context.Context,
 	db *gorm.DB,
@@ -1378,6 +1389,7 @@ func hasBlockedPair(
 	return count > 0, nil
 }
 
+// userDisplayName 按昵称、用户名的顺序生成用户展示名称
 func (r *Repository) userDisplayName(
 	ctx context.Context,
 	userID uint64,
@@ -1400,6 +1412,7 @@ func (r *Repository) userDisplayName(
 	return record.Title, nil
 }
 
+// countFriends 统计指定好友关系数量，用于成员权限和状态校验
 func countFriends(
 	ctx context.Context,
 	tx *gorm.DB,
@@ -1428,16 +1441,19 @@ func countFriends(
 	return nil
 }
 
+// isDuplicateKey 判断重复键条件
 func isDuplicateKey(err error) bool {
 	var mysqlErr *mysql.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }
 
+// isForeignKeyError 识别 MySQL 外键约束错误
 func isForeignKeyError(err error) bool {
 	var mysqlErr *mysql.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1452
 }
 
+// nullableString 把空字符串转换为数据库可空值
 func nullableString(value string) *string {
 	if value == "" {
 		return nil
@@ -1445,6 +1461,7 @@ func nullableString(value string) *string {
 	return &value
 }
 
+// nullableTraceParent 把空 traceparent 转换为数据库可空值
 func nullableTraceParent(value string) *string {
 	if value == "" {
 		return nil

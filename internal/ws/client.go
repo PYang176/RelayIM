@@ -107,6 +107,7 @@ func (c *Client) Run(
 	<-writerDone
 }
 
+// readPump 持续读取 WebSocket 消息，并在连接结束时退出
 func (c *Client) readPump(
 	ctx context.Context,
 	onMessage MessageHandler,
@@ -142,6 +143,7 @@ func (c *Client) readPump(
 	}
 }
 
+// writePump 持续把有界队列中的帧写入 WebSocket 连接
 func (c *Client) writePump(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()

@@ -33,6 +33,7 @@ watch(
     },
 )
 
+// scheduleSearch 延迟触发会话搜索并重置上一次计时器
 function scheduleSearch() {
     window.clearTimeout(searchTimer)
     const query = searchText.value.trim()
@@ -45,16 +46,19 @@ function scheduleSearch() {
     }, 300)
 }
 
+// clearSearch 清空会话搜索词并恢复完整列表
 function clearSearch() {
     window.clearTimeout(searchTimer)
     searchText.value = ''
     emit('clearSearch')
 }
 
+// title 计算会话在列表中的展示标题
 function title(conversation: Conversation) {
     return conversation.title || conversation.name || '私聊'
 }
 
+// summary 计算会话最近消息摘要
 function summary(conversation: Conversation) {
     if (conversation.conversation_type === 2) {
         return `群聊 · ${conversation.member_count} 人`

@@ -84,6 +84,7 @@ func (r *Registry) QueryInstances(
 	return r.queryInstancesAt(ctx, userIDs, time.Now().UTC())
 }
 
+// touchAt 刷新At活跃时间
 func (r *Registry) touchAt(
 	ctx context.Context,
 	userID uint64,
@@ -108,6 +109,7 @@ func (r *Registry) touchAt(
 	return nil
 }
 
+// queryInstancesAt 查询InstancesAt
 func (r *Registry) queryInstancesAt(
 	ctx context.Context,
 	userIDs []uint64,
@@ -162,14 +164,17 @@ func (r *Registry) queryInstancesAt(
 	return result, nil
 }
 
+// userKey 生成 Presence 用户键
 func (r *Registry) userKey(userID uint64) string {
 	return fmt.Sprintf("%s:ws:route:user:%d", r.prefix, userID)
 }
 
+// routeMember 计算成员目标并完成路由
 func (r *Registry) routeMember(deviceID uint64) string {
 	return r.instanceID + "|" + strconv.FormatUint(deviceID, 10)
 }
 
+// normalizeRouteUserIDs 规范化路由用户 ID
 func normalizeRouteUserIDs(userIDs []uint64) ([]uint64, error) {
 	if len(userIDs) == 0 || len(userIDs) > maxRouteUserIDs {
 		return nil, fmt.Errorf("实时路由查询数量必须为 1 到 %d", maxRouteUserIDs)

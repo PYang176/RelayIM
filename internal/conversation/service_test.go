@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestCreateDirectValidation 覆盖私聊创建参数和权限校验
 func TestCreateDirectValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -44,6 +45,7 @@ func TestCreateDirectValidation(t *testing.T) {
 	}
 }
 
+// TestCreateGroupValidation 覆盖群创建成员、名称和邀请规则校验
 func TestCreateGroupValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -77,6 +79,7 @@ func TestCreateGroupValidation(t *testing.T) {
 	}
 }
 
+// TestConversationPaginationValidation 覆盖会话分页参数和游标边界校验
 func TestConversationPaginationValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -112,6 +115,7 @@ func TestConversationPaginationValidation(t *testing.T) {
 	}
 }
 
+// TestSetPinnedValidation 覆盖会话置顶的成员身份和参数校验
 func TestSetPinnedValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -136,6 +140,7 @@ func TestSetPinnedValidation(t *testing.T) {
 	}
 }
 
+// TestNormalizeGroupMemberIDs 覆盖群成员 ID 去重、排序和数量边界
 func TestNormalizeGroupMemberIDs(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -179,6 +184,7 @@ func TestNormalizeGroupMemberIDs(t *testing.T) {
 	}
 }
 
+// TestInviteMembersValidation 覆盖邀请成员数量、身份和重复用户校验
 func TestInviteMembersValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -212,6 +218,7 @@ func TestInviteMembersValidation(t *testing.T) {
 	}
 }
 
+// TestInvitationRemarkValidation 覆盖群邀请备注长度和空白校验
 func TestInvitationRemarkValidation(t *testing.T) {
 	service := NewService(nil)
 	if _, err := service.CreateGroup(
@@ -247,6 +254,7 @@ func TestInvitationRemarkValidation(t *testing.T) {
 	}
 }
 
+// TestGroupInvitationValidation 覆盖群邀请状态和审批参数校验
 func TestGroupInvitationValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -328,6 +336,7 @@ func TestGroupInvitationValidation(t *testing.T) {
 	}
 }
 
+// TestRemoveMemberValidation 覆盖移除群成员的身份和角色校验
 func TestRemoveMemberValidation(t *testing.T) {
 	service := NewService(nil)
 	err := service.RemoveMember(
@@ -339,6 +348,7 @@ func TestRemoveMemberValidation(t *testing.T) {
 	}
 }
 
+// TestSetMemberRoleValidation 覆盖群成员角色变更的权限和状态校验
 func TestSetMemberRoleValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -389,6 +399,7 @@ func TestSetMemberRoleValidation(t *testing.T) {
 	}
 }
 
+// TestTransferOwnerValidation 覆盖群主转让的目标成员和权限校验
 func TestTransferOwnerValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -429,6 +440,7 @@ func TestTransferOwnerValidation(t *testing.T) {
 	}
 }
 
+// TestDissolveGroupValidation 覆盖解散群操作的身份和参数校验
 func TestDissolveGroupValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -454,6 +466,7 @@ func TestDissolveGroupValidation(t *testing.T) {
 	}
 }
 
+// TestUpdateGroupProfileValidation 覆盖群名称和头像更新校验
 func TestUpdateGroupProfileValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {

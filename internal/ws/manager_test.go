@@ -13,10 +13,12 @@ type fakeConnection struct {
 	closed   bool
 }
 
+// UserID 返回测试连接所属用户 ID
 func (c *fakeConnection) UserID() uint64 {
 	return c.userID
 }
 
+// Enqueue 把测试消息写入连接队列，模拟 WebSocket 有界发送行为
 func (c *fakeConnection) Enqueue(message []byte) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -27,6 +29,7 @@ func (c *fakeConnection) Enqueue(message []byte) bool {
 	return true
 }
 
+// Close 关闭并释放底层资源
 func (c *fakeConnection) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -34,12 +37,14 @@ func (c *fakeConnection) Close() error {
 	return nil
 }
 
+// messageCount 返回测试连接中已入队的消息数量
 func (c *fakeConnection) messageCount() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return len(c.messages)
 }
 
+// TestConnManagerSupportsMultipleDevicesAndExactRemoval 覆盖多设备连接与按连接精确移除
 func TestConnManagerSupportsMultipleDevicesAndExactRemoval(t *testing.T) {
 	manager := NewConnManager()
 	first := &fakeConnection{userID: 42}
@@ -80,6 +85,7 @@ func TestConnManagerSupportsMultipleDevicesAndExactRemoval(t *testing.T) {
 	}
 }
 
+// TestConnManagerCountsUsersAndConnections 覆盖连接管理器对用户数和连接数的统计
 func TestConnManagerCountsUsersAndConnections(t *testing.T) {
 	manager := NewConnManager()
 	manager.Add(&fakeConnection{userID: 1})
@@ -94,6 +100,7 @@ func TestConnManagerCountsUsersAndConnections(t *testing.T) {
 	}
 }
 
+// TestConnManagerSendToUsersDeduplicatesAndRemovesFullConnection 覆盖批量发送去重和已满连接移除
 func TestConnManagerSendToUsersDeduplicatesAndRemovesFullConnection(t *testing.T) {
 	manager := NewConnManager()
 	healthy := &fakeConnection{userID: 1}
@@ -116,6 +123,7 @@ func TestConnManagerSendToUsersDeduplicatesAndRemovesFullConnection(t *testing.T
 	}
 }
 
+// TestConnManagerRejectsExcessiveConnectionsPerUser 覆盖单用户连接数达到上限后的拒绝行为
 func TestConnManagerRejectsExcessiveConnectionsPerUser(t *testing.T) {
 	manager := NewConnManager()
 	for index := 0; index < maxConnectionsPerUser; index++ {

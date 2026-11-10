@@ -26,6 +26,7 @@ type stubOutboxStore struct {
 	lastErrorMessage string
 }
 
+// claimOutbox 领取待发布或租约已过期的 Outbox 事件
 func (s *stubOutboxStore) claimOutbox(
 	context.Context,
 	string,
@@ -37,6 +38,7 @@ func (s *stubOutboxStore) claimOutbox(
 	return s.events, nil
 }
 
+// markOutboxPublished 收到 Publisher Confirm 后标记 Outbox 事件已发布
 func (s *stubOutboxStore) markOutboxPublished(
 	_ context.Context,
 	eventID uint64,
@@ -47,6 +49,7 @@ func (s *stubOutboxStore) markOutboxPublished(
 	return nil
 }
 
+// retryOutbox 把可重试失败放回待发布状态并延迟再次领取
 func (s *stubOutboxStore) retryOutbox(
 	_ context.Context,
 	eventID uint64,
@@ -60,6 +63,7 @@ func (s *stubOutboxStore) retryOutbox(
 	return nil
 }
 
+// markOutboxDead 达到最大重试次数后把 Outbox 事件标记为死信
 func (s *stubOutboxStore) markOutboxDead(
 	_ context.Context,
 	eventID uint64,
@@ -78,6 +82,7 @@ type stubEventPublisher struct {
 	closed       chan *amqp.Error
 }
 
+// Publish 发布并等待消息系统确认
 func (s *stubEventPublisher) Publish(
 	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
@@ -87,14 +92,17 @@ func (s *stubEventPublisher) Publish(
 	return s.err
 }
 
+// WaitClosed 返回底层连接关闭通知通道
 func (s *stubEventPublisher) WaitClosed() <-chan *amqp.Error {
 	return s.closed
 }
 
+// Close 关闭并释放底层资源
 func (s *stubEventPublisher) Close() error {
 	return nil
 }
 
+// TestOutboxWorkerDispatchPublished 覆盖 Outbox 发布成功后的确认和状态推进
 func TestOutboxWorkerDispatchPublished(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 7, 9, 0, 0, 0, time.UTC)
 	provider := sdktrace.NewTracerProvider(
@@ -165,6 +173,7 @@ func TestOutboxWorkerDispatchPublished(t *testing.T) {
 	}
 }
 
+// traceIDPart 提取 traceparent 中的 Trace ID 部分
 func traceIDPart(traceParent string) string {
 	parts := strings.Split(traceParent, "-")
 	if len(parts) != 4 {
@@ -173,6 +182,7 @@ func traceIDPart(traceParent string) string {
 	return parts[1]
 }
 
+// TestOutboxWorkerRetriesFailedPublish 覆盖 Outbox 发布失败后的退避重试
 func TestOutboxWorkerRetriesFailedPublish(t *testing.T) {
 	store := &stubOutboxStore{
 		events: []outboxEvent{
@@ -206,6 +216,7 @@ func TestOutboxWorkerRetriesFailedPublish(t *testing.T) {
 	}
 }
 
+// TestOutboxWorkerMarksDeadAfterMaxAttempts 覆盖 Outbox 达到最大尝试次数后进入死信
 func TestOutboxWorkerMarksDeadAfterMaxAttempts(t *testing.T) {
 	store := &stubOutboxStore{
 		events: []outboxEvent{
@@ -235,6 +246,7 @@ func TestOutboxWorkerMarksDeadAfterMaxAttempts(t *testing.T) {
 	}
 }
 
+// TestOutboxWorkerRetryDelay 覆盖 Outbox 指数退避延迟和上限
 func TestOutboxWorkerRetryDelay(t *testing.T) {
 	worker := &OutboxWorker{
 		config: config.RabbitMQConfig{RetryBaseSeconds: 2},

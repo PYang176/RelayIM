@@ -10,6 +10,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
+// TestTraceParentRoundTrip 覆盖 W3C traceparent 的注入与提取
 func TestTraceParentRoundTrip(t *testing.T) {
 	previousProvider := otel.GetTracerProvider()
 	previousPropagator := otel.GetTextMapPropagator()

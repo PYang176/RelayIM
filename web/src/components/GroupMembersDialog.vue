@@ -87,20 +87,24 @@ watch(
     {immediate: true},
 )
 
+// displayName 计算群成员昵称或用户名的展示名称
 function displayName(member: {nickname: string; username: string}) {
     return member.nickname || member.username
 }
 
+// friendName 计算可邀请好友的展示名称
 function friendName(friend: Friend) {
     return friend.remark || friend.user.nickname || friend.user.username
 }
 
+// roleLabel 把成员角色编码转换为中文标签
 function roleLabel(role: number) {
     if (role === 3) return '群主'
     if (role === 2) return '管理员'
     return '成员'
 }
 
+// invitationStatusLabel 把邀请状态编码转换为中文标签
 function invitationStatusLabel(status: number) {
     const labels: Record<number, string> = {
         1: '等待审批',
@@ -112,29 +116,34 @@ function invitationStatusLabel(status: number) {
     return labels[status] ?? '未知状态'
 }
 
+// canRemove 判断当前用户是否可以移除目标成员
 function canRemove(member: ConversationMember) {
     if (!canManage.value || member.user_id === props.currentUserId) return false
     if (member.role === 3) return false
     return currentMember.value?.role === 3 || member.role === 1
 }
 
+// canAdjustRole 判断当前用户是否可以调整目标成员角色
 function canAdjustRole(member: ConversationMember) {
     return isOwner.value &&
         member.user_id !== props.currentUserId &&
         member.role !== 3
 }
 
+// toggleRole 切换成员管理员与普通成员角色
 function toggleRole(member: ConversationMember) {
     if (props.busy) return
     emit('setRole', member.user_id, member.role === 2 ? 1 : 2)
 }
 
+// close 关闭群成员对话框
 function close() {
     if (!props.busy) {
         emit('close')
     }
 }
 
+// invite 提交群成员邀请
 function invite() {
     const remark = inviteRemark.value.trim()
     if (
@@ -149,6 +158,7 @@ function invite() {
     inviteRemark.value = ''
 }
 
+// remove 确认并移除指定群成员
 function remove(member: ConversationMember) {
     if (props.busy) return
     if (pendingRemovalID.value !== member.user_id) {
@@ -159,6 +169,7 @@ function remove(member: ConversationMember) {
     emit('remove', member.user_id)
 }
 
+// leave 提交退出当前群聊操作
 function leave() {
     if (props.busy) return
     if (!confirmingLeave.value) {

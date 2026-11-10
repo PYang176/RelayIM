@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// createRefreshToken 创建刷新令牌并在事务内维护关联状态
 func (r *Repository) createRefreshToken(
 	ctx context.Context,
 	record *refreshToken,
@@ -20,6 +21,7 @@ func (r *Repository) createRefreshToken(
 	return nil
 }
 
+// rotateRefreshToken 在事务内轮换刷新令牌，防止旧令牌重复使用
 func (r *Repository) rotateRefreshToken(
 	ctx context.Context,
 	oldHash string,
@@ -74,6 +76,7 @@ func (r *Repository) rotateRefreshToken(
 	return userID, deviceID, err
 }
 
+// revokeRefreshToken 撤销指定刷新令牌并写入撤销时间
 func (r *Repository) revokeRefreshToken(
 	ctx context.Context,
 	tokenHash string,

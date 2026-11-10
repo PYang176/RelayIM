@@ -58,6 +58,7 @@ type conversation struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
+// TableName 返回 conversation 模型对应的数据库表名
 func (conversation) TableName() string {
 	return "conversations"
 }
@@ -88,6 +89,7 @@ type conversationMember struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
+// TableName 返回 conversationMember 模型对应的数据库表名
 func (conversationMember) TableName() string {
 	return "conversation_members"
 }
@@ -124,6 +126,7 @@ type groupInvitation struct {
 	RespondedAt *time.Time `gorm:"column:responded_at"`
 }
 
+// TableName 返回 groupInvitation 模型对应的数据库表名
 func (groupInvitation) TableName() string {
 	return "group_invitations"
 }

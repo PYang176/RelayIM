@@ -107,6 +107,7 @@ func (l *SlidingWindowLimiter) Allow(
 	)
 }
 
+// allowAt 在指定时间点判断测试限流策略是否放行
 func (l *SlidingWindowLimiter) allowAt(
 	ctx context.Context,
 	namespace string,
@@ -177,6 +178,7 @@ func (l *SlidingWindowLimiter) allowAt(
 	return decision, nil
 }
 
+// rateLimitInstanceID 生成带唯一后缀的限流测试实例标识
 func rateLimitInstanceID() string {
 	// 多实例可能在同一毫秒处理同一用户的请求。成员值加入进程随机标识，
 	// 避免 ZSET member 冲突导致少记一次请求、意外放宽配额。

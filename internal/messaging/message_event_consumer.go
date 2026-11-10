@@ -103,6 +103,7 @@ func (c *EventConsumer) Run(ctx context.Context) {
 	}
 }
 
+// processDelivery 解码领域事件并完成消费者幂等处理
 func (c *EventConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
@@ -163,6 +164,7 @@ func (c *EventConsumer) processDelivery(
 	return err
 }
 
+// recordMetrics 记录指标
 func (c *EventConsumer) recordMetrics(
 	eventType string,
 	result string,
@@ -187,6 +189,7 @@ func (c *EventConsumer) recordMetrics(
 	)
 }
 
+// messageEventResult 根据错误类型和重试次数归类消费者处理结果
 func messageEventResult(err error, headers amqp.Table) string {
 	if err == nil {
 		return "success"

@@ -8,6 +8,7 @@ export interface SequenceObservation {
     gapDetected: boolean
 }
 
+// needsLatestWindowSync 判断最新窗口是否需要整体重同步
 export function needsLatestWindowSync(
     hasWindow: boolean,
     serverLastSeq: number,
@@ -16,6 +17,7 @@ export function needsLatestWindowSync(
     return !hasWindow || serverLastSeq > contiguousSeq
 }
 
+// createSequenceCursor 创建会话连续序号游标
 export function createSequenceCursor(contiguousSeq = 0): SequenceCursor {
     return {
         contiguousSeq: Math.max(0, contiguousSeq),
@@ -23,6 +25,7 @@ export function createSequenceCursor(contiguousSeq = 0): SequenceCursor {
     }
 }
 
+// observeSequence 观察消息序号并计算连续水位和缺口
 export function observeSequence(
     cursor: SequenceCursor,
     seq: number,
@@ -60,6 +63,7 @@ export function observeSequence(
     }
 }
 
+// establishSequenceBaseline 根据历史窗口建立新的连续序号基线
 export function establishSequenceBaseline(
     cursor: SequenceCursor,
     contiguousSeq: number,

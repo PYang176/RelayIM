@@ -151,6 +151,7 @@ func (w *AttachmentCleanupWorker) CleanupOnce(
 	return deleted, nil
 }
 
+// cleanupCandidate 删除单个孤儿附件对象及其元数据
 func (w *AttachmentCleanupWorker) cleanupCandidate(
 	ctx context.Context,
 	candidate attachmentCleanupCandidate,
@@ -172,6 +173,7 @@ func (w *AttachmentCleanupWorker) cleanupCandidate(
 	return nil
 }
 
+// recordMetric 记录指标
 func (w *AttachmentCleanupWorker) recordMetric(result string) {
 	if w.metrics != nil {
 		w.metrics.RecordAttachmentCleanup(result)

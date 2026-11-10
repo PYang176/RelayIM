@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestParsePageQuery 覆盖好友分页查询参数的解析和边界
 func TestParsePageQuery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {

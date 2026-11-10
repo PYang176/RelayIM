@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// Router 计算r目标并完成路由
 func Router(
 	db *gorm.DB,
 	storage messagingapp.AttachmentStorage,

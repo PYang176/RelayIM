@@ -31,6 +31,7 @@ type friendship struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
+// TableName 返回 friendship 模型对应的数据库表名
 func (friendship) TableName() string {
 	return "friendships"
 }
@@ -64,6 +65,7 @@ type friendRequest struct {
 	RespondedAt *time.Time `gorm:"column:responded_at"`
 }
 
+// TableName 返回 friendRequest 模型对应的数据库表名
 func (friendRequest) TableName() string {
 	return "friend_requests"
 }
@@ -85,6 +87,7 @@ type friendRemark struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
+// TableName 返回 friendRemark 模型对应的数据库表名
 func (friendRemark) TableName() string {
 	return "friend_remarks"
 }
@@ -100,6 +103,7 @@ type userBlock struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
+// TableName 返回 userBlock 模型对应的数据库表名
 func (userBlock) TableName() string {
 	return "user_blocks"
 }

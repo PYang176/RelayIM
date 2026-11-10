@@ -5,6 +5,7 @@ import type {
     ConversationPage,
 } from '@/types/api'
 
+// listConversations 分页查询当前用户的会话列表
 export function listConversations(
     token: string,
     options: {cursor?: string; query?: string} = {},
@@ -15,6 +16,7 @@ export function listConversations(
     return request<ConversationPage>(`/conversations?${params}`, {}, token)
 }
 
+// getConversation 读取单个会话摘要和成员信息
 export function getConversation(
     token: string,
     conversationId: string,
@@ -22,6 +24,7 @@ export function getConversation(
     return request(`/conversations/${conversationId}`, {}, token)
 }
 
+// setConversationPinned 设置当前用户对会话的个人置顶状态
 export function setConversationPinned(
     token: string,
     conversationId: string,
@@ -37,6 +40,7 @@ export function setConversationPinned(
     )
 }
 
+// createDirect 创建或复用两个用户之间的私聊会话
 export function createDirect(
     token: string,
     peerUserId: string,
@@ -51,6 +55,7 @@ export function createDirect(
     )
 }
 
+// createGroup 创建群聊并返回新会话
 export function createGroup(
     token: string,
     name: string,
@@ -71,6 +76,7 @@ export function createGroup(
     )
 }
 
+// listMembers 查询群成员及其角色信息
 export async function listMembers(
     token: string,
     conversationId: string,
@@ -83,6 +89,7 @@ export async function listMembers(
     return response.members
 }
 
+// inviteGroupMembers 发送群邀请并附带邀请备注
 export async function inviteGroupMembers(
     token: string,
     conversationId: string,
@@ -103,6 +110,7 @@ export async function inviteGroupMembers(
     return response.invited_count
 }
 
+// removeGroupMember 将指定成员移出群聊
 export function removeGroupMember(
     token: string,
     conversationId: string,
@@ -115,6 +123,7 @@ export function removeGroupMember(
     )
 }
 
+// setGroupMemberRole 调整群成员为管理员或普通成员
 export function setGroupMemberRole(
     token: string,
     conversationId: string,
@@ -131,6 +140,7 @@ export function setGroupMemberRole(
     )
 }
 
+// transferGroupOwner 把群主身份转让给指定成员
 export function transferGroupOwner(
     token: string,
     conversationId: string,
@@ -146,6 +156,7 @@ export function transferGroupOwner(
     )
 }
 
+// dissolveGroup 解散群聊并关闭会话写入
 export function dissolveGroup(
     token: string,
     conversationId: string,
@@ -157,6 +168,7 @@ export function dissolveGroup(
     )
 }
 
+// updateGroupProfile 更新群名称和群头像
 export function updateGroupProfile(
     token: string,
     conversationId: string,

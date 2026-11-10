@@ -23,6 +23,7 @@ watch(
     {immediate: true},
 )
 
+// submit 校验并提交群资料更新
 function submit() {
     if (props.busy || !name.value.trim()) return
     emit('save', {

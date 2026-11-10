@@ -26,6 +26,7 @@ type stubRateLimitChecker struct {
 	calls    []rateLimitCall
 }
 
+// Allow 判断当前测试请求是否允许通过限流，并记录调用参数
 func (s *stubRateLimitChecker) Allow(
 	_ context.Context,
 	namespace string,
@@ -44,6 +45,7 @@ func (s *stubRateLimitChecker) Allow(
 	return s.decision, s.err
 }
 
+// TestRateLimitByIPUsesClientIP 覆盖按 IP 限流使用真实客户端地址
 func TestRateLimitByIPUsesClientIP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	checker := &stubRateLimitChecker{
@@ -71,6 +73,7 @@ func TestRateLimitByIPUsesClientIP(t *testing.T) {
 	}
 }
 
+// TestRateLimitByUserRequiresAuthenticatedUser 覆盖按用户限流缺少认证身份时的拒绝
 func TestRateLimitByUserRequiresAuthenticatedUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	checker := &stubRateLimitChecker{
@@ -99,6 +102,7 @@ func TestRateLimitByUserRequiresAuthenticatedUser(t *testing.T) {
 	}
 }
 
+// TestRateLimitMapsSubjectScopeAndReturnsRetryAfter 覆盖限流主体、范围响应头和 Retry-After
 func TestRateLimitMapsSubjectScopeAndReturnsRetryAfter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	checker := &stubRateLimitChecker{
@@ -141,6 +145,7 @@ func TestRateLimitMapsSubjectScopeAndReturnsRetryAfter(t *testing.T) {
 	}
 }
 
+// TestRateLimitReturnsServiceUnavailableWhenCheckerFails 覆盖限流检查器故障时的 503 降级
 func TestRateLimitReturnsServiceUnavailableWhenCheckerFails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	checker := &stubRateLimitChecker{err: errors.New("Redis 不可用")}
@@ -163,6 +168,7 @@ func TestRateLimitReturnsServiceUnavailableWhenCheckerFails(t *testing.T) {
 	}
 }
 
+// middlewareTestPolicy 提供限流中间件测试使用的固定策略
 func middlewareTestPolicy(subject RateLimitSubject) RateLimitPolicy {
 	return RateLimitPolicy{
 		Namespace:    "test",

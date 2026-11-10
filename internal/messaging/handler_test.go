@@ -36,6 +36,7 @@ type stubMessageReader struct {
 	searchCommand SearchMessagesCommand
 }
 
+// ListMessages 查询消息并保持权限和分页语义
 func (s *stubMessageReader) ListMessages(
 	_ context.Context,
 	command ListMessagesCommand,
@@ -45,6 +46,7 @@ func (s *stubMessageReader) ListMessages(
 	return s.page, s.err
 }
 
+// ListReadStates 查询已读状态并保持权限和分页语义
 func (s *stubMessageReader) ListReadStates(
 	_ context.Context,
 	_ uint64,
@@ -53,6 +55,7 @@ func (s *stubMessageReader) ListReadStates(
 	return s.readStates, s.err
 }
 
+// SearchMessages 按条件搜索消息
 func (s *stubMessageReader) SearchMessages(
 	_ context.Context,
 	command SearchMessagesCommand,
@@ -62,6 +65,7 @@ func (s *stubMessageReader) SearchMessages(
 	return s.searchPage, s.err
 }
 
+// GetDeliverySummary 读取投递摘要
 func (s *stubMessageReader) GetDeliverySummary(
 	_ context.Context,
 	_ uint64,
@@ -71,6 +75,7 @@ func (s *stubMessageReader) GetDeliverySummary(
 	return s.delivery, s.err
 }
 
+// SendText 执行Text流程并完成持久化准备
 func (s *stubTextMessageSender) SendText(
 	_ context.Context,
 	command SendTextCommand,
@@ -80,6 +85,7 @@ func (s *stubTextMessageSender) SendText(
 	return s.result, s.err
 }
 
+// SendAttachment 执行附件流程并完成持久化准备
 func (s *stubTextMessageSender) SendAttachment(
 	_ context.Context,
 	command SendAttachmentCommand,
@@ -94,6 +100,7 @@ func (s *stubTextMessageSender) SendAttachment(
 	return s.result, s.err
 }
 
+// RecallMessage 模拟消息撤回调用并记录收到的命令
 func (s *stubTextMessageSender) RecallMessage(
 	_ context.Context,
 	command RecallMessageCommand,
@@ -103,6 +110,7 @@ func (s *stubTextMessageSender) RecallMessage(
 	return s.recallErr
 }
 
+// TestHandlerSendText 覆盖文本消息发送接口的成功路径
 func TestHandlerSendText(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 7, 8, 30, 0, 0, time.UTC)
 	tests := []struct {
@@ -225,6 +233,7 @@ func TestHandlerSendText(t *testing.T) {
 	}
 }
 
+// TestHandlerSendTextRejectsInvalidRequest 覆盖非法消息请求的 400 响应
 func TestHandlerSendTextRejectsInvalidRequest(t *testing.T) {
 	validBody := `{"client_message_id":"client-1","content":"hello"}`
 	tests := []struct {
@@ -300,6 +309,7 @@ func TestHandlerSendTextRejectsInvalidRequest(t *testing.T) {
 	}
 }
 
+// TestHandlerSendTextErrorMapping 覆盖消息发送业务错误到 HTTP 状态的映射
 func TestHandlerSendTextErrorMapping(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -359,6 +369,7 @@ func TestHandlerSendTextErrorMapping(t *testing.T) {
 	}
 }
 
+// TestHandlerRecallMessage 覆盖消息撤回接口的权限和错误映射
 func TestHandlerRecallMessage(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -440,6 +451,7 @@ func TestHandlerRecallMessage(t *testing.T) {
 	}
 }
 
+// TestHandlerListMessages 覆盖历史消息接口的查询参数和响应
 func TestHandlerListMessages(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 7, 10, 0, 0, 0, time.UTC)
 	replyTo := uint64(300)
@@ -498,6 +510,7 @@ func TestHandlerListMessages(t *testing.T) {
 	}
 }
 
+// TestHandlerSearchMessages 覆盖会话内消息搜索接口的响应
 func TestHandlerSearchMessages(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 10, 9, 30, 0, 0, time.UTC)
 	reader := &stubMessageReader{
@@ -556,6 +569,7 @@ func TestHandlerSearchMessages(t *testing.T) {
 	}
 }
 
+// TestHandlerListMessagesRejectsInvalidRequest 覆盖历史消息接口的非法参数映射
 func TestHandlerListMessagesRejectsInvalidRequest(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -606,6 +620,7 @@ func TestHandlerListMessagesRejectsInvalidRequest(t *testing.T) {
 	}
 }
 
+// TestHandlerListReadStates 覆盖成员已读状态接口的响应
 func TestHandlerListReadStates(t *testing.T) {
 	reader := &stubMessageReader{
 		readStates: []ReadStateResult{
@@ -641,6 +656,7 @@ func TestHandlerListReadStates(t *testing.T) {
 	}
 }
 
+// TestHandlerGetDeliverySummary 覆盖消息送达摘要接口的响应转换
 func TestHandlerGetDeliverySummary(t *testing.T) {
 	reader := &stubMessageReader{
 		delivery: DeliverySummary{
@@ -671,6 +687,7 @@ func TestHandlerGetDeliverySummary(t *testing.T) {
 	}
 }
 
+// newMessagingHandlerRouter 创建Messaging处理器路由并完成必要依赖注入
 func newMessagingHandlerRouter(
 	sender MessageSender,
 	userID uint64,
@@ -696,6 +713,7 @@ func newMessagingHandlerRouter(
 	return router
 }
 
+// newMessagingReaderRouter 创建MessagingReader路由并完成必要依赖注入
 func newMessagingReaderRouter(
 	reader MessageReader,
 	userID uint64,
@@ -729,6 +747,7 @@ func newMessagingReaderRouter(
 	return router
 }
 
+// performSendTextRequest 构造发送文本消息请求并执行 Handler
 func performSendTextRequest(
 	router http.Handler,
 	conversationID string,
@@ -745,6 +764,7 @@ func performSendTextRequest(
 	return response
 }
 
+// performListMessagesRequest 构造历史消息查询请求并执行 Handler
 func performListMessagesRequest(
 	router http.Handler,
 	conversationID string,
@@ -760,6 +780,7 @@ func performListMessagesRequest(
 	return response
 }
 
+// performSearchMessagesRequest 构造消息搜索请求并执行 Handler
 func performSearchMessagesRequest(
 	router http.Handler,
 	conversationID string,

@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// TestSlidingWindowLimiterIntegration 覆盖 Redis 滑动窗口限流的真实并发行为
 func TestSlidingWindowLimiterIntegration(t *testing.T) {
 	client := newRateLimitTestRedis(t)
 
@@ -79,6 +80,7 @@ func TestSlidingWindowLimiterIntegration(t *testing.T) {
 	}
 }
 
+// TestSlidingWindowLimiterKeepsRecentRequestsAcrossFixedBoundaries 覆盖固定时间边界两侧仍保持滑动窗口
 func TestSlidingWindowLimiterKeepsRecentRequestsAcrossFixedBoundaries(t *testing.T) {
 	client := newRateLimitTestRedis(t)
 	prefix := fmt.Sprintf("ratelimit_generic_boundary_%d", time.Now().UnixNano())
@@ -144,6 +146,7 @@ func TestSlidingWindowLimiterKeepsRecentRequestsAcrossFixedBoundaries(t *testing
 	}
 }
 
+// TestSlidingWindowLimiterRejectsInvalidPolicy 覆盖非法限流策略的拒绝
 func TestSlidingWindowLimiterRejectsInvalidPolicy(t *testing.T) {
 	limiter := NewSlidingWindowLimiter(nil, "ginchat_test")
 	_, err := limiter.Allow(
@@ -159,6 +162,7 @@ func TestSlidingWindowLimiterRejectsInvalidPolicy(t *testing.T) {
 	}
 }
 
+// newRateLimitTestRedis 创建速率限制TestRedis并完成必要依赖注入
 func newRateLimitTestRedis(t *testing.T) *redis.Client {
 	t.Helper()
 	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
@@ -177,6 +181,7 @@ func newRateLimitTestRedis(t *testing.T) *redis.Client {
 	return client
 }
 
+// cleanupRateLimitKeys 清理限流集成测试创建的 Redis Key
 func cleanupRateLimitKeys(
 	t *testing.T,
 	client *redis.Client,

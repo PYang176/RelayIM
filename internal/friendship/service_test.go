@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestServiceValidation 覆盖好友服务和分页参数的基础校验
 func TestServiceValidation(t *testing.T) {
 	service := NewService(nil)
 	tests := []struct {
@@ -116,6 +117,7 @@ func TestServiceValidation(t *testing.T) {
 	}
 }
 
+// TestSendRequestRequiresRemark 覆盖好友申请理由的必填约束
 func TestSendRequestRequiresRemark(t *testing.T) {
 	service := NewService(nil)
 	err := service.SendRequest(context.Background(), 1, 2, " ")

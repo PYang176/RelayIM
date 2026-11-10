@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TestAuthorizationToken 覆盖 Bearer Token 提取及非法请求头拒绝
 func TestAuthorizationToken(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -44,6 +45,7 @@ func TestAuthorizationToken(t *testing.T) {
 	}
 }
 
+// TestCurrentUserID 覆盖从认证上下文读取当前用户身份
 func TestCurrentUserID(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -39,15 +39,18 @@ watch(
     },
 )
 
+// displayName 计算好友备注、昵称或用户名的展示名称
 function displayName() {
     return props.friend.remark || props.friend.user.nickname || props.friend.user.username
 }
 
+// saveRemark 提交好友备注更新并退出编辑状态
 function saveRemark() {
     emit('updateRemark', remarkDraft.value)
     editing.value = false
 }
 
+// cancelEdit 取消备注编辑并恢复原备注
 function cancelEdit() {
     remarkDraft.value = props.friend.remark
     editing.value = false

@@ -54,20 +54,24 @@ watch(
     {immediate: true},
 )
 
+// close 关闭聊天记录窗口
 function close() {
     emit('close')
 }
 
+// submitSearch 提交会话内消息搜索
 async function submitSearch() {
     await search(searchText.value)
 }
 
+// clearSearch 清空搜索条件并恢复最近消息
 function clearSearch() {
     searchText.value = ''
     clearHistorySearch()
     void nextTick(() => searchInput.value?.focus())
 }
 
+// formatTime 把消息时间格式化为本地显示文本
 function formatTime(value: string) {
     return new Intl.DateTimeFormat('zh-CN', {
         month: '2-digit',
@@ -77,6 +81,7 @@ function formatTime(value: string) {
     }).format(new Date(value))
 }
 
+// recentSenderName 计算最近消息的发送者名称
 function recentSenderName(message: Message) {
     if (message.sender_id === auth.user?.id) return '我'
     const member = chat.activeMembers.find(
@@ -89,6 +94,7 @@ function recentSenderName(message: Message) {
     return '会话成员'
 }
 
+// recentContent 计算最近消息的摘要文本
 function recentContent(message: Message) {
     if (message.recalled) return '该消息已撤回'
     if (message.message_type === 2) {
@@ -101,6 +107,7 @@ function recentContent(message: Message) {
     return message.content
 }
 
+// searchSenderName 计算搜索结果中的发送者名称
 function searchSenderName(message: MessageSearchResult) {
     return message.sender_name || '会话成员'
 }

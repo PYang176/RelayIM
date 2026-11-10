@@ -5,6 +5,7 @@ interface PresenceStatus {
     online: boolean
 }
 
+// queryPresence 批量查询用户在线状态
 export async function queryPresence(
     token: string,
     userIds: string[],

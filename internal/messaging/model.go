@@ -45,6 +45,7 @@ type conversation struct {
 	LastMessageID *uint64 `gorm:"column:last_message_id"`
 }
 
+// TableName 返回 conversation 模型对应的数据库表名
 func (conversation) TableName() string {
 	return "conversations"
 }
@@ -66,6 +67,7 @@ type conversationMember struct {
 	LeftAt *time.Time `gorm:"column:left_at"`
 }
 
+// TableName 返回 conversationMember 模型对应的数据库表名
 func (conversationMember) TableName() string {
 	return "conversation_members"
 }
@@ -81,6 +83,7 @@ type device struct {
 	RevokedAt *time.Time `gorm:"column:revoked_at"`
 }
 
+// TableName 返回 device 模型对应的数据库表名
 func (device) TableName() string {
 	return "devices"
 }
@@ -132,6 +135,7 @@ type message struct {
 	RecalledBy *uint64 `gorm:"column:recalled_by"`
 }
 
+// TableName 返回 message 模型对应的数据库表名
 func (message) TableName() string {
 	return "messages"
 }
@@ -147,6 +151,7 @@ type messageDelivery struct {
 	DeliveredAt time.Time `gorm:"column:delivered_at"`
 }
 
+// TableName 返回 messageDelivery 模型对应的数据库表名
 func (messageDelivery) TableName() string {
 	return "message_deliveries"
 }
@@ -183,6 +188,7 @@ type attachment struct {
 	FinalizedAt *time.Time `gorm:"column:finalized_at"`
 }
 
+// TableName 返回 attachment 模型对应的数据库表名
 func (attachment) TableName() string {
 	return "attachments"
 }
@@ -234,6 +240,7 @@ type outboxEvent struct {
 	LastError *string `gorm:"column:last_error"`
 }
 
+// TableName 返回 outboxEvent 模型对应的数据库表名
 func (outboxEvent) TableName() string {
 	return "outbox_events"
 }
@@ -249,6 +256,7 @@ type processedEvent struct {
 	ProcessedAt time.Time `gorm:"column:processed_at"`
 }
 
+// TableName 返回 processedEvent 模型对应的数据库表名
 func (processedEvent) TableName() string {
 	return "processed_events"
 }

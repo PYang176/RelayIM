@@ -56,7 +56,7 @@ func (h *Handler) SearchUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": response})
 }
 
-// SendRequest 处理 POST /api/v1/friend-requests。
+// SendRequest 创建好友申请并处理重复申请、拉黑和唯一约束
 func (h *Handler) SendRequest(c *gin.Context) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -95,6 +95,7 @@ func (h *Handler) ListSentRequests(c *gin.Context) {
 	h.listRequests(c, false)
 }
 
+// listRequests 查询好友申请列表并应用游标分页
 func (h *Handler) listRequests(c *gin.Context, received bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -142,6 +143,7 @@ func (h *Handler) RejectRequest(c *gin.Context) {
 	h.respondRequest(c, false)
 }
 
+// respondRequest 处理好友申请审批并推进申请状态
 func (h *Handler) respondRequest(c *gin.Context, accept bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -166,7 +168,7 @@ func (h *Handler) respondRequest(c *gin.Context, accept bool) {
 	c.JSON(http.StatusOK, gin.H{"message": "好友申请已处理"})
 }
 
-// ListFriends 处理好友列表查询。
+// ListFriends 查询当前用户的好友关系并应用游标分页
 func (h *Handler) ListFriends(c *gin.Context) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -242,6 +244,7 @@ func (h *Handler) UnblockUser(c *gin.Context) {
 	h.changeBlock(c, false)
 }
 
+// changeBlock 执行拉黑状态变更
 func (h *Handler) changeBlock(c *gin.Context, block bool) {
 	userID, ok := middleware.CurrentUserID(c)
 	if !ok {
@@ -375,6 +378,7 @@ type requestResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// toUserResponse 把用户及其资料转换为好友列表响应
 func toUserResponse(result UserResult) userResponse {
 	return userResponse{
 		ID:        strconv.FormatUint(result.ID, 10),
@@ -384,6 +388,7 @@ func toUserResponse(result UserResult) userResponse {
 	}
 }
 
+// parsePageQuery 解析分页查询并校验参数边界
 func parsePageQuery(c *gin.Context) (PageQuery, bool) {
 	page := PageQuery{Limit: defaultPageSize}
 	if rawLimit := c.Query("limit"); rawLimit != "" {
@@ -405,6 +410,7 @@ func parsePageQuery(c *gin.Context) (PageQuery, bool) {
 	return page, true
 }
 
+// formatCursor 把业务游标格式化为客户端可回传的字符串
 func formatCursor(cursor uint64) string {
 	if cursor == 0 {
 		return ""
@@ -412,6 +418,7 @@ func formatCursor(cursor uint64) string {
 	return strconv.FormatUint(cursor, 10)
 }
 
+// writeFriendshipError 把好友业务错误映射为 HTTP 状态和响应
 func writeFriendshipError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput):

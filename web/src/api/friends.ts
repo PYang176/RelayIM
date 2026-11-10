@@ -6,12 +6,14 @@ import type {
     FriendUser,
 } from '@/types/api'
 
+// pageParams 构造好友相关分页查询参数
 function pageParams(limit = 20, beforeID = ''): URLSearchParams {
     const params = new URLSearchParams({limit: String(limit)})
     if (beforeID) params.set('before_id', beforeID)
     return params
 }
 
+// searchUsers 按用户名或昵称搜索可添加的用户
 export async function searchUsers(
     token: string,
     query: string,
@@ -25,6 +27,7 @@ export async function searchUsers(
     return response.users
 }
 
+// sendFriendRequest 发送带申请理由的好友申请
 export function sendFriendRequest(
     token: string,
     targetUserID: string,
@@ -43,6 +46,7 @@ export function sendFriendRequest(
     )
 }
 
+// listReceivedRequests 分页查询收到的好友申请
 export async function listReceivedRequests(
     token: string,
     beforeID = '',
@@ -55,6 +59,7 @@ export async function listReceivedRequests(
     )
 }
 
+// listSentRequests 分页查询已发出的好友申请
 export async function listSentRequests(
     token: string,
     beforeID = '',
@@ -67,6 +72,7 @@ export async function listSentRequests(
     )
 }
 
+// acceptFriendRequest 接受好友申请并建立好友关系
 export function acceptFriendRequest(token: string, requestID: string): Promise<void> {
     return request(
         `/friend-requests/${requestID}/accept`,
@@ -75,6 +81,7 @@ export function acceptFriendRequest(token: string, requestID: string): Promise<v
     )
 }
 
+// rejectFriendRequest 拒绝好友申请
 export function rejectFriendRequest(token: string, requestID: string): Promise<void> {
     return request(
         `/friend-requests/${requestID}/reject`,
@@ -83,6 +90,7 @@ export function rejectFriendRequest(token: string, requestID: string): Promise<v
     )
 }
 
+// listFriends 分页查询好友列表
 export async function listFriends(
     token: string,
     beforeID = '',
@@ -91,6 +99,7 @@ export async function listFriends(
     return request<FriendPage>(`/friends?${params}`, {}, token)
 }
 
+// setFriendRemark 更新指定好友的备注
 export function setFriendRemark(
     token: string,
     friendUserID: string,
@@ -106,6 +115,7 @@ export function setFriendRemark(
     )
 }
 
+// deleteFriend 删除好友关系但保留历史会话
 export function deleteFriend(token: string, friendUserID: string): Promise<void> {
     return request(
         `/friends/${friendUserID}`,
@@ -114,6 +124,7 @@ export function deleteFriend(token: string, friendUserID: string): Promise<void>
     )
 }
 
+// listBlockedUsers 分页查询当前用户拉黑的账号
 export async function listBlockedUsers(
     token: string,
     beforeID = '',
@@ -122,6 +133,7 @@ export async function listBlockedUsers(
     return request<BlockedUserPage>(`/user-blocks?${params}`, {}, token)
 }
 
+// blockUser 拉黑指定用户并阻止新的私聊消息
 export function blockUser(token: string, targetUserID: string): Promise<void> {
     return request(
         `/users/${targetUserID}/block`,
@@ -130,6 +142,7 @@ export function blockUser(token: string, targetUserID: string): Promise<void> {
     )
 }
 
+// unblockUser 解除对指定用户的拉黑
 export function unblockUser(token: string, targetUserID: string): Promise<void> {
     return request(
         `/users/${targetUserID}/block`,

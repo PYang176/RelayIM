@@ -11,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// TestWSTicketLimiterIntegration 覆盖 WebSocket Ticket 用户和全局滑动限流
 func TestWSTicketLimiterIntegration(t *testing.T) {
 	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if address == "" {
@@ -105,6 +106,7 @@ func TestWSTicketLimiterIntegration(t *testing.T) {
 	}
 }
 
+// TestWSTicketLimiterSlidingWindowBoundary 覆盖 Ticket 限流窗口滑动后的恢复
 func TestWSTicketLimiterSlidingWindowBoundary(t *testing.T) {
 	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if address == "" {

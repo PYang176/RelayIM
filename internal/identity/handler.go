@@ -431,6 +431,7 @@ func (h *Handler) WSTicket(c *gin.Context) {
 	})
 }
 
+// writeIdentityError 把身份错误映射为 HTTP 响应
 func writeIdentityError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput):
@@ -461,6 +462,7 @@ func writeIdentityError(c *gin.Context, err error) {
 	}
 }
 
+// userResponse 把用户模型转换为不含敏感字段的响应
 func userResponse(result UserResult) gin.H {
 	return gin.H{
 		"id":         strconv.FormatUint(result.ID, 10),

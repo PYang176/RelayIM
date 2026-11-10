@@ -16,6 +16,7 @@ type stubAttachmentManager struct {
 	uploadCalls int
 }
 
+// UploadAttachment 模拟附件上传并记录收到的命令
 func (s *stubAttachmentManager) UploadAttachment(
 	_ context.Context,
 	_ UploadAttachmentCommand,
@@ -24,6 +25,7 @@ func (s *stubAttachmentManager) UploadAttachment(
 	return AttachmentResult{}, nil
 }
 
+// OpenAttachment 返回测试附件对象读取器，模拟对象存储下载
 func (s *stubAttachmentManager) OpenAttachment(
 	_ context.Context,
 	_ uint64,
@@ -32,6 +34,7 @@ func (s *stubAttachmentManager) OpenAttachment(
 	return OpenAttachmentResult{}, nil
 }
 
+// GetAttachmentInfo 读取附件Info
 func (s *stubAttachmentManager) GetAttachmentInfo(
 	_ context.Context,
 	_ uint64,
@@ -40,6 +43,7 @@ func (s *stubAttachmentManager) GetAttachmentInfo(
 	return AttachmentResult{}, nil
 }
 
+// TestUploadAttachmentRejectsOversizedFile 覆盖超大附件在上传前被拒绝
 func TestUploadAttachmentRejectsOversizedFile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	attachments := &stubAttachmentManager{}

@@ -83,6 +83,7 @@ func (s *Service) Query(
 	return s.queryAt(ctx, userIDs, time.Now().UTC())
 }
 
+// touchAt 刷新At活跃时间
 func (s *Service) touchAt(
 	ctx context.Context,
 	userID uint64,
@@ -108,6 +109,7 @@ func (s *Service) touchAt(
 	return nil
 }
 
+// queryAt 查询At
 func (s *Service) queryAt(
 	ctx context.Context,
 	userIDs []uint64,
@@ -148,6 +150,7 @@ func (s *Service) queryAt(
 	return results, nil
 }
 
+// userKey 生成 Presence 用户键
 func (s *Service) userKey(userID uint64) string {
 	return fmt.Sprintf(
 		"%s:presence:user:%d",
@@ -156,6 +159,7 @@ func (s *Service) userKey(userID uint64) string {
 	)
 }
 
+// normalizeUserIDs 规范化用户 ID
 func normalizeUserIDs(userIDs []uint64) ([]uint64, error) {
 	if len(userIDs) == 0 || len(userIDs) > maxQueryUserIDs {
 		return nil, fmt.Errorf("在线状态查询数量必须为 1 到 %d", maxQueryUserIDs)

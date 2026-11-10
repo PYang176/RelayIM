@@ -19,6 +19,7 @@ interface UpdateProfileInput {
     avatar_url?: string
 }
 
+// register 提交注册表单并在成功后自动登录
 export function register(input: RegisterInput): Promise<UserSummary> {
     return request('/auth/register', {
         method: 'POST',
@@ -26,6 +27,7 @@ export function register(input: RegisterInput): Promise<UserSummary> {
     })
 }
 
+// login 调用登录接口并返回令牌、设备与用户摘要
 export function login(
     username: string,
     password: string,
@@ -43,6 +45,7 @@ export function login(
     })
 }
 
+// refreshToken 使用 Refresh Token 换取新的访问令牌
 export function refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
     return request('/auth/refresh', {
         method: 'POST',
@@ -50,6 +53,7 @@ export function refreshToken(refreshToken: string): Promise<RefreshTokenResponse
     })
 }
 
+// logout 撤销当前访问令牌和刷新令牌
 export function logout(token: string, refreshToken: string): Promise<void> {
     return request(
         '/auth/logout',
@@ -61,10 +65,12 @@ export function logout(token: string, refreshToken: string): Promise<void> {
     )
 }
 
+// getMe 读取当前登录用户资料
 export function getMe(token: string): Promise<UserSummary> {
     return request('/me', {}, token)
 }
 
+// updateProfile 保存昵称、简介和头像地址
 export function updateProfile(
     token: string,
     input: UpdateProfileInput,
@@ -79,6 +85,7 @@ export function updateProfile(
     )
 }
 
+// uploadAvatar 以 multipart 方式上传头像文件
 export function uploadAvatar(token: string, file: File): Promise<UserSummary> {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest()
@@ -111,6 +118,7 @@ export function uploadAvatar(token: string, file: File): Promise<UserSummary> {
     })
 }
 
+// removeAvatar 移除当前用户头像并返回最新资料
 export function removeAvatar(token: string): Promise<UserSummary> {
     return request(
         '/me/avatar',
@@ -119,6 +127,7 @@ export function removeAvatar(token: string): Promise<UserSummary> {
     )
 }
 
+// issueWsTicket 申请一次性 WebSocket Ticket 并绑定当前设备
 export function issueWsTicket(
     token: string,
     deviceId: string,

@@ -24,10 +24,12 @@ type stubTokenIssuer struct {
 	refreshCounter int
 }
 
+// IssueToken 判断sue令牌条件
 func (s *stubTokenIssuer) IssueToken(context.Context, uint64) (string, error) {
 	return s.token, s.err
 }
 
+// IssueRefreshToken 判断sue刷新令牌条件
 func (s *stubTokenIssuer) IssueRefreshToken(
 	context.Context,
 ) (string, string, time.Time, error) {
@@ -39,6 +41,7 @@ func (s *stubTokenIssuer) IssueRefreshToken(
 	return raw, authn.HashRefreshToken(raw), time.Now().UTC().Add(24 * time.Hour), nil
 }
 
+// Revoke 模拟令牌撤销动作并记录用户和设备信息
 func (s *stubTokenIssuer) Revoke(
 	context.Context,
 	string,
@@ -48,6 +51,7 @@ func (s *stubTokenIssuer) Revoke(
 	return nil
 }
 
+// TestUserRegisterAndLoginIntegration 覆盖用户注册、登录和令牌持久化的真实数据库链路
 func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {

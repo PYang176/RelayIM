@@ -165,6 +165,7 @@ func (h *WebsocketHandler) Connect(c *gin.Context) {
 	})
 }
 
+// updateRealtime 更新实时并维护相关不变量
 func (h *WebsocketHandler) updateRealtime(
 	ctx context.Context,
 	userID uint64,
@@ -176,6 +177,7 @@ func (h *WebsocketHandler) updateRealtime(
 	}
 }
 
+// handleClientMessage 解析 WebSocket 客户端信令并分发 ACK 或已读回执
 func (h *WebsocketHandler) handleClientMessage(
 	ctx context.Context,
 	userID uint64,
@@ -218,6 +220,7 @@ func (h *WebsocketHandler) handleClientMessage(
 	}
 }
 
+// trackRoute 记录测试路由是否被调用
 func (h *WebsocketHandler) trackRoute(
 	ctx context.Context,
 	userID uint64,
@@ -234,6 +237,7 @@ func (h *WebsocketHandler) trackRoute(
 	return nil
 }
 
+// updatePresence 更新在线状态并维护相关不变量
 func (h *WebsocketHandler) updatePresence(
 	ctx context.Context,
 	userID uint64,
@@ -250,6 +254,7 @@ func (h *WebsocketHandler) updatePresence(
 	}
 }
 
+// removeRoute 移除路由并同步清理关联状态
 func (h *WebsocketHandler) removeRoute(userID uint64, deviceID uint64) {
 	if h.routes == nil {
 		return
@@ -261,6 +266,7 @@ func (h *WebsocketHandler) removeRoute(userID uint64, deviceID uint64) {
 	}
 }
 
+// removePresence 移除在线状态并同步清理关联状态
 func (h *WebsocketHandler) removePresence(userID uint64, deviceID uint64) {
 	if h.presence == nil {
 		return
@@ -272,6 +278,7 @@ func (h *WebsocketHandler) removePresence(userID uint64, deviceID uint64) {
 	}
 }
 
+// checkOrigin 校验 WebSocket Origin，只允许本机和同 Host 来源
 func checkOrigin(request *http.Request) bool {
 	origin := request.Header.Get("Origin")
 	if origin == "" {

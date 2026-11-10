@@ -7,6 +7,7 @@ import type {
     MessageSearchResult,
 } from '@/types/api'
 
+// useMessageHistory 创建聊天记录搜索和分页状态
 export function useMessageHistory() {
     const auth = useAuthStore()
     const recentMessages = ref<Message[]>([])
@@ -29,6 +30,7 @@ export function useMessageHistory() {
     )
     const showingSearch = computed(() => Boolean(activeQuery.value))
 
+    // loadRecent 加载会话最近消息作为历史窗口基线
     async function loadRecent(targetConversationId: string) {
         const currentGeneration = ++generation
         conversationId = targetConversationId
@@ -69,6 +71,7 @@ export function useMessageHistory() {
         }
     }
 
+    // search 执行会话内消息搜索并重置分页
     async function search(rawQuery: string) {
         const value = rawQuery.trim()
         query.value = value
@@ -123,6 +126,7 @@ export function useMessageHistory() {
         }
     }
 
+    // loadMore 加载当前聊天记录页的下一页
     async function loadMore() {
         if (loadingMore.value || !hasMore.value) return
         const currentGeneration = generation
@@ -184,6 +188,7 @@ export function useMessageHistory() {
         }
     }
 
+    // clearSearch 清空搜索并回到最近消息视图
     function clearSearch() {
         generation += 1
         query.value = ''
@@ -195,6 +200,7 @@ export function useMessageHistory() {
         error.value = ''
     }
 
+    // reset 重置聊天记录窗口与搜索状态
     function reset() {
         generation += 1
         conversationId = ''

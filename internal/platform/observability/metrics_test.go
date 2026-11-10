@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestMetricsExposeHTTPAndWebSocketValues 覆盖 HTTP、WebSocket、Outbox 和附件指标的暴露
 func TestMetricsExposeHTTPAndWebSocketValues(t *testing.T) {
 	metrics := NewMetrics()
 	metrics.RegisterWebSocketConnections(func() int {

@@ -23,6 +23,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
+// searchUsers 按条件搜索用户
 func (r *Repository) searchUsers(
 	ctx context.Context,
 	userID uint64,
@@ -64,6 +65,7 @@ func (r *Repository) searchUsers(
 	return results, nil
 }
 
+// sendRequest 创建好友申请并处理重复申请、拉黑和唯一约束
 func (r *Repository) sendRequest(
 	ctx context.Context,
 	userID uint64,
@@ -154,6 +156,7 @@ func (r *Repository) sendRequest(
 	return err
 }
 
+// respondToRequest 处理好友申请审批并更新申请与好友关系状态
 func (r *Repository) respondToRequest(
 	ctx context.Context,
 	userID uint64,
@@ -240,6 +243,7 @@ func (r *Repository) respondToRequest(
 	})
 }
 
+// listFriends 查询当前用户的好友关系并应用游标分页
 func (r *Repository) listFriends(
 	ctx context.Context,
 	userID uint64,
@@ -299,6 +303,7 @@ func (r *Repository) listFriends(
 	return page, nil
 }
 
+// listFriendsBySide 按好友关系的任一侧查询联系人并应用分页
 func (r *Repository) listFriendsBySide(
 	ctx context.Context,
 	userID uint64,
@@ -353,6 +358,7 @@ func (r *Repository) listFriendsBySide(
 	return records, nil
 }
 
+// listBlockedUsers 查询拉黑用户并保持权限和分页语义
 func (r *Repository) listBlockedUsers(
 	ctx context.Context,
 	userID uint64,
@@ -405,6 +411,7 @@ func (r *Repository) listBlockedUsers(
 	return page, nil
 }
 
+// blockUser 创建拉黑关系，并更新双方后续可交互状态
 func (r *Repository) blockUser(
 	ctx context.Context,
 	userID uint64,
@@ -439,6 +446,7 @@ func (r *Repository) blockUser(
 	})
 }
 
+// unblockUser 删除拉黑关系，并恢复双方可交互状态
 func (r *Repository) unblockUser(
 	ctx context.Context,
 	userID uint64,
@@ -453,6 +461,7 @@ func (r *Repository) unblockUser(
 		Delete(&userBlock{}).Error
 }
 
+// listRequests 查询好友申请列表并应用游标分页
 func (r *Repository) listRequests(
 	ctx context.Context,
 	userID uint64,
@@ -540,6 +549,7 @@ func (r *Repository) listRequests(
 	return page, nil
 }
 
+// setRemark 设置备注并校验边界
 func (r *Repository) setRemark(
 	ctx context.Context,
 	userID uint64,
@@ -589,6 +599,7 @@ func (r *Repository) setRemark(
 	})
 }
 
+// deleteFriend 删除好友并遵循关联约束
 func (r *Repository) deleteFriend(
 	ctx context.Context,
 	userID uint64,
@@ -627,6 +638,7 @@ func (r *Repository) deleteFriend(
 	})
 }
 
+// orderedUsers 按稳定顺序返回一对用户 ID，供数据库唯一键和查询使用
 func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 	if first < second {
 		return first, second
@@ -634,6 +646,7 @@ func orderedUsers(first uint64, second uint64) (uint64, uint64) {
 	return second, first
 }
 
+// isBlockedPair 判断两个用户之间是否存在任一方向的拉黑关系
 func isBlockedPair(db *gorm.DB, first uint64, second uint64) (bool, error) {
 	var count int64
 	if err := db.Table("user_blocks").
@@ -651,6 +664,7 @@ func isBlockedPair(db *gorm.DB, first uint64, second uint64) (bool, error) {
 	return count > 0, nil
 }
 
+// nullableString 把空字符串转换为数据库可空值
 func nullableString(value string) *string {
 	if value == "" {
 		return nil
@@ -658,6 +672,7 @@ func nullableString(value string) *string {
 	return &value
 }
 
+// stringValue 读取字符串值并去除首尾空白
 func stringValue(value *string) string {
 	if value == nil {
 		return ""
@@ -665,6 +680,7 @@ func stringValue(value *string) string {
 	return *value
 }
 
+// isDuplicateKey 判断重复键条件
 func isDuplicateKey(err error) bool {
 	var mysqlErr *mysql.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062

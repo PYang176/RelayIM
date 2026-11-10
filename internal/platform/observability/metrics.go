@@ -339,6 +339,7 @@ func (m *Metrics) Registry() *prometheus.Registry {
 	return m.registry
 }
 
+// httpStatusLabel 把 HTTP 状态码归类为 2xx、4xx 或 5xx 指标标签
 func httpStatusLabel(status int) string {
 	switch {
 	case status >= 500:

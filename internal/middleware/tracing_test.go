@@ -13,6 +13,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
+// TestTraceRequestPropagatesIncomingTrace 覆盖 HTTP 请求 Trace 上下文和响应头传播
 func TestTraceRequestPropagatesIncomingTrace(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := sdktrace.NewTracerProvider(

@@ -8,6 +8,7 @@ import (
 	"ginChatProject/internal/platform/rabbitmq"
 )
 
+// TestMessageEventProcessorRejectsInvalidEvent 覆盖非法领域事件的不可重试处理
 func TestMessageEventProcessorRejectsInvalidEvent(t *testing.T) {
 	processor := NewEventProcessor(nil, nil)
 	tests := []struct {

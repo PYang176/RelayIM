@@ -2,6 +2,7 @@ package app
 
 import "testing"
 
+// TestServerAddr 覆盖服务监听地址的环境变量覆盖和默认值
 func TestServerAddr(t *testing.T) {
 	tests := []struct {
 		name string

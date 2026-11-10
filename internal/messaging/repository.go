@@ -302,6 +302,7 @@ func (r *Repository) sendMessage(
 	return nil, false, err
 }
 
+// findByClientMessageID 按发送者和客户端消息 ID 查询幂等记录
 func (r *Repository) findByClientMessageID(
 	ctx context.Context,
 	senderID uint64,
@@ -365,6 +366,7 @@ func (r *Repository) listMessages(
 	return records, hasMore, nil
 }
 
+// ensureActiveMember 校验用户仍是有效会话成员，否则返回对应业务错误
 func (r *Repository) ensureActiveMember(
 	ctx context.Context,
 	conversationID uint64,
@@ -551,6 +553,7 @@ func (r *Repository) recallMessage(
 	})
 }
 
+// traceParentPointer 把空 traceparent 转换为可空数据库值
 func traceParentPointer(value string) *string {
 	if value == "" {
 		return nil
@@ -764,6 +767,7 @@ func (r *Repository) getDeliverySummary(
 	}, nil
 }
 
+// isDuplicateKey 判断重复键条件
 func isDuplicateKey(err error) bool {
 	// MySQL 1062 表示唯一键冲突；不能把连接错误或普通 SQL 错误误判成重试。
 	var mysqlErr *mysql.MySQLError

@@ -15,6 +15,7 @@ import (
 	"ginChatProject/internal/platform/snowflake"
 )
 
+// TestManagerIntegration 覆盖认证管理器的真实 Redis 令牌生命周期
 func TestManagerIntegration(t *testing.T) {
 	redisAddr := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
 	if redisAddr == "" {

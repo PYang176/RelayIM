@@ -651,6 +651,7 @@ func (h *Handler) UploadAttachment(c *gin.Context) {
 	})
 }
 
+// messageTypeMetricLabel 把消息类型转换为 Prometheus 指标标签
 func messageTypeMetricLabel(messageType int) string {
 	switch messageType {
 	case messageTypeImage:
@@ -735,6 +736,7 @@ func (h *Handler) GetAttachmentInfo(c *gin.Context) {
 	})
 }
 
+// parseReplyToMessageID 解析引用消息 ID并校验参数边界
 func parseReplyToMessageID(
 	c *gin.Context,
 	raw *string,
@@ -752,6 +754,7 @@ func parseReplyToMessageID(
 	return &replyToMessageID, true
 }
 
+// parseAttachmentID 解析附件 ID并校验参数边界
 func parseAttachmentID(
 	c *gin.Context,
 	raw *string,
@@ -768,6 +771,7 @@ func parseAttachmentID(
 	return attachmentID, true
 }
 
+// parseOptionalUint64Query 解析可选无符号整数查询参数并校验格式
 func parseOptionalUint64Query(c *gin.Context, key string) (uint64, bool) {
 	value := strings.TrimSpace(c.Query(key))
 	if value == "" {
@@ -781,6 +785,7 @@ func parseOptionalUint64Query(c *gin.Context, key string) (uint64, bool) {
 	return parsed, true
 }
 
+// parseOptionalIntQuery 解析可选整数查询参数并校验格式
 func parseOptionalIntQuery(c *gin.Context, key string) (int, bool) {
 	value := strings.TrimSpace(c.Query(key))
 	if value == "" {
@@ -794,6 +799,7 @@ func parseOptionalIntQuery(c *gin.Context, key string) (int, bool) {
 	return parsed, true
 }
 
+// writeMessagingError 把消息业务错误映射为 HTTP 状态和响应
 func writeMessagingError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidMessage),

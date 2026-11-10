@@ -143,6 +143,7 @@ func (w *OutboxWorker) Run(ctx context.Context) {
 	}
 }
 
+// dispatchBatch 领取一批 Outbox 事件并逐条发布
 func (w *OutboxWorker) dispatchBatch(
 	ctx context.Context,
 	publisher eventPublisher,
@@ -167,6 +168,7 @@ func (w *OutboxWorker) dispatchBatch(
 	return len(events), nil
 }
 
+// publishEvent 发布事件并等待消息系统确认
 func (w *OutboxWorker) publishEvent(
 	ctx context.Context,
 	publisher eventPublisher,
@@ -257,6 +259,7 @@ func (w *OutboxWorker) publishEvent(
 	return publishErr
 }
 
+// retryDelay 计算 Outbox 发布失败的退避延迟
 func (w *OutboxWorker) retryDelay(attempt int) time.Duration {
 	baseSeconds := w.config.RetryBaseSeconds
 	if baseSeconds <= 0 {
@@ -275,6 +278,7 @@ func (w *OutboxWorker) retryDelay(attempt int) time.Duration {
 	return delay
 }
 
+// waitForReconnect 等待发布器重连或上下文取消
 func waitForReconnect(
 	ctx context.Context,
 	delay time.Duration,

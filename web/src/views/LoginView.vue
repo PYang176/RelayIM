@@ -18,6 +18,7 @@ const form = reactive({
     nickname: '',
 })
 
+// submit 提交登录或注册表单
 async function submit() {
     error.value = ''
     busy.value = true
@@ -36,6 +37,7 @@ async function submit() {
     }
 }
 
+// switchMode 切换登录与注册表单模式
 function switchMode(nextMode: 'login' | 'register') {
     mode.value = nextMode
     error.value = ''

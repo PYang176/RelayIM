@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// BoolToStr 把布尔值转换为协议需要的字符串表示
 func BoolToStr(b bool) string {
 	if b {
 		return "true"
@@ -13,6 +14,7 @@ func BoolToStr(b bool) string {
 	return "false"
 }
 
+// GetMySQLDsn 读取MySQLDsn
 func GetMySQLDsn(m config.MySQLConfig) string {
 	dsn := fmt.Sprintf(
 		"%s:%s@tcp(%s:%d)/%s",

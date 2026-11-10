@@ -48,16 +48,19 @@ watch(
     {immediate: true},
 )
 
+// displayName 选择好友昵称或用户名作为显示名称
 function displayName(friend: Friend) {
     return friend.remark || friend.user.nickname || friend.user.username
 }
 
+// close 关闭创建群聊对话框并清空错误状态
 function close() {
     if (!props.busy) {
         emit('close')
     }
 }
 
+// submit 校验群信息并提交创建群聊事件
 function submit() {
     const name = groupName.value.trim()
     const remark = inviteRemark.value.trim()

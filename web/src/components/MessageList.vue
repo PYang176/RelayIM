@@ -22,6 +22,7 @@ const pendingRecallId = shallowRef('')
 const senderRecallWindow = 2 * 60 * 1000
 const managerRecallWindow = 24 * 60 * 60 * 1000
 
+// formatTime 格式化消息列表中的时间
 function formatTime(value: string) {
     return new Intl.DateTimeFormat('zh-CN', {
         hour: '2-digit',
@@ -29,10 +30,12 @@ function formatTime(value: string) {
     }).format(new Date(value))
 }
 
+// isOutgoing 判断消息是否由当前用户发送
 function isOutgoing(message: ChatMessage) {
     return message.outgoing || message.sender_id === props.currentUserId
 }
 
+// canRecall 判断当前消息是否满足撤回条件
 function canRecall(message: ChatMessage) {
     if (message.recalled || !props.currentUserId) return false
     const age = Date.now() - new Date(message.created_at).getTime()
@@ -44,6 +47,7 @@ function canRecall(message: ChatMessage) {
         age <= managerRecallWindow
 }
 
+// recall 确认并请求撤回指定消息
 function recall(message: ChatMessage) {
     if (!canRecall(message)) return
     if (pendingRecallId.value !== message.message_id) {
@@ -54,6 +58,7 @@ function recall(message: ChatMessage) {
     emit('recall', message.message_id)
 }
 
+// scrollToBottom 滚动消息容器到底部
 function scrollToBottom() {
     void nextTick(() => {
         if (scroller.value) {

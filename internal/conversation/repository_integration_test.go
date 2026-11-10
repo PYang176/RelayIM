@@ -21,6 +21,7 @@ var (
 	conversationSnowflakeErr  error
 )
 
+// initConversationSnowflake 初始化会话雪花算法运行状态
 func initConversationSnowflake(t *testing.T) {
 	t.Helper()
 	conversationSnowflakeOnce.Do(func() {
@@ -31,6 +32,7 @@ func initConversationSnowflake(t *testing.T) {
 	}
 }
 
+// TestConversationRepositoryIntegration 覆盖会话、成员和权限规则的真实数据库链路
 func TestConversationRepositoryIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -489,6 +491,7 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 	}
 }
 
+// TestConversationPaginationIntegration 覆盖会话列表复合游标分页的真实数据库行为
 func TestConversationPaginationIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -709,6 +712,7 @@ func TestConversationPaginationIntegration(t *testing.T) {
 	}
 }
 
+// TestCreateDirectConcurrentIntegration 覆盖并发创建同一私聊会话时的唯一性约束
 func TestCreateDirectConcurrentIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -783,6 +787,7 @@ func TestCreateDirectConcurrentIntegration(t *testing.T) {
 	}
 }
 
+// TestGroupInvitationLifecycleIntegration 覆盖群邀请创建、审批、取消和过期的完整生命周期
 func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
 	if dsn == "" {
@@ -1030,6 +1035,7 @@ func TestGroupInvitationLifecycleIntegration(t *testing.T) {
 	}
 }
 
+// insertConversationTestUsers 插入会话集成测试用户，并返回后续清理所需的测试上下文
 func insertConversationTestUsers(t *testing.T, db *gorm.DB) (uint64, uint64) {
 	t.Helper()
 
@@ -1075,6 +1081,7 @@ func insertConversationTestUsers(t *testing.T, db *gorm.DB) (uint64, uint64) {
 	return userA, userB
 }
 
+// cleanupConversationTestData 清理会话集成测试创建的用户、会话和消息
 func cleanupConversationTestData(
 	t *testing.T,
 	db *gorm.DB,
