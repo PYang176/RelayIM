@@ -1,6 +1,7 @@
 /internal/config/app.yml
 /internal/config/app.env
 /deploy/.env
+/.idea/
 /.tools/
 /.tmp/
 /web/node_modules/
