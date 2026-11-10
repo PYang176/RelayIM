@@ -551,6 +551,42 @@
         ],
         "type": "object"
       },
+      "FriendRelationshipStatus": {
+        "properties": {
+          "blocked_by_me": {
+            "description": "当前用户主动拉黑了目标用户",
+            "type": "boolean"
+          },
+          "can_message": {
+            "description": "双方已是好友且不存在拉黑关系",
+            "type": "boolean"
+          },
+          "can_request": {
+            "description": "当前可以发送新的好友申请",
+            "type": "boolean"
+          },
+          "has_pending_request": {
+            "description": "双方已有待处理好友申请",
+            "type": "boolean"
+          },
+          "requested_by_me": {
+            "description": "待处理申请由当前用户发起",
+            "type": "boolean"
+          },
+          "target_user_id": {
+            "$ref": "#/components/schemas/SnowflakeID"
+          }
+        },
+        "required": [
+          "target_user_id",
+          "can_message",
+          "can_request",
+          "has_pending_request",
+          "requested_by_me",
+          "blocked_by_me"
+        ],
+        "type": "object"
+      },
       "FriendRequest": {
         "properties": {
           "created_at": {
@@ -3013,6 +3049,41 @@
           }
         },
         "summary": "删除好友",
+        "tags": [
+          "Friendship"
+        ]
+      }
+    },
+    "/api/v1/friends/{user_id}/relationship": {
+      "get": {
+        "operationId": "getFriendRelationshipStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FriendRelationshipStatus"
+                }
+              }
+            },
+            "description": "当前用户针对目标用户可以执行的社交动作"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "查询与目标用户的好友关系状态",
         "tags": [
           "Friendship"
         ]

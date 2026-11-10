@@ -44,6 +44,7 @@ func Register(
 	group.POST("/friend-requests/:id/accept", handler.AcceptRequest)
 	group.POST("/friend-requests/:id/reject", handler.RejectRequest)
 	group.GET("/friends", handler.ListFriends)
+	group.GET("/friends/:user_id/relationship", handler.RelationshipStatus)
 	group.GET("/user-blocks", handler.ListBlockedUsers)
 	group.POST("/users/:user_id/block", handler.BlockUser)
 	group.DELETE("/users/:user_id/block", handler.UnblockUser)

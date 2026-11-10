@@ -215,6 +215,37 @@ func (h *Handler) ListFriends(c *gin.Context) {
 	})
 }
 
+// RelationshipStatus 处理 GET /api/v1/friends/:user_id/relationship。
+func (h *Handler) RelationshipStatus(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	if err != nil || targetUserID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户 ID 格式错误"})
+		return
+	}
+	result, err := h.service.RelationshipStatus(
+		c.Request.Context(),
+		userID,
+		targetUserID,
+	)
+	if err != nil {
+		writeFriendshipError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"target_user_id":      strconv.FormatUint(result.TargetUserID, 10),
+		"can_message":         result.CanMessage,
+		"can_request":         result.CanRequest,
+		"has_pending_request": result.HasPendingRequest,
+		"requested_by_me":     result.RequestedByMe,
+		"blocked_by_me":       result.BlockedByMe,
+	})
+}
+
 // ListBlockedUsers 处理当前用户的拉黑列表。
 func (h *Handler) ListBlockedUsers(c *gin.Context) {
 	userID, ok := middleware.CurrentUserID(c)

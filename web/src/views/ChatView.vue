@@ -18,12 +18,13 @@ import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageHistoryDialog from '@/components/MessageHistoryDialog.vue'
 import MessageList from '@/components/MessageList.vue'
+import MemberProfileDialog from '@/components/MemberProfileDialog.vue'
 import ProfileDialog from '@/components/ProfileDialog.vue'
 import {useAuthStore} from '@/stores/auth'
 import {useChatStore} from '@/stores/chat'
 import {useFriendshipStore} from '@/stores/friendships'
 import {useGroupInvitationStore} from '@/stores/group-invitations'
-import type {Friend} from '@/types/api'
+import type {ConversationMember, Friend} from '@/types/api'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -37,6 +38,8 @@ const groupInvitationsOpen = shallowRef(false)
 const groupDialogOpen = shallowRef(false)
 const creatingGroup = shallowRef(false)
 const groupMembersOpen = shallowRef(false)
+const memberProfileOpen = shallowRef(false)
+const selectedGroupMember = shallowRef<ConversationMember | null>(null)
 const managingMembers = shallowRef(false)
 const memberActionError = shallowRef('')
 const profileDialogOpen = shallowRef(false)
@@ -142,6 +145,12 @@ function openGroupMembers() {
         void groupInvitations.loadGroupInvitations(conversationId, true)
     }
     void friendships.loadAll()
+}
+
+// openMemberProfile 从群成员入口打开完整成员资料
+function openMemberProfile(member: ConversationMember) {
+    selectedGroupMember.value = member
+    memberProfileOpen.value = true
 }
 
 // inviteMembers 邀请好友加入当前群聊
@@ -413,6 +422,13 @@ async function openFriendDirect(userID: string) {
     }
 }
 
+// openMemberDirect 关闭成员浮层并进入私聊会话
+async function openMemberDirect(userID: string) {
+    memberProfileOpen.value = false
+    groupMembersOpen.value = false
+    await openFriendDirect(userID)
+}
+
 // openMessages 切换回会话列表
 function openMessages() {
     workspaceMode.value = 'messages'
@@ -677,26 +693,30 @@ onBeforeUnmount(() => {
                                 <span v-if="chat.loadingMembers">成员加载中</span>
                                 <span v-else>群成员</span>
                             </span>
-                            <span
+                            <button
                                     v-for="member in visibleGroupMembers"
                                     :key="member.user_id"
                                     class="group-member-chip"
+                                    type="button"
+                                    @click="openMemberProfile(member)"
                             >
                                 {{ memberName(member) }}
                                 <small v-if="member.role === 3">群主</small>
-                            </span>
-                            <span
+                            </button>
+                            <button
                                     v-if="hiddenGroupMemberCount > 0"
                                     class="group-member-chip more"
+                                    type="button"
+                                    @click="openGroupMembers"
                             >
                                 +{{ hiddenGroupMemberCount }}
-                            </span>
+                            </button>
                             <button
                                     class="text-button group-manage-button"
                                     type="button"
                                     @click="openGroupMembers"
                             >
-                                管理成员
+                                群成员列表
                             </button>
                         </div>
 
@@ -797,6 +817,14 @@ onBeforeUnmount(() => {
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"
                 @update-profile="updateGroupProfile"
+                @view-profile="openMemberProfile"
+        />
+
+        <MemberProfileDialog
+                :member="selectedGroupMember"
+                :open="memberProfileOpen"
+                @close="memberProfileOpen = false"
+                @message="openMemberDirect"
         />
 
         <MessageHistoryDialog

@@ -2,10 +2,17 @@
 import {computed, shallowRef, watch} from 'vue'
 
 import {getUserProfile} from '@/api/auth'
+import {getRelationshipStatus} from '@/api/friends'
 import AvatarPreviewDialog from '@/components/AvatarPreviewDialog.vue'
+import FriendRequestForm from '@/components/FriendRequestForm.vue'
 import {useAuthStore} from '@/stores/auth'
 import {useFriendshipStore} from '@/stores/friendships'
-import type {Conversation, Friend, UserSummary} from '@/types/api'
+import type {
+    Conversation,
+    Friend,
+    FriendRelationshipStatus,
+    UserSummary,
+} from '@/types/api'
 
 const props = defineProps<{
     friend: Friend | null
@@ -23,12 +30,17 @@ const friendships = useFriendshipStore()
 const profile = shallowRef<UserSummary | null>(null)
 const loading = shallowRef(false)
 const profileError = shallowRef('')
+const relationship = shallowRef<FriendRelationshipStatus | null>(null)
+const relationshipLoading = shallowRef(false)
+const relationshipError = shallowRef('')
+const requestFormOpen = shallowRef(false)
 const avatarPreviewOpen = shallowRef(false)
 const editingRemark = shallowRef(false)
 const remarkDraft = shallowRef('')
 const confirmingBlock = shallowRef(false)
 const confirmingDelete = shallowRef(false)
 let requestGeneration = 0
+let relationshipGeneration = 0
 
 const displayName = computed(
     () =>
@@ -48,12 +60,13 @@ const relationshipActive = computed(
 const canStartChat = computed(
     () =>
         Boolean(props.friend) &&
-        relationshipActive.value &&
-        !props.friend?.blocked_by_me,
+        (relationship.value?.can_message ??
+            (relationshipActive.value && !props.friend?.blocked_by_me)),
 )
 const canAddToGroup = computed(
     () => canStartChat.value && props.groups.length > 0,
 )
+const canRequest = computed(() => Boolean(relationship.value?.can_request))
 const canEditRemark = computed(() => canStartChat.value)
 const relationshipLabel = computed(() => {
     if (!props.friend) return ''
@@ -62,11 +75,18 @@ const relationshipLabel = computed(() => {
 })
 const relationshipNotice = computed(() => {
     if (!props.friend) return ''
+    if (relationshipLoading.value) return '正在确认好友关系…'
+    if (relationshipError.value) return relationshipError.value
     if (props.friend.blocked_by_me) {
         return '你已拉黑该联系人，取消拉黑后才能继续私聊或邀请入群。'
     }
+    if (relationship.value?.has_pending_request) {
+        return relationship.value.requested_by_me
+            ? '好友申请已发送，等待对方处理。'
+            : '对方已发送好友申请，请前往联系人申请中处理。'
+    }
     if (!relationshipActive.value) {
-        return '双方当前不是好友，无法继续私聊或邀请加入群聊。'
+        return '双方当前不是好友，可以重新申请添加。'
     }
     return ''
 })
@@ -82,6 +102,7 @@ watch(
         remarkDraft.value = props.friend?.remark ?? ''
         confirmingBlock.value = false
         confirmingDelete.value = false
+        requestFormOpen.value = false
         if (!userID) {
             loading.value = false
             return
@@ -102,6 +123,18 @@ watch(
                 loading.value = false
             }
         }
+    },
+    {immediate: true},
+)
+
+watch(
+    () => [
+        props.friend?.user.id ?? '',
+        Boolean(props.friend?.relationship_active),
+        Boolean(props.friend?.blocked_by_me),
+    ] as const,
+    () => {
+        void loadRelationshipStatus()
     },
     {immediate: true},
 )
@@ -133,6 +166,52 @@ function startChat() {
 function addToGroup() {
     if (props.friend && canAddToGroup.value) {
         emit('addToGroup', props.friend)
+    }
+}
+
+// loadRelationshipStatus 读取当前联系人的好友申请和私聊权限
+async function loadRelationshipStatus() {
+    const userID = props.friend?.user.id ?? ''
+    const generation = ++relationshipGeneration
+    relationship.value = null
+    relationshipError.value = ''
+    requestFormOpen.value = false
+    if (!userID) {
+        relationshipLoading.value = false
+        return
+    }
+    relationshipLoading.value = true
+    try {
+        const result = await getRelationshipStatus(auth.token, userID)
+        if (generation === relationshipGeneration) {
+            relationship.value = result
+        }
+    } catch (cause) {
+        if (generation === relationshipGeneration) {
+            relationshipError.value =
+                cause instanceof Error
+                    ? cause.message
+                    : '加载好友关系状态失败'
+        }
+    } finally {
+        if (generation === relationshipGeneration) {
+            relationshipLoading.value = false
+        }
+    }
+}
+
+// openFriendRequestForm 展开重新添加好友的申请理由
+function openFriendRequestForm() {
+    if (!canRequest.value) return
+    friendships.clearError()
+    requestFormOpen.value = true
+}
+
+// submitFriendRequest 提交重新添加好友申请并刷新关系状态
+async function submitFriendRequest(remark: string) {
+    if (!props.friend || friendships.actionBusy) return
+    if (await friendships.sendRequest(props.friend.user.id, remark)) {
+        await loadRelationshipStatus()
     }
 }
 
@@ -417,25 +496,57 @@ async function deleteContact() {
                 </p>
             </section>
 
-            <footer class="contact-profile-actions">
+            <FriendRequestForm
+                    v-if="requestFormOpen"
+                    :busy="friendships.actionBusy"
+                    :error="friendships.error"
+                    :target-name="displayName"
+                    @cancel="requestFormOpen = false"
+                    @submit="submitFriendRequest"
+            />
+
+            <footer v-else class="contact-profile-actions">
                 <p v-if="relationshipNotice">{{ relationshipNotice }}</p>
                 <div class="contact-profile-primary-actions">
                     <button
-                            :disabled="!canAddToGroup"
-                            class="ghost-button contact-action-button"
-                            type="button"
-                            @click="addToGroup"
-                    >
-                        添加到群聊
-                    </button>
-                    <button
-                            :disabled="!canStartChat"
+                            v-if="canRequest"
                             class="primary-button compact contact-action-button"
                             type="button"
-                            @click="startChat"
+                            @click="openFriendRequestForm"
                     >
-                        发私聊
+                        申请添加好友
                     </button>
+                    <template v-else-if="relationship?.has_pending_request">
+                        <button
+                                class="ghost-button contact-action-button"
+                                disabled
+                                type="button"
+                        >
+                            {{
+                                relationship.requested_by_me
+                                    ? '申请已发送'
+                                    : '等待你处理'
+                            }}
+                        </button>
+                    </template>
+                    <template v-else>
+                        <button
+                                :disabled="!canAddToGroup"
+                                class="ghost-button contact-action-button"
+                                type="button"
+                                @click="addToGroup"
+                        >
+                            添加到群聊
+                        </button>
+                        <button
+                                :disabled="!canStartChat"
+                                class="primary-button compact contact-action-button"
+                                type="button"
+                                @click="startChat"
+                        >
+                            发私聊
+                        </button>
+                    </template>
                 </div>
             </footer>
         </article>

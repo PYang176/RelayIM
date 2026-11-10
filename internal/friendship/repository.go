@@ -106,7 +106,8 @@ func (r *Repository) sendRequest(
 		}
 		if err == nil &&
 			existingFriendship.Status == friendshipStatusNormal &&
-			!friendshipDeletedForUser(existingFriendship, userID) {
+			existingFriendship.LowUserDeletedAt == nil &&
+			existingFriendship.HighUserDeletedAt == nil {
 			return ErrAlreadyFriends
 		}
 
@@ -306,6 +307,86 @@ func (r *Repository) listFriends(
 		page.NextCursor = results[len(results)-1].FriendshipID
 	}
 	return page, nil
+}
+
+// relationshipStatus 计算成员资料页可展示的好友与申请动作。
+func (r *Repository) relationshipStatus(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+) (RelationshipStatus, error) {
+	lowID, highID := orderedUsers(userID, targetUserID)
+	result := RelationshipStatus{TargetUserID: targetUserID}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var targetCount int64
+		if err := tx.Table("users").
+			Where("id = ? AND status = 1 AND deleted_at IS NULL", targetUserID).
+			Count(&targetCount).Error; err != nil {
+			return fmt.Errorf("校验关系状态目标: %w", err)
+		}
+		if targetCount != 1 {
+			return ErrUserNotFound
+		}
+
+		var relation friendship
+		err := tx.Where(
+			"user_low_id = ? AND user_high_id = ?",
+			lowID,
+			highID,
+		).First(&relation).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("查询好友关系状态: %w", err)
+		}
+		hasActiveFriendship := err == nil &&
+			relation.Status == friendshipStatusNormal &&
+			relation.LowUserDeletedAt == nil &&
+			relation.HighUserDeletedAt == nil
+
+		var blocks []userBlock
+		if err := tx.Where(
+			"(blocker_id = ? AND blocked_id = ?) OR "+
+				"(blocker_id = ? AND blocked_id = ?)",
+			userID,
+			targetUserID,
+			targetUserID,
+			userID,
+		).
+			Find(&blocks).Error; err != nil {
+			return fmt.Errorf("查询关系状态拉黑信息: %w", err)
+		}
+		blocked := len(blocks) > 0
+		for _, block := range blocks {
+			if block.BlockerID == userID {
+				result.BlockedByMe = true
+				break
+			}
+		}
+
+		var request friendRequest
+		err = tx.Where(
+			"user_low_id = ? AND user_high_id = ? AND status = ?",
+			lowID,
+			highID,
+			requestStatusPending,
+		).First(&request).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("查询关系状态申请信息: %w", err)
+		}
+		if err == nil {
+			result.HasPendingRequest = true
+			result.RequestedByMe = request.RequesterID == userID
+		}
+
+		result.CanMessage = hasActiveFriendship && !blocked
+		result.CanRequest = !result.CanMessage &&
+			!blocked &&
+			!result.HasPendingRequest
+		return nil
+	})
+	if err != nil {
+		return RelationshipStatus{}, err
+	}
+	return result, nil
 }
 
 // listFriendsBySide 按好友关系的任一侧查询联系人并应用分页
@@ -656,14 +737,6 @@ func (r *Repository) deleteFriend(
 		}
 		return nil
 	})
-}
-
-// friendshipDeletedForUser 判断当前用户是否已单向删除该好友。
-func friendshipDeletedForUser(relation friendship, userID uint64) bool {
-	if relation.UserLowID == userID {
-		return relation.LowUserDeletedAt != nil
-	}
-	return relation.HighUserDeletedAt != nil
 }
 
 // orderedUsers 按稳定顺序返回一对用户 ID，供数据库唯一键和查询使用

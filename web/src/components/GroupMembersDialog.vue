@@ -37,6 +37,7 @@ const emit = defineEmits<{
     transferOwner: [userId: string]
     dissolve: []
     updateProfile: [payload: {name: string; avatarUrl: string}]
+    viewProfile: [member: ConversationMember]
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
@@ -216,13 +217,27 @@ function leave() {
                         :key="member.user_id"
                         class="group-member-manage-row"
                 >
-                    <span class="friend-avatar">
-                        {{ displayName(member).slice(0, 1) }}
-                    </span>
-                    <span class="group-member-copy">
-                        <strong>{{ displayName(member) }}</strong>
-                        <small>@{{ member.username }}</small>
-                    </span>
+                    <button
+                            :aria-label="`查看${displayName(member)}的资料`"
+                            class="group-member-profile-button"
+                            type="button"
+                            @click="emit('viewProfile', member)"
+                    >
+                        <span class="friend-avatar">
+                            <img
+                                    v-if="member.avatar_url"
+                                    :alt="displayName(member)"
+                                    :src="member.avatar_url"
+                            />
+                            <template v-else>
+                                {{ displayName(member).slice(0, 1) }}
+                            </template>
+                        </span>
+                        <span class="group-member-copy">
+                            <strong>{{ displayName(member) }}</strong>
+                            <small>@{{ member.username }}</small>
+                        </span>
+                    </button>
                     <span
                             :class="[
                                 'member-role',

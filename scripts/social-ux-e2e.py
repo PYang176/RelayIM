@@ -128,7 +128,7 @@ def prepare_group(
     member: dict[str, Any],
     name: str,
 ) -> dict[str, Any]:
-    return api_ok(
+    group = api_ok(
         api,
         "POST",
         "/conversations/groups",
@@ -139,6 +139,24 @@ def prepare_group(
             "invite_remark": "联系人工作区验收群",
         },
     )
+    invitations = api_ok(
+        api,
+        "GET",
+        "/group-invitations",
+        token=member["token"],
+    )
+    invitation = next(
+        item
+        for item in invitations["invitations"]
+        if item["conversation_name"] == name
+    )
+    api_ok(
+        api,
+        "POST",
+        f"/group-invitations/{invitation['invitation_id']}/accept",
+        token=member["token"],
+    )
+    return group
 
 
 def login_ui(page: Page, username: str) -> None:
@@ -174,6 +192,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     carol_nickname = f"体验小禾{suffix}"
     dave_nickname = f"体验远山{suffix}"
     group_name = f"联系人工作区群{suffix}"
+    bob_group_name = f"北辰资料群{suffix}"
     report_dir = Path(args.output_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -206,6 +225,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             prepare_friendship(api, alice, bob)
             prepare_friendship(api, alice, carol)
             prepare_group(api, alice, carol, group_name)
+            prepare_group(api, alice, bob, bob_group_name)
 
             login_ui(alice_page, alice_name)
             login_ui(bob_page, bob_name)
@@ -303,6 +323,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 name="添加到群聊",
             )
             expect(group_dialog).to_be_visible()
+            group_dialog.get_by_label("目标群聊").select_option(label=group_name)
             group_dialog.get_by_label("邀请备注").fill("邀请加入联系人验收群")
             group_dialog.get_by_role(
                 "button",
@@ -325,6 +346,54 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             contacts_screenshot = report_dir / "contacts-workspace.png"
             alice_page.screenshot(path=str(contacts_screenshot), full_page=True)
 
+            alice_page.get_by_role("button", name="消息", exact=True).click()
+            alice_page.locator(".conversation-item").filter(
+                has_text=group_name
+            ).click()
+            expect(alice_page.locator(".conversation-header")).to_contain_text(
+                group_name,
+                timeout=10_000,
+            )
+            alice_page.get_by_role(
+                "button",
+                name="群成员列表",
+                exact=True,
+            ).click()
+            group_members = alice_page.locator(".group-members-dialog")
+            expect(group_members).to_be_visible()
+            group_members.locator(".group-member-manage-row").filter(
+                has_text=carol_nickname
+            ).locator(".group-member-profile-button").click()
+            member_profile = alice_page.locator(".member-profile-dialog")
+            expect(member_profile).to_be_visible()
+            expect(
+                member_profile.get_by_role(
+                    "button",
+                    name="发私聊",
+                    exact=True,
+                )
+            ).to_be_visible()
+            member_profile.get_by_role(
+                "button",
+                name="关闭成员资料",
+            ).click()
+            group_members.get_by_role(
+                "button",
+                name="关闭群成员",
+            ).click()
+            alice_page.locator(".group-member-chip").filter(
+                has_text=carol_nickname
+            ).click()
+            expect(member_profile).to_be_visible()
+            member_profile.get_by_role(
+                "button",
+                name="关闭成员资料",
+            ).click()
+
+            alice_page.get_by_role("button", name="联系人", exact=True).click()
+            friend_row = contacts.locator(".friend-row").filter(
+                has_text=bob_nickname
+            )
             friend_row.locator(".friend-copy").dblclick()
             expect(alice_page.locator(".conversation-header")).to_contain_text(
                 bob_nickname
@@ -411,8 +480,72 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ).to_have_count(0, timeout=10_000)
             expect(alice_page.locator(".contact-placeholder")).to_be_visible()
 
+            alice_page.get_by_role("button", name="消息", exact=True).click()
+            alice_page.locator(".conversation-item").filter(
+                has_text=bob_group_name
+            ).click()
+            expect(alice_page.locator(".conversation-header")).to_contain_text(
+                bob_group_name,
+                timeout=10_000,
+            )
+            alice_page.get_by_role(
+                "button",
+                name="群成员列表",
+                exact=True,
+            ).click()
+            expect(group_members).to_be_visible()
+            group_members.locator(".group-member-manage-row").filter(
+                has_text=bob_nickname
+            ).locator(".group-member-profile-button").click()
+            expect(member_profile).to_be_visible()
+            expect(member_profile).to_contain_text(bob_nickname)
+            expect(
+                member_profile.get_by_role(
+                    "button",
+                    name="申请添加好友",
+                    exact=True,
+                )
+            ).to_be_visible()
+            member_profile_screenshot = report_dir / "member-profile.png"
+            alice_page.screenshot(
+                path=str(member_profile_screenshot),
+                full_page=True,
+            )
+            member_profile.get_by_role(
+                "button",
+                name="关闭成员资料",
+            ).click()
+            group_members.get_by_role(
+                "button",
+                name="关闭群成员",
+            ).click()
+
             expect(bob_friend_row).to_contain_text(
                 "双方当前不是好友",
+                timeout=10_000,
+            )
+            bob_friend_row.locator(".friend-avatar").click()
+            bob_detail = bob_page.locator(".contact-detail-panel")
+            expect(
+                bob_detail.get_by_role(
+                    "button",
+                    name="申请添加好友",
+                    exact=True,
+                )
+            ).to_be_visible()
+            bob_detail.get_by_role(
+                "button",
+                name="申请添加好友",
+                exact=True,
+            ).click()
+            bob_detail.get_by_label("好友申请理由").fill("希望恢复好友关系")
+            bob_detail.get_by_role(
+                "button",
+                name="发送申请",
+                exact=True,
+            ).click()
+            expect(bob_detail).to_contain_text(
+                "好友申请已发送",
                 timeout=10_000,
             )
             bob_page.get_by_role(
@@ -451,6 +584,38 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
             mobile_screenshot = report_dir / "social-ux-mobile.png"
             mobile_page.screenshot(path=str(mobile_screenshot), full_page=True)
+            mobile_page.get_by_role("button", name="消息", exact=True).click()
+            mobile_page.locator(".conversation-item").filter(
+                has_text=group_name
+            ).click()
+            expect(mobile_page.locator(".conversation-header")).to_contain_text(
+                group_name,
+                timeout=10_000,
+            )
+            mobile_page.get_by_role(
+                "button",
+                name="群成员列表",
+                exact=True,
+            ).click()
+            mobile_members = mobile_page.locator(".group-members-dialog")
+            expect(mobile_members).to_be_visible()
+            mobile_members.locator(".group-member-manage-row").filter(
+                has_text=carol_nickname
+            ).locator(".group-member-profile-button").click()
+            mobile_member_profile = mobile_page.locator(".member-profile-dialog")
+            expect(mobile_member_profile).to_be_visible()
+            expect(
+                mobile_member_profile.get_by_role(
+                    "button",
+                    name="发私聊",
+                    exact=True,
+                )
+            ).to_be_visible()
+            mobile_member_screenshot = report_dir / "member-profile-mobile.png"
+            mobile_page.screenshot(
+                path=str(mobile_member_screenshot),
+                full_page=True,
+            )
             result = {
                 "alice_id": alice["id"],
                 "bob_id": bob["id"],
@@ -461,8 +626,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "group_invitation_created": True,
                 "double_click_direct": True,
                 "contact_actions_in_detail": True,
+                "deleted_friend_reapplication": True,
+                "group_member_profiles": True,
                 "unilateral_delete_status": status,
                 "contacts_screenshot": str(contacts_screenshot),
+                "member_profile_screenshot": str(member_profile_screenshot),
+                "mobile_member_profile_screenshot": str(
+                    mobile_member_screenshot
+                ),
                 "screenshot": str(screenshot),
                 "mobile_screenshot": str(mobile_screenshot),
             }

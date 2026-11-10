@@ -108,6 +108,14 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		t.Fatalf("搜索结果 = %+v，期望包含用户 %d", searchResults, userB)
 	}
 
+	status, err := service.RelationshipStatus(context.Background(), userA, userB)
+	if err != nil ||
+		status.CanMessage ||
+		!status.CanRequest ||
+		status.HasPendingRequest {
+		t.Fatalf("初始关系状态 = %+v，err=%v", status, err)
+	}
+
 	if err := service.SendRequest(
 		context.Background(),
 		userA,
@@ -115,6 +123,13 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		"一起联调",
 	); err != nil {
 		t.Fatalf("发送好友申请失败: %v", err)
+	}
+	status, err = service.RelationshipStatus(context.Background(), userA, userB)
+	if err != nil ||
+		!status.HasPendingRequest ||
+		!status.RequestedByMe ||
+		status.CanRequest {
+		t.Fatalf("待处理关系状态 = %+v，err=%v", status, err)
 	}
 	if err := service.SendRequest(
 		context.Background(),
@@ -135,6 +150,10 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		received.Requests[0].ID,
 	); err != nil {
 		t.Fatalf("同意好友申请失败: %v", err)
+	}
+	status, err = service.RelationshipStatus(context.Background(), userA, userB)
+	if err != nil || !status.CanMessage || status.CanRequest {
+		t.Fatalf("好友关系状态 = %+v，err=%v", status, err)
 	}
 
 	friends, err := service.ListFriends(context.Background(), userA, page)
@@ -158,6 +177,13 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 
 	if err := service.BlockUser(context.Background(), userA, userB); err != nil {
 		t.Fatalf("拉黑好友失败: %v", err)
+	}
+	status, err = service.RelationshipStatus(context.Background(), userA, userB)
+	if err != nil ||
+		status.CanMessage ||
+		status.CanRequest ||
+		!status.BlockedByMe {
+		t.Fatalf("拉黑关系状态 = %+v，err=%v", status, err)
 	}
 	if err := service.BlockUser(context.Background(), userA, userB); err != nil {
 		t.Fatalf("重复拉黑应保持幂等: %v", err)
@@ -225,6 +251,30 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 		len(sent.Requests) != 1 ||
 		sent.Requests[0].Status != requestStatusRejected {
 		t.Fatalf("发出申请列表 = %+v, err=%v", sent, err)
+	}
+
+	status, err = service.RelationshipStatus(context.Background(), userB, userA)
+	if err != nil || !status.CanRequest || status.CanMessage {
+		t.Fatalf("被删除方关系状态 = %+v，err=%v", status, err)
+	}
+	if err := service.SendRequest(
+		context.Background(),
+		userB,
+		userA,
+		"被删除方重新添加",
+	); err != nil {
+		t.Fatalf("被删除方重新申请失败: %v", err)
+	}
+	status, err = service.RelationshipStatus(context.Background(), userB, userA)
+	if err != nil || !status.HasPendingRequest || !status.RequestedByMe {
+		t.Fatalf("被删除方重新申请状态 = %+v，err=%v", status, err)
+	}
+	status, err = service.RelationshipStatus(context.Background(), userA, userB)
+	if err != nil ||
+		!status.HasPendingRequest ||
+		status.RequestedByMe ||
+		status.CanRequest {
+		t.Fatalf("删除方收到的申请状态 = %+v，err=%v", status, err)
 	}
 }
 

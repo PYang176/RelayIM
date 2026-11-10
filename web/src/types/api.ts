@@ -205,6 +205,15 @@ export interface Friend {
     relationship_active: boolean
 }
 
+export interface FriendRelationshipStatus {
+    target_user_id: string
+    can_message: boolean
+    can_request: boolean
+    has_pending_request: boolean
+    requested_by_me: boolean
+    blocked_by_me: boolean
+}
+
 export interface BlockedUser {
     user: FriendUser
     created_at: string

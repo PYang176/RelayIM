@@ -84,6 +84,17 @@ func TestServiceValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "不能查询自己的关系状态",
+			run: func() error {
+				_, err := service.RelationshipStatus(
+					context.Background(),
+					1,
+					1,
+				)
+				return err
+			},
+		},
+		{
 			name: "申请分页超过上限",
 			run: func() error {
 				_, err := service.ListRequests(

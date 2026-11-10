@@ -2,6 +2,7 @@ import {request} from './http'
 import type {
     BlockedUserPage,
     FriendPage,
+    FriendRelationshipStatus,
     FriendRequestPage,
     FriendUser,
 } from '@/types/api'
@@ -97,6 +98,14 @@ export async function listFriends(
 ): Promise<FriendPage> {
     const params = pageParams(20, beforeID)
     return request<FriendPage>(`/friends?${params}`, {}, token)
+}
+
+// getRelationshipStatus 查询当前用户与目标用户可以执行的社交动作
+export function getRelationshipStatus(
+    token: string,
+    targetUserID: string,
+): Promise<FriendRelationshipStatus> {
+    return request(`/friends/${targetUserID}/relationship`, {}, token)
 }
 
 // setFriendRemark 更新指定好友的备注

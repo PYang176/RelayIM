@@ -791,6 +791,22 @@ a:focus-visible {
     font-size: 0.6875rem;
 }
 
+.group-member-chip[type="button"] {
+    font: inherit;
+    font-size: 0.6875rem;
+    cursor: pointer;
+}
+
+.group-member-chip[type="button"]:hover {
+    border-color: var(--signal);
+    background: var(--signal-soft);
+}
+
+.group-member-chip[type="button"]:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
 .group-member-chip small {
     color: var(--amber);
     font-size: 0.5625rem;
@@ -1258,11 +1274,46 @@ a:focus-visible {
 
 .group-member-manage-row {
     display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 0.625rem;
     border-bottom: 1px solid var(--line);
     padding: 0.625rem 0;
+}
+
+.group-member-profile-button {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.625rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 0.25rem;
+    color: var(--ink);
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.group-member-profile-button:hover {
+    background: var(--surface-muted);
+}
+
+.group-member-profile-button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
+.group-member-profile-button .friend-avatar {
+    overflow: hidden;
+}
+
+.group-member-profile-button .friend-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .member-role {
@@ -1810,11 +1861,11 @@ a:focus-visible {
     }
 
     .group-member-manage-row {
-        grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto;
     }
 
     .member-controls {
-        grid-column: 2 / -1;
+        grid-column: 1 / -1;
         justify-content: flex-start;
     }
 

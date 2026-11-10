@@ -86,6 +86,27 @@ type RequestPage struct {
 	HasMore    bool
 }
 
+// RelationshipStatus 描述当前用户针对目标用户可以执行的社交动作。
+type RelationshipStatus struct {
+	// TargetUserID 是目标用户 Snowflake ID。
+	TargetUserID uint64
+
+	// CanMessage 表示双方已是好友且不存在拉黑关系。
+	CanMessage bool
+
+	// CanRequest 表示当前可以发送新的好友申请。
+	CanRequest bool
+
+	// HasPendingRequest 表示双方已有待处理好友申请。
+	HasPendingRequest bool
+
+	// RequestedByMe 表示待处理申请由当前用户发起。
+	RequestedByMe bool
+
+	// BlockedByMe 表示当前用户主动拉黑了目标用户。
+	BlockedByMe bool
+}
+
 // SearchUsers 按用户名或昵称搜索用户。
 func (s *Service) SearchUsers(
 	ctx context.Context,
@@ -155,6 +176,18 @@ func (s *Service) ListFriends(
 		return FriendPage{}, ErrInvalidInput
 	}
 	return s.repo.listFriends(ctx, userID, page.Limit, page.BeforeID)
+}
+
+// RelationshipStatus 查询当前用户与目标用户可执行的社交动作。
+func (s *Service) RelationshipStatus(
+	ctx context.Context,
+	userID uint64,
+	targetUserID uint64,
+) (RelationshipStatus, error) {
+	if userID == 0 || targetUserID == 0 || userID == targetUserID {
+		return RelationshipStatus{}, ErrInvalidInput
+	}
+	return s.repo.relationshipStatus(ctx, userID, targetUserID)
 }
 
 // ListBlockedUsers 返回当前用户主动拉黑的用户。
