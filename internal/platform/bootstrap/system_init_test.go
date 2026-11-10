@@ -2,17 +2,20 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/platform/snowflake"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
+// TestEnsureSnowflakeClockAhead 覆盖雪花时间水位回拨等待与拒绝启动
 func TestEnsureSnowflakeClockAhead(t *testing.T) {
 	base := time.Date(2026, time.November, 9, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
@@ -85,12 +88,31 @@ func TestLatestSnowflakeTimeIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("连接测试数据库失败: %v", err)
 	}
+	if err := snowflake.Init(1); err != nil {
+		t.Fatalf("初始化雪花生成器失败: %v", err)
+	}
+	userID := uint64(snowflake.Generate())
+	username := fmt.Sprintf("sf_probe_%d", userID)
+	if err := db.Exec(
+		`INSERT INTO users (id, username, password_hash, status)
+		 VALUES (?, ?, 'not-used', 1)`,
+		userID,
+		username,
+	).Error; err != nil {
+		t.Fatalf("创建雪花时间水位测试用户失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Exec("DELETE FROM users WHERE id = ?", userID).Error; err != nil {
+			t.Errorf("清理雪花时间水位测试用户失败: %v", err)
+		}
+	})
+
 	latest, err := latestSnowflakeTime(context.Background(), db)
 	if err != nil {
 		t.Fatalf("查询雪花时间水位失败: %v", err)
 	}
 	if latest.IsZero() {
-		t.Fatal("已有数据库应返回非零雪花时间水位")
+		t.Fatal("插入雪花记录后应返回非零时间水位")
 	}
 	if latest.After(time.Now().Add(5 * time.Second)) {
 		t.Fatalf("雪花时间水位异常超前: %v", latest)
