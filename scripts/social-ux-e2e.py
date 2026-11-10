@@ -1,4 +1,4 @@
-"""验证独立添加好友入口、头像资料、双击私聊和单向删除关系。"""
+"""验证联系人资料工作区、资料页管理操作和单向删除关系。"""
 
 from __future__ import annotations
 
@@ -231,7 +231,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 has_text=bob_nickname
             )
             expect(friend_row).to_be_visible()
-            friend_row.locator(".friend-avatar-button").click()
+            expect(friend_row).not_to_contain_text("发消息")
+            expect(friend_row).not_to_contain_text("备注")
+            expect(friend_row).not_to_contain_text("拉黑")
+            expect(friend_row).not_to_contain_text("删除")
+            friend_row.locator(".friend-avatar").click()
             detail = alice_page.locator(".contact-detail-panel")
             expect(detail).to_contain_text(bob_nickname)
             expect(
@@ -240,6 +244,46 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             expect(
                 detail.get_by_role("button", name="添加到群聊", exact=True)
             ).to_be_enabled()
+
+            detail.get_by_role(
+                "button",
+                name="修改备注",
+                exact=True,
+            ).click()
+            detail.get_by_label("好友备注").fill("北辰联系人")
+            detail.get_by_role("button", name="保存", exact=True).click()
+            expect(friend_row).to_contain_text("北辰联系人", timeout=10_000)
+
+            detail.get_by_role(
+                "button",
+                name="修改备注",
+                exact=True,
+            ).click()
+            detail.get_by_label("好友备注").fill("")
+            detail.get_by_role("button", name="保存", exact=True).click()
+            expect(friend_row).to_contain_text(bob_nickname, timeout=10_000)
+
+            detail.get_by_role("button", name="拉黑", exact=True).click()
+            expect(detail).to_contain_text("确认拉黑？")
+            detail.get_by_role(
+                "button",
+                name="确认拉黑",
+                exact=True,
+            ).click()
+            expect(detail.locator(".contact-relationship-state")).to_have_text(
+                "已拉黑",
+                timeout=10_000,
+            )
+            expect(friend_row).to_contain_text("已拉黑", timeout=10_000)
+            detail.get_by_role(
+                "button",
+                name="取消拉黑",
+                exact=True,
+            ).click()
+            expect(detail.locator(".contact-relationship-state")).to_have_text(
+                "好友关系正常",
+                timeout=10_000,
+            )
 
             detail.locator(".contact-profile-avatar").click()
             avatar_preview = alice_page.get_by_role("dialog", name="头像预览")
@@ -348,14 +392,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             alice_friend_row = alice_contacts.locator(".friend-row").filter(
                 has_text=bob_nickname
             )
-            alice_friend_row.get_by_role(
+            alice_friend_row.locator(".friend-avatar").click()
+            detail.get_by_role(
                 "button",
-                name="删除",
+                name="删除好友",
                 exact=True,
             ).click()
-            alice_friend_row.get_by_role(
+            expect(detail).to_contain_text("确认删除好友？")
+            detail.get_by_role(
                 "button",
-                name="确认",
+                name="确认删除",
                 exact=True,
             ).click()
             expect(
@@ -399,7 +445,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             mobile_contacts = open_contacts(mobile_page)
             mobile_contacts.locator(".friend-row").filter(
                 has_text=carol_nickname
-            ).locator(".friend-avatar-button").click()
+            ).locator(".friend-avatar").click()
             expect(mobile_page.locator(".contact-detail-panel")).to_contain_text(
                 carol_nickname
             )
@@ -414,6 +460,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "single_character_search": True,
                 "group_invitation_created": True,
                 "double_click_direct": True,
+                "contact_actions_in_detail": True,
                 "unilateral_delete_status": status,
                 "contacts_screenshot": str(contacts_screenshot),
                 "screenshot": str(screenshot),

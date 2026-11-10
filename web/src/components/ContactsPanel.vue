@@ -12,7 +12,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     selectFriend: [userID: string]
-    friendRemoved: [userID: string]
     openDirect: [userID: string]
 }>()
 
@@ -37,12 +36,6 @@ function backToContacts() {
     activeView.value = 'contacts'
 }
 
-// removeFriend 单向删除好友并从详情区清空选择
-async function removeFriend(friendUserID: string) {
-    if (await friendships.removeFriend(friendUserID)) {
-        emit('friendRemoved', friendUserID)
-    }
-}
 </script>
 
 <template>
@@ -126,15 +119,10 @@ async function removeFriend(friendUserID: string) {
                 <FriendRow
                         v-for="friend in friendships.friends"
                         :key="friend.friendship_id"
-                        :busy="friendships.actionBusy"
                         :friend="friend"
                         :selected="friend.user.id === props.selectedFriendId"
-                        @block="friendships.blockUser(friend.user.id)"
                         @message="emit('openDirect', friend.user.id)"
-                        @remove="removeFriend(friend.user.id)"
                         @select="emit('selectFriend', friend.user.id)"
-                        @unblock="friendships.unblockUser(friend.user.id)"
-                        @update-remark="friendships.updateRemark(friend.user.id, $event)"
                 />
                 <button
                         v-if="friendships.friendHasMore"
@@ -219,10 +207,12 @@ async function removeFriend(friendUserID: string) {
                 <p v-if="friendships.blockedUsers.length === 0" role="status">
                     当前没有拉黑用户
                 </p>
-                <article
+                <button
                         v-for="item in friendships.blockedUsers"
                         :key="item.user.id"
-                        class="request-row"
+                        class="request-row blocked-contact-row"
+                        type="button"
+                        @click="emit('selectFriend', item.user.id)"
                 >
                     <span class="friend-avatar">
                         <img
@@ -234,18 +224,11 @@ async function removeFriend(friendUserID: string) {
                             {{ (item.user.nickname || item.user.username).slice(0, 1) }}
                         </template>
                     </span>
-                    <div class="friend-copy">
+                    <span class="friend-copy">
                         <strong>{{ item.user.nickname || item.user.username }}</strong>
                         <small>@{{ item.user.username }}</small>
-                    </div>
-                    <button
-                            :disabled="friendships.actionBusy"
-                            type="button"
-                            @click="friendships.unblockUser(item.user.id)"
-                    >
-                        取消拉黑
-                    </button>
-                </article>
+                    </span>
+                </button>
                 <button
                         v-if="friendships.blockedHasMore"
                         class="text-button"
@@ -301,6 +284,27 @@ async function removeFriend(friendUserID: string) {
     overflow-y: auto;
     align-content: start;
     padding-right: 0.25rem;
+}
+
+.blocked-contact-row {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.blocked-contact-row:hover {
+    background: color-mix(in srgb, var(--surface-muted) 65%, transparent);
+}
+
+.blocked-contact-row:focus-visible {
+    border-radius: var(--radius-sm);
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
 }
 
 @media (max-width: 48rem) {

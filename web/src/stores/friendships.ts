@@ -226,13 +226,18 @@ export const useFriendshipStore = defineStore('friendships', () => {
     }
 
     // updateRemark 更新好友备注并同步缓存
-    async function updateRemark(friendUserID: string, remark: string) {
+    async function updateRemark(
+        friendUserID: string,
+        remark: string,
+    ): Promise<boolean> {
         actionBusy.value = true
         try {
             await friendApi.setFriendRemark(auth.token, friendUserID, remark)
             await loadAll()
+            return true
         } catch (cause) {
             reportError(cause, '更新好友备注失败')
+            return false
         } finally {
             actionBusy.value = false
         }
@@ -279,28 +284,32 @@ export const useFriendshipStore = defineStore('friendships', () => {
     }
 
     // blockUser 拉黑用户并刷新关系和列表
-    async function blockUser(targetUserID: string) {
+    async function blockUser(targetUserID: string): Promise<boolean> {
         actionBusy.value = true
         clearError()
         try {
             await friendApi.blockUser(auth.token, targetUserID)
             await loadAll()
+            return true
         } catch (cause) {
             reportError(cause, '拉黑用户失败')
+            return false
         } finally {
             actionBusy.value = false
         }
     }
 
     // unblockUser 解除拉黑并刷新关系和列表
-    async function unblockUser(targetUserID: string) {
+    async function unblockUser(targetUserID: string): Promise<boolean> {
         actionBusy.value = true
         clearError()
         try {
             await friendApi.unblockUser(auth.token, targetUserID)
             await loadAll()
+            return true
         } catch (cause) {
             reportError(cause, '取消拉黑失败')
+            return false
         } finally {
             actionBusy.value = false
         }

@@ -4,6 +4,7 @@ import {computed, shallowRef, watch} from 'vue'
 import {getUserProfile} from '@/api/auth'
 import AvatarPreviewDialog from '@/components/AvatarPreviewDialog.vue'
 import {useAuthStore} from '@/stores/auth'
+import {useFriendshipStore} from '@/stores/friendships'
 import type {Conversation, Friend, UserSummary} from '@/types/api'
 
 const props = defineProps<{
@@ -14,13 +15,19 @@ const props = defineProps<{
 const emit = defineEmits<{
     message: [userID: string]
     addToGroup: [friend: Friend]
+    friendRemoved: [userID: string]
 }>()
 
 const auth = useAuthStore()
+const friendships = useFriendshipStore()
 const profile = shallowRef<UserSummary | null>(null)
 const loading = shallowRef(false)
 const profileError = shallowRef('')
 const avatarPreviewOpen = shallowRef(false)
+const editingRemark = shallowRef(false)
+const remarkDraft = shallowRef('')
+const confirmingBlock = shallowRef(false)
+const confirmingDelete = shallowRef(false)
 let requestGeneration = 0
 
 const displayName = computed(
@@ -47,6 +54,22 @@ const canStartChat = computed(
 const canAddToGroup = computed(
     () => canStartChat.value && props.groups.length > 0,
 )
+const canEditRemark = computed(() => canStartChat.value)
+const relationshipLabel = computed(() => {
+    if (!props.friend) return ''
+    if (props.friend.blocked_by_me) return '已拉黑'
+    return relationshipActive.value ? '好友关系正常' : '对方已删除你'
+})
+const relationshipNotice = computed(() => {
+    if (!props.friend) return ''
+    if (props.friend.blocked_by_me) {
+        return '你已拉黑该联系人，取消拉黑后才能继续私聊或邀请入群。'
+    }
+    if (!relationshipActive.value) {
+        return '双方当前不是好友，无法继续私聊或邀请加入群聊。'
+    }
+    return ''
+})
 
 watch(
     () => props.friend?.user.id ?? '',
@@ -55,6 +78,10 @@ watch(
         profile.value = null
         profileError.value = ''
         avatarPreviewOpen.value = false
+        editingRemark.value = false
+        remarkDraft.value = props.friend?.remark ?? ''
+        confirmingBlock.value = false
+        confirmingDelete.value = false
         if (!userID) {
             loading.value = false
             return
@@ -79,6 +106,15 @@ watch(
     {immediate: true},
 )
 
+watch(
+    () => props.friend?.remark ?? '',
+    (remark) => {
+        if (!editingRemark.value) {
+            remarkDraft.value = remark
+        }
+    },
+)
+
 // openAvatar 打开当前联系人头像的大图预览
 function openAvatar() {
     if (props.friend) {
@@ -97,6 +133,81 @@ function startChat() {
 function addToGroup() {
     if (props.friend && canAddToGroup.value) {
         emit('addToGroup', props.friend)
+    }
+}
+
+// startRemarkEdit 使用当前备注进入右侧就地编辑状态
+function startRemarkEdit() {
+    if (!props.friend || !canEditRemark.value) return
+    friendships.clearError()
+    remarkDraft.value = props.friend.remark
+    editingRemark.value = true
+}
+
+// cancelRemarkEdit 放弃未保存的备注并恢复服务端值
+function cancelRemarkEdit() {
+    remarkDraft.value = props.friend?.remark ?? ''
+    editingRemark.value = false
+}
+
+// saveRemark 保存好友备注，空内容表示清除备注
+async function saveRemark() {
+    if (!props.friend) return
+    const updated = await friendships.updateRemark(
+        props.friend.user.id,
+        remarkDraft.value.trim(),
+    )
+    if (updated) {
+        editingRemark.value = false
+    }
+}
+
+// requestBlock 展开拉黑确认，避免资料页误操作
+function requestBlock() {
+    friendships.clearError()
+    confirmingDelete.value = false
+    confirmingBlock.value = true
+}
+
+// cancelBlockConfirmation 收起拉黑确认
+function cancelBlockConfirmation() {
+    confirmingBlock.value = false
+}
+
+// confirmBlock 确认拉黑当前联系人并刷新关系状态
+async function confirmBlock() {
+    if (!props.friend) return
+    if (await friendships.blockUser(props.friend.user.id)) {
+        confirmingBlock.value = false
+    }
+}
+
+// unblockContact 取消拉黑当前联系人并恢复可私聊状态
+async function unblockContact() {
+    if (props.friend) {
+        await friendships.unblockUser(props.friend.user.id)
+    }
+}
+
+// requestDelete 展开删除确认，说明单向删除的结果
+function requestDelete() {
+    friendships.clearError()
+    confirmingBlock.value = false
+    confirmingDelete.value = true
+}
+
+// cancelDeleteConfirmation 收起删除确认
+function cancelDeleteConfirmation() {
+    confirmingDelete.value = false
+}
+
+// deleteContact 确认删除好友并通知页面清空当前选择
+async function deleteContact() {
+    if (!props.friend) return
+    const userID = props.friend.user.id
+    if (await friendships.removeFriend(userID)) {
+        confirmingDelete.value = false
+        emit('friendRemoved', userID)
     }
 }
 </script>
@@ -128,10 +239,13 @@ function addToGroup() {
                     <h1>{{ displayName }}</h1>
                     <p>@{{ profile?.username || friend.user.username }}</p>
                     <span
-                            :class="{inactive: !relationshipActive}"
+                            :class="{
+                                inactive:
+                                    !relationshipActive || friend.blocked_by_me,
+                            }"
                             class="contact-relationship-state"
                     >
-                        {{ relationshipActive ? '好友关系正常' : '对方已删除你' }}
+                        {{ relationshipLabel }}
                     </span>
                 </div>
             </header>
@@ -146,7 +260,52 @@ function addToGroup() {
             <dl class="contact-profile-fields">
                 <div>
                     <dt>好友备注</dt>
-                    <dd>{{ friend.remark || '未设置备注' }}</dd>
+                    <dd>
+                        <form
+                                v-if="editingRemark"
+                                class="contact-remark-editor"
+                                @submit.prevent="saveRemark"
+                        >
+                            <label class="sr-only" for="contact-friend-remark">
+                                好友备注
+                            </label>
+                            <input
+                                    id="contact-friend-remark"
+                                    v-model="remarkDraft"
+                                    :disabled="friendships.actionBusy"
+                                    maxlength="64"
+                                    placeholder="留空保存可删除备注"
+                            />
+                            <div class="contact-remark-editor-actions">
+                                <button
+                                        :disabled="friendships.actionBusy"
+                                        class="primary-button compact"
+                                        type="submit"
+                                >
+                                    {{ friendships.actionBusy ? '保存中…' : '保存' }}
+                                </button>
+                                <button
+                                        :disabled="friendships.actionBusy"
+                                        class="ghost-button"
+                                        type="button"
+                                        @click="cancelRemarkEdit"
+                                >
+                                    取消
+                                </button>
+                            </div>
+                        </form>
+                        <div v-else class="contact-remark-value">
+                            <span>{{ friend.remark || '未设置备注' }}</span>
+                            <button
+                                    v-if="canEditRemark"
+                                    class="text-button"
+                                    type="button"
+                                    @click="startRemarkEdit"
+                            >
+                                修改备注
+                            </button>
+                        </div>
+                    </dd>
                 </div>
                 <div>
                     <dt>个人简介</dt>
@@ -154,26 +313,130 @@ function addToGroup() {
                 </div>
             </dl>
 
-            <footer class="contact-profile-actions">
-                <p v-if="!relationshipActive">
-                    双方当前不是好友，无法继续私聊或邀请加入群聊。
+            <section
+                    class="contact-relationship-management"
+                    aria-labelledby="contact-relationship-title"
+            >
+                <header>
+                    <h2 id="contact-relationship-title">关系管理</h2>
+                    <p>拉黑和删除会影响双方的私聊权限</p>
+                </header>
+
+                <div v-if="confirmingBlock" class="contact-confirmation" role="alert">
+                    <p>
+                        <strong>确认拉黑？</strong>
+                        拉黑后双方不能私聊或发送好友申请，历史记录仍会保留。
+                    </p>
+                    <div>
+                        <button
+                                :disabled="friendships.actionBusy"
+                                class="ghost-button danger-text"
+                                type="button"
+                                @click="confirmBlock"
+                        >
+                            {{ friendships.actionBusy ? '处理中…' : '确认拉黑' }}
+                        </button>
+                        <button
+                                :disabled="friendships.actionBusy"
+                                class="text-button"
+                                type="button"
+                                @click="cancelBlockConfirmation"
+                        >
+                            取消
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                        v-else-if="confirmingDelete"
+                        class="contact-confirmation"
+                        role="alert"
+                >
+                    <p>
+                        <strong>确认删除好友？</strong>
+                        删除后双方无法继续私聊，你的备注会被清除，对方仍会保留联系人。
+                    </p>
+                    <div>
+                        <button
+                                :disabled="friendships.actionBusy"
+                                class="ghost-button danger-text"
+                                type="button"
+                                @click="deleteContact"
+                        >
+                            {{ friendships.actionBusy ? '处理中…' : '确认删除' }}
+                        </button>
+                        <button
+                                :disabled="friendships.actionBusy"
+                                class="text-button"
+                                type="button"
+                                @click="cancelDeleteConfirmation"
+                        >
+                            取消
+                        </button>
+                    </div>
+                </div>
+
+                <div v-else class="contact-relationship-buttons">
+                    <button
+                            v-if="friend.blocked_by_me"
+                            :disabled="friendships.actionBusy"
+                            class="ghost-button"
+                            type="button"
+                            @click="unblockContact"
+                    >
+                        取消拉黑
+                    </button>
+                    <button
+                            v-else
+                            :disabled="friendships.actionBusy"
+                            class="ghost-button"
+                            type="button"
+                            @click="requestBlock"
+                    >
+                        拉黑
+                    </button>
+                    <button
+                            :disabled="friendships.actionBusy"
+                            class="ghost-button danger-text"
+                            type="button"
+                            @click="requestDelete"
+                    >
+                        删除好友
+                    </button>
+                </div>
+
+                <p v-if="friendships.error" class="form-error" role="alert">
+                    {{ friendships.error }}
+                    <button
+                            class="text-button"
+                            type="button"
+                            @click="friendships.clearError"
+                    >
+                        关闭
+                    </button>
                 </p>
-                <button
-                        :disabled="!canAddToGroup"
-                        class="ghost-button contact-action-button"
-                        type="button"
-                        @click="addToGroup"
-                >
-                    添加到群聊
-                </button>
-                <button
-                        :disabled="!canStartChat"
-                        class="primary-button compact contact-action-button"
-                        type="button"
-                        @click="startChat"
-                >
-                    发私聊
-                </button>
+            </section>
+
+            <footer class="contact-profile-actions">
+                <p v-if="relationshipNotice">{{ relationshipNotice }}</p>
+                <div class="contact-profile-primary-actions">
+                    <button
+                            :disabled="!canAddToGroup"
+                            class="ghost-button contact-action-button"
+                            type="button"
+                            @click="addToGroup"
+                    >
+                        添加到群聊
+                    </button>
+                    <button
+                            :disabled="!canStartChat"
+                            class="primary-button compact contact-action-button"
+                            type="button"
+                            @click="startChat"
+                    >
+                        发私聊
+                    </button>
+                </div>
             </footer>
         </article>
 
@@ -341,8 +604,89 @@ function addToGroup() {
     white-space: pre-wrap;
 }
 
+.contact-remark-value {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.contact-remark-editor {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.contact-remark-editor input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.625rem 0.75rem;
+    color: var(--ink);
+    background: white;
+}
+
+.contact-remark-editor input:focus {
+    border-color: var(--focus);
+}
+
+.contact-remark-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.contact-relationship-management {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.contact-relationship-management header h2,
+.contact-relationship-management header p,
+.contact-confirmation p {
+    margin: 0;
+}
+
+.contact-relationship-management header h2 {
+    font-size: 0.875rem;
+}
+
+.contact-relationship-management header p {
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-size: 0.6875rem;
+}
+
+.contact-relationship-buttons,
+.contact-confirmation > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.contact-confirmation {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.contact-confirmation p {
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.7;
+}
+
+.contact-confirmation strong {
+    color: var(--danger);
+}
+
 .contact-profile-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
     gap: 0.625rem;
@@ -352,10 +696,18 @@ function addToGroup() {
 }
 
 .contact-profile-actions p {
-    flex: 1;
+    flex-basis: 100%;
     margin: 0;
     color: var(--danger);
     font-size: 0.75rem;
+}
+
+.contact-profile-primary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.625rem;
+    margin-left: auto;
 }
 
 .contact-action-button {
@@ -375,6 +727,14 @@ function addToGroup() {
 
     .contact-profile-actions {
         flex-wrap: wrap;
+    }
+
+    .contact-profile-primary-actions {
+        width: 100%;
+    }
+
+    .contact-profile-primary-actions .contact-action-button {
+        flex: 1;
     }
 }
 </style>

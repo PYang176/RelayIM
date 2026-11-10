@@ -736,7 +736,6 @@ onBeforeUnmount(() => {
             <section v-else class="chat-layout contacts-workspace">
                 <ContactsPanel
                         :selected-friend-id="selectedFriendID"
-                        @friend-removed="handleFriendRemoved"
                         @open-direct="openFriendDirect"
                         @select-friend="selectFriend"
                 />
@@ -744,6 +743,7 @@ onBeforeUnmount(() => {
                         :friend="selectedFriend"
                         :groups="manageableGroups"
                         @add-to-group="openAddToGroup"
+                        @friend-removed="handleFriendRemoved"
                         @message="openFriendDirect"
                 />
             </section>

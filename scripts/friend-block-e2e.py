@@ -184,22 +184,29 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             conversation_id = prepare_friendship(api, alice, bob)
 
             login_ui(page, alice_name)
-            page.get_by_role("button", name="好友", exact=True).click()
-            dialog = page.locator(".friends-dialog")
-            expect(dialog).to_be_visible()
+            page.get_by_role("button", name="联系人", exact=True).click()
+            contacts = page.locator(".contacts-panel")
+            expect(contacts).to_be_visible()
 
-            friend_row = dialog.locator(".friend-row").filter(
+            friend_row = contacts.locator(".friend-row").filter(
                 has_text=bob_nickname
             )
             expect(friend_row).to_be_visible()
-            friend_row.get_by_role("button", name="拉黑", exact=True).click()
-            friend_row.get_by_role(
+            friend_row.locator(".friend-avatar").click()
+            detail = page.locator(".contact-detail-panel")
+            expect(detail).to_contain_text(bob_nickname)
+            detail.get_by_role("button", name="拉黑", exact=True).click()
+            detail.get_by_role(
                 "button",
                 name="确认拉黑",
                 exact=True,
             ).click()
+            expect(detail.locator(".contact-relationship-state")).to_have_text(
+                "已拉黑",
+                timeout=10_000,
+            )
             expect(
-                friend_row.get_by_role("button", name="取消拉黑", exact=True)
+                detail.get_by_role("button", name="取消拉黑", exact=True)
             ).to_be_visible()
 
             bob_send_status, bob_send_body = send_text(
@@ -241,28 +248,32 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             blocked_screenshot = report_dir / "friend-blocked.png"
             page.screenshot(path=str(blocked_screenshot), full_page=True)
 
-            dialog.locator(".friends-tabs button").filter(
+            contacts.locator(".friends-tabs button").filter(
                 has_text="拉黑"
             ).click()
-            blocked_row = dialog.locator(".request-row").filter(
+            blocked_row = contacts.locator(".blocked-contact-row").filter(
                 has_text=bob_nickname
             )
             expect(blocked_row).to_be_visible()
-            blocked_row.get_by_role(
+            expect(blocked_row).not_to_contain_text("取消拉黑")
+            blocked_row.click()
+            detail.get_by_role(
                 "button",
                 name="取消拉黑",
                 exact=True,
             ).click()
 
-            dialog.locator(".friends-tabs button").filter(
+            contacts.locator(".friends-tabs button").filter(
                 has_text="好友"
             ).click()
-            friend_row = dialog.locator(".friend-row").filter(
+            friend_row = contacts.locator(".friend-row").filter(
                 has_text=bob_nickname
             )
-            expect(
-                friend_row.get_by_role("button", name="发消息", exact=True)
-            ).to_be_visible()
+            expect(friend_row).to_be_visible()
+            expect(detail.locator(".contact-relationship-state")).to_have_text(
+                "好友关系正常",
+                timeout=10_000,
+            )
 
             sent = api_ok(
                 api,
@@ -274,7 +285,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     "content": "取消拉黑后消息恢复",
                 },
             )
-            page.get_by_role("button", name="关闭联系人").click()
+            page.get_by_role("button", name="消息", exact=True).click()
             page.locator(".conversation-item").filter(
                 has_text=bob_nickname
             ).click()
@@ -309,7 +320,7 @@ def parse_args() -> argparse.Namespace:
         "--frontend-url",
         default=os.getenv(
             "RELAYIM_E2E_FRONTEND_URL",
-            "http://127.0.0.1:5173",
+            "http://127.0.0.1:8080",
         ),
     )
     parser.add_argument(
