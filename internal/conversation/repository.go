@@ -265,7 +265,8 @@ func (r *Repository) conversationSummaryQuery(
 		Table("conversation_members AS m").
 		Select(
 			"c.id, c.conversation_type, c.name, c.avatar_url, "+
-				"c.last_seq, m.last_read_seq, c.updated_at, "+
+				"c.last_seq, m.last_read_seq, m.role AS current_user_role, "+
+				"c.updated_at, "+
 				conversationPinnedExpression+" AS pinned, "+
 				"CASE WHEN c.conversation_type = 2 THEN 1 "+
 				"WHEN f.id IS NOT NULL AND f.low_user_deleted_at IS NULL "+

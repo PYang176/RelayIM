@@ -3,10 +3,6 @@ import {shallowRef} from 'vue'
 
 import {useFriendshipStore} from '@/stores/friendships'
 
-const emit = defineEmits<{
-    viewProfile: [userID: string]
-}>()
-
 const friendships = useFriendshipStore()
 const searchQuery = shallowRef('')
 const requestingUserID = shallowRef('')
@@ -98,11 +94,8 @@ async function submitRequest(userID: string) {
                     :key="user.id"
                     class="search-result-row"
             >
-                <button
+                <span
                         class="friend-avatar search-result-avatar"
-                        :aria-label="`查看${user.nickname || user.username}的资料`"
-                        type="button"
-                        @click="emit('viewProfile', user.id)"
                 >
                     <img
                             v-if="user.avatar_url"
@@ -112,7 +105,7 @@ async function submitRequest(userID: string) {
                     <template v-else>
                         {{ (user.nickname || user.username).slice(0, 1) }}
                     </template>
-                </button>
+                </span>
                 <div class="friend-copy">
                     <strong>{{ user.nickname || user.username }}</strong>
                     <small>@{{ user.username }}</small>
@@ -207,9 +200,6 @@ async function submitRequest(userID: string) {
 }
 
 .search-result-avatar {
-    border: 0;
-    padding: 0;
-    cursor: pointer;
     overflow: hidden;
 }
 

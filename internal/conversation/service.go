@@ -288,6 +288,9 @@ type Result struct {
 	// LastReadSeq 是当前用户最后已读序号。
 	LastReadSeq uint64
 
+	// CurrentUserRole 是当前用户在会话中的角色。
+	CurrentUserRole int
+
 	// Pinned 表示当前用户是否将会话置顶。
 	Pinned bool
 
@@ -372,6 +375,7 @@ func (s *Service) CreateDirect(
 		AvatarURL:              stringValue(record.AvatarURL),
 		LastSeq:                record.LastSeq,
 		MemberCount:            2,
+		CurrentUserRole:        1,
 		DirectFriendshipActive: true,
 		UpdatedAt:              record.UpdatedAt,
 	}, created, nil
@@ -426,6 +430,7 @@ func (s *Service) CreateGroup(
 		AvatarURL:              stringValue(record.AvatarURL),
 		LastSeq:                record.LastSeq,
 		MemberCount:            1,
+		CurrentUserRole:        3,
 		DirectFriendshipActive: true,
 		UpdatedAt:              record.UpdatedAt,
 	}, nil
@@ -734,6 +739,7 @@ func (s *Service) List(
 			AvatarURL:              stringValue(record.AvatarURL),
 			LastSeq:                record.LastSeq,
 			LastReadSeq:            record.LastReadSeq,
+			CurrentUserRole:        record.CurrentUserRole,
 			Pinned:                 record.Pinned,
 			UnreadCount:            unread,
 			MemberCount:            record.MemberCount,
@@ -780,6 +786,7 @@ func (s *Service) Get(
 		AvatarURL:              stringValue(record.AvatarURL),
 		LastSeq:                record.LastSeq,
 		LastReadSeq:            record.LastReadSeq,
+		CurrentUserRole:        record.CurrentUserRole,
 		Pinned:                 record.Pinned,
 		UnreadCount:            unread,
 		MemberCount:            record.MemberCount,

@@ -6,7 +6,7 @@ var (
 	// ErrInvalidMessage 表示消息参数不合法。
 	ErrInvalidMessage = errors.New("消息参数不合法")
 	// ErrInvalidSearchQuery 表示消息搜索词长度不符合规则。
-	ErrInvalidSearchQuery = errors.New("搜索词需为 2 到 64 个字符")
+	ErrInvalidSearchQuery = errors.New("搜索词需为 1 到 64 个字符")
 	// ErrConversationNotFound 表示会话不存在。
 	ErrConversationNotFound = errors.New("会话不存在")
 	// ErrConversationClosed 表示会话不可发送消息。

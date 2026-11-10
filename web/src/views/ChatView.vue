@@ -8,20 +8,22 @@ import {
 } from 'vue'
 import {useRouter} from 'vue-router'
 
+import AddFriendToGroupDialog from '@/components/AddFriendToGroupDialog.vue'
+import ContactDetailPanel from '@/components/ContactDetailPanel.vue'
+import ContactsPanel from '@/components/ContactsPanel.vue'
 import ConversationList from '@/components/ConversationList.vue'
 import CreateGroupDialog from '@/components/CreateGroupDialog.vue'
-import FriendsDrawer from '@/components/FriendsDrawer.vue'
 import GroupInvitationsDialog from '@/components/GroupInvitationsDialog.vue'
 import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageHistoryDialog from '@/components/MessageHistoryDialog.vue'
 import MessageList from '@/components/MessageList.vue'
 import ProfileDialog from '@/components/ProfileDialog.vue'
-import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import {useAuthStore} from '@/stores/auth'
 import {useChatStore} from '@/stores/chat'
 import {useFriendshipStore} from '@/stores/friendships'
 import {useGroupInvitationStore} from '@/stores/group-invitations'
+import type {Friend} from '@/types/api'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -29,7 +31,8 @@ const friendships = useFriendshipStore()
 const groupInvitations = useGroupInvitationStore()
 const router = useRouter()
 const messageList = useTemplateRef<InstanceType<typeof MessageList>>('messageList')
-const friendsOpen = shallowRef(false)
+const workspaceMode = shallowRef<'messages' | 'contacts'>('messages')
+const selectedFriendID = shallowRef('')
 const groupInvitationsOpen = shallowRef(false)
 const groupDialogOpen = shallowRef(false)
 const creatingGroup = shallowRef(false)
@@ -42,8 +45,10 @@ const profileError = shallowRef('')
 const avatarBusy = shallowRef(false)
 const avatarError = shallowRef('')
 const messageHistoryOpen = shallowRef(false)
-const userProfileOpen = shallowRef(false)
-const userProfileID = shallowRef('')
+const addToGroupOpen = shallowRef(false)
+const addToGroupFriend = shallowRef<Friend | null>(null)
+const addToGroupBusy = shallowRef(false)
+const addToGroupError = shallowRef('')
 let presenceTimer = 0
 
 const connectionLabel = computed(() => {
@@ -107,11 +112,18 @@ const activeConversationCanSend = computed(() => {
         conversation.direct_friendship_active
     )
 })
-const profileCanMessage = computed(
+const selectedFriend = computed(
     () =>
         friendships.friends.find(
-            (friend) => friend.user.id === userProfileID.value,
-        )?.relationship_active ?? false,
+            (friend) => friend.user.id === selectedFriendID.value,
+        ) ?? null,
+)
+const manageableGroups = computed(() =>
+    chat.conversations.filter(
+        (conversation) =>
+            conversation.conversation_type === 2 &&
+            conversation.current_user_role >= 2,
+    ),
 )
 
 // selectConversation 切换当前会话并同步页面状态
@@ -392,35 +404,75 @@ async function logout() {
 
 // openFriendDirect 从好友列表打开或创建私聊
 async function openFriendDirect(userID: string) {
-    friendsOpen.value = false
     try {
         await chat.createDirect(userID)
+        workspaceMode.value = 'messages'
         messageList.value?.scrollToBottom()
     } catch (cause) {
         chat.reportError(cause instanceof Error ? cause.message : '打开好友会话失败')
     }
 }
 
-// openUserProfile 打开好友或搜索用户的只读资料
-function openUserProfile(userID: string) {
-    userProfileID.value = userID
-    userProfileOpen.value = true
+// openMessages 切换回会话列表
+function openMessages() {
+    workspaceMode.value = 'messages'
 }
 
-// closeUserProfile 关闭只读用户资料弹窗
-function closeUserProfile() {
-    userProfileOpen.value = false
+// openContacts 切换到联系人工作区并刷新好友数据
+function openContacts() {
+    workspaceMode.value = 'contacts'
+    void friendships.loadAll()
 }
 
-// messageFromProfile 从用户资料弹窗进入私聊
-async function messageFromProfile(userID: string) {
-    userProfileOpen.value = false
-    await openFriendDirect(userID)
+// selectFriend 选择联系人并在右侧显示资料
+function selectFriend(userID: string) {
+    selectedFriendID.value = userID
 }
 
 // handleFriendRemoved 同步本地会话中的单向好友发送权限
 function handleFriendRemoved(userID: string) {
     chat.applyFriendRelationshipChange(userID, false)
+    if (selectedFriendID.value === userID) {
+        selectedFriendID.value = ''
+    }
+}
+
+// openAddToGroup 为当前联系人打开群聊选择
+function openAddToGroup(friend: Friend) {
+    addToGroupError.value = ''
+    addToGroupFriend.value = friend
+    addToGroupOpen.value = true
+}
+
+// closeAddToGroup 关闭群聊邀请弹窗
+function closeAddToGroup() {
+    if (!addToGroupBusy.value) {
+        addToGroupOpen.value = false
+    }
+}
+
+// inviteContactToGroup 邀请联系人加入目标群聊
+async function inviteContactToGroup(payload: {
+    conversationId: string
+    remark: string
+}) {
+    const friend = addToGroupFriend.value
+    if (!friend) return
+    addToGroupBusy.value = true
+    addToGroupError.value = ''
+    try {
+        await chat.inviteUserToGroup(
+            payload.conversationId,
+            friend.user.id,
+            payload.remark,
+        )
+        addToGroupOpen.value = false
+    } catch (cause) {
+        addToGroupError.value =
+            cause instanceof Error ? cause.message : '邀请联系人加入群聊失败'
+    } finally {
+        addToGroupBusy.value = false
+    }
 }
 
 onMounted(async () => {
@@ -475,22 +527,33 @@ onBeforeUnmount(() => {
             </button>
             <nav class="rail-nav" aria-label="功能入口">
                 <button
-                        class="rail-nav-button active"
+                        :class="{active: workspaceMode === 'messages'}"
+                        :aria-current="
+                            workspaceMode === 'messages' ? 'page' : undefined
+                        "
+                        aria-label="消息"
+                        class="rail-nav-button"
                         type="button"
-                        aria-current="page"
+                        @click="openMessages"
                 >
                     <span class="rail-nav-mark">聊</span>
                     <small>消息</small>
                 </button>
                 <button
+                        :class="{active: workspaceMode === 'contacts'}"
+                        :aria-current="
+                            workspaceMode === 'contacts' ? 'page' : undefined
+                        "
+                        aria-label="联系人"
                         class="rail-nav-button"
                         type="button"
-                        @click="friendsOpen = true"
+                        @click="openContacts"
                 >
                     <span class="rail-nav-mark">联</span>
                     <small>联系人</small>
                 </button>
                 <button
+                        aria-label="群邀请"
                         class="rail-nav-button"
                         type="button"
                         @click="groupInvitationsOpen = true"
@@ -532,7 +595,7 @@ onBeforeUnmount(() => {
                 </button>
             </div>
 
-            <section class="chat-layout">
+            <section v-if="workspaceMode === 'messages'" class="chat-layout">
                 <ConversationList
                         :active-id="chat.activeConversationId"
                         :conversations="chat.displayedConversations"
@@ -544,7 +607,7 @@ onBeforeUnmount(() => {
                         @clear-search="chat.clearConversationSearch"
                         @create-group="openGroupCreator"
                         @load-more="chat.loadMoreConversations"
-                        @open-friends="friendsOpen = true"
+                        @open-friends="openContacts"
                         @search="chat.searchConversations"
                         @select="selectConversation"
                         @toggle-pin="chat.setConversationPinned"
@@ -669,15 +732,22 @@ onBeforeUnmount(() => {
                     </div>
                 </section>
             </section>
-        </div>
 
-        <FriendsDrawer
-                :open="friendsOpen"
-                @close="friendsOpen = false"
-                @friend-removed="handleFriendRemoved"
-                @open-direct="openFriendDirect"
-                @view-profile="openUserProfile"
-        />
+            <section v-else class="chat-layout contacts-workspace">
+                <ContactsPanel
+                        :selected-friend-id="selectedFriendID"
+                        @friend-removed="handleFriendRemoved"
+                        @open-direct="openFriendDirect"
+                        @select-friend="selectFriend"
+                />
+                <ContactDetailPanel
+                        :friend="selectedFriend"
+                        :groups="manageableGroups"
+                        @add-to-group="openAddToGroup"
+                        @message="openFriendDirect"
+                />
+            </section>
+        </div>
 
         <GroupInvitationsDialog
                 :open="groupInvitationsOpen"
@@ -749,12 +819,19 @@ onBeforeUnmount(() => {
                 @upload-avatar="uploadAvatar"
         />
 
-        <UserProfileDialog
-                :can-message="profileCanMessage"
-                :open="userProfileOpen"
-                :user-id="userProfileID"
-                @close="closeUserProfile"
-                @message="messageFromProfile"
+        <AddFriendToGroupDialog
+                :busy="addToGroupBusy"
+                :error="addToGroupError"
+                :friend-name="
+                    addToGroupFriend?.remark ||
+                    addToGroupFriend?.user.nickname ||
+                    addToGroupFriend?.user.username ||
+                    ''
+                "
+                :groups="manageableGroups"
+                :open="addToGroupOpen"
+                @close="closeAddToGroup"
+                @submit="inviteContactToGroup"
         />
     </main>
 </template>

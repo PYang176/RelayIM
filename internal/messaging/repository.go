@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"github.com/PYang176/RelayIM/internal/platform/snowflake"
@@ -436,20 +437,30 @@ func (r *Repository) searchMessages(
 	query := r.db.WithContext(ctx).
 		Table("messages AS m").
 		Select(
-			"m.id, m.conversation_id, m.seq, m.sender_id, "+
-				"m.message_type, m.content, m.created_at, "+
-				"COALESCE(up.nickname, u.username, '未知用户') "+
+			"m.id, m.conversation_id, m.seq, m.sender_id, " +
+				"m.message_type, m.content, m.created_at, " +
+				"COALESCE(up.nickname, u.username, '未知用户') " +
 				"AS sender_name",
 		).
 		Joins("JOIN users AS u ON u.id = m.sender_id").
-		Joins("LEFT JOIN user_profiles AS up ON up.user_id = u.id").
-		Where(
+		Joins("LEFT JOIN user_profiles AS up ON up.user_id = u.id")
+	if utf8.RuneCountInString(input.Query) == 1 {
+		// ngram 默认按两个字符分词，单字符查询改用会话内精确子串匹配。
+		query = query.Where(
+			"m.conversation_id = ? AND m.recalled_at IS NULL "+
+				"AND INSTR(m.content, ?) > 0",
+			input.ConversationID,
+			input.Query,
+		)
+	} else {
+		query = query.Where(
 			"m.conversation_id = ? AND m.recalled_at IS NULL "+
 				"AND MATCH(m.content) AGAINST "+
 				"(? IN NATURAL LANGUAGE MODE)",
 			input.ConversationID,
 			input.Query,
 		)
+	}
 	if input.BeforeSeq > 0 {
 		query = query.Where("m.seq < ?", input.BeforeSeq)
 	}

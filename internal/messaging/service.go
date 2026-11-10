@@ -11,7 +11,7 @@ const (
 	maxTextContentRunes = 8000
 	defaultHistoryLimit = 20
 	maxHistoryLimit     = 100
-	minSearchQueryRunes = 2
+	minSearchQueryRunes = 1
 	maxSearchQueryRunes = 64
 	senderRecallWindow  = 2 * time.Minute
 	managerRecallWindow = 24 * time.Hour

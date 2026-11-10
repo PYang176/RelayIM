@@ -122,6 +122,25 @@ def prepare_friendship(
     )
 
 
+def prepare_group(
+    api: APIRequestContext,
+    owner: dict[str, Any],
+    member: dict[str, Any],
+    name: str,
+) -> dict[str, Any]:
+    return api_ok(
+        api,
+        "POST",
+        "/conversations/groups",
+        token=owner["token"],
+        payload={
+            "name": name,
+            "member_user_ids": [member["id"]],
+            "invite_remark": "联系人工作区验收群",
+        },
+    )
+
+
 def login_ui(page: Page, username: str) -> None:
     page.goto("/login", wait_until="networkidle")
     page.get_by_label("用户名").fill(username)
@@ -135,10 +154,10 @@ def login_ui(page: Page, username: str) -> None:
 
 
 def open_contacts(page: Page):
-    page.get_by_role("button", name="联系人").click()
-    dialog = page.locator('.friends-dialog[aria-labelledby="friends-title"]')
-    expect(dialog).to_be_visible()
-    return dialog
+    page.get_by_role("button", name="联系人", exact=True).click()
+    panel = page.locator(".contacts-panel")
+    expect(panel).to_be_visible()
+    return panel
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -149,9 +168,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     alice_name = f"ux_a_{suffix}"
     bob_name = f"ux_b_{suffix}"
     carol_name = f"ux_c_{suffix}"
+    dave_name = f"ux_d_{suffix}"
     alice_nickname = f"体验阿岚{suffix}"
     bob_nickname = f"体验北辰{suffix}"
     carol_nickname = f"体验小禾{suffix}"
+    dave_nickname = f"体验远山{suffix}"
+    group_name = f"联系人工作区群{suffix}"
     report_dir = Path(args.output_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -179,48 +201,87 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         try:
             alice = create_user(api, alice_name, alice_nickname)
             bob = create_user(api, bob_name, bob_nickname)
-            create_user(api, carol_name, carol_nickname)
+            carol = create_user(api, carol_name, carol_nickname)
+            create_user(api, dave_name, dave_nickname)
             prepare_friendship(api, alice, bob)
+            prepare_friendship(api, alice, carol)
+            prepare_group(api, alice, carol, group_name)
 
             login_ui(alice_page, alice_name)
             login_ui(bob_page, bob_name)
 
-            dialog = open_contacts(alice_page)
+            contacts = open_contacts(alice_page)
             expect(
-                dialog.get_by_role("button", name="添加好友", exact=True)
+                contacts.get_by_role("button", name="添加好友", exact=True)
             ).to_be_visible()
-            friend_row = dialog.locator(".friend-row").filter(
+            expect(alice_page.locator(".contact-placeholder")).to_be_visible()
+
+            contacts.get_by_role("button", name="添加好友", exact=True).click()
+            expect(contacts.locator("#add-friend-title")).to_be_visible()
+            contacts.get_by_label("搜索用户名或昵称").fill(dave_name)
+            contacts.get_by_role("button", name="搜索", exact=True).click()
+            expect(
+                contacts.locator(".search-result-row").filter(
+                    has_text=dave_nickname
+                )
+            ).to_be_visible()
+            contacts.get_by_role("button", name="返回", exact=True).click()
+
+            friend_row = contacts.locator(".friend-row").filter(
                 has_text=bob_nickname
             )
             expect(friend_row).to_be_visible()
-
-            friend_row.get_by_role(
-                "button",
-                name=f"查看{bob_nickname}的资料",
-            ).click()
-            profile_dialog = alice_page.locator(".user-profile-dialog")
-            expect(profile_dialog).to_be_visible()
-            expect(profile_dialog).to_contain_text(bob_nickname)
-            profile_dialog.get_by_role(
-                "button",
-                name="关闭用户资料",
-            ).click()
-
-            dialog.get_by_role("button", name="添加好友", exact=True).click()
-            expect(dialog.locator("#add-friend-title")).to_be_visible()
-            dialog.get_by_label("搜索用户名或昵称").fill(carol_name)
-            dialog.get_by_role("button", name="搜索", exact=True).click()
+            friend_row.locator(".friend-avatar-button").click()
+            detail = alice_page.locator(".contact-detail-panel")
+            expect(detail).to_contain_text(bob_nickname)
             expect(
-                dialog.locator(".search-result-row").filter(
-                    has_text=carol_nickname
-                )
+                detail.get_by_role("button", name="发私聊", exact=True)
             ).to_be_visible()
-            dialog.get_by_role("button", name="返回联系人").click()
+            expect(
+                detail.get_by_role("button", name="添加到群聊", exact=True)
+            ).to_be_enabled()
 
-            friend_row = dialog.locator(".friend-row").filter(
-                has_text=bob_nickname
+            detail.locator(".contact-profile-avatar").click()
+            avatar_preview = alice_page.get_by_role("dialog", name="头像预览")
+            expect(avatar_preview).to_be_visible()
+            avatar_preview.get_by_role(
+                "button",
+                name="关闭头像预览",
+            ).click()
+
+            detail.get_by_role(
+                "button",
+                name="添加到群聊",
+                exact=True,
+            ).click()
+            group_dialog = alice_page.get_by_role(
+                "dialog",
+                name="添加到群聊",
             )
-            friend_row.dblclick()
+            expect(group_dialog).to_be_visible()
+            group_dialog.get_by_label("邀请备注").fill("邀请加入联系人验收群")
+            group_dialog.get_by_role(
+                "button",
+                name="发送邀请",
+                exact=True,
+            ).click()
+            expect(group_dialog).not_to_be_visible(timeout=10_000)
+            invitations = api_ok(
+                api,
+                "GET",
+                "/group-invitations",
+                token=bob["token"],
+            )
+            if not any(
+                item["conversation_name"] == group_name
+                for item in invitations["invitations"]
+            ):
+                raise AssertionError("联系人加入群聊后未生成群邀请")
+
+            contacts_screenshot = report_dir / "contacts-workspace.png"
+            alice_page.screenshot(path=str(contacts_screenshot), full_page=True)
+
+            friend_row.locator(".friend-copy").dblclick()
             expect(alice_page.locator(".conversation-header")).to_contain_text(
                 bob_nickname
             )
@@ -253,14 +314,38 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 if item["title"] == alice_nickname
             )
 
-            bob_dialog = open_contacts(bob_page)
-            bob_friend_row = bob_dialog.locator(".friend-row").filter(
+            bob_page.get_by_role(
+                "button",
+                name="聊天记录",
+                exact=True,
+            ).click()
+            history_dialog = bob_page.get_by_role(
+                "dialog",
+                name="聊天记录",
+            )
+            expect(history_dialog).to_be_visible()
+            history_dialog.get_by_label("搜索聊天记录").fill("单")
+            history_dialog.get_by_role(
+                "button",
+                name="搜索",
+                exact=True,
+            ).click()
+            expect(
+                history_dialog.locator(".message-history-entry")
+            ).to_contain_text("单向好友体验消息", timeout=10_000)
+            history_dialog.get_by_role(
+                "button",
+                name="关闭聊天记录",
+            ).click()
+
+            bob_contacts = open_contacts(bob_page)
+            bob_friend_row = bob_contacts.locator(".friend-row").filter(
                 has_text=alice_nickname
             )
             expect(bob_friend_row).to_be_visible()
 
-            alice_dialog = open_contacts(alice_page)
-            alice_friend_row = alice_dialog.locator(".friend-row").filter(
+            alice_contacts = open_contacts(alice_page)
+            alice_friend_row = alice_contacts.locator(".friend-row").filter(
                 has_text=bob_nickname
             )
             alice_friend_row.get_by_role(
@@ -274,15 +359,21 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 exact=True,
             ).click()
             expect(
-                alice_dialog.locator(".friend-row").filter(
+                alice_contacts.locator(".friend-row").filter(
                     has_text=bob_nickname
                 )
             ).to_have_count(0, timeout=10_000)
+            expect(alice_page.locator(".contact-placeholder")).to_be_visible()
 
             expect(bob_friend_row).to_contain_text(
                 "双方当前不是好友",
                 timeout=10_000,
             )
+            bob_page.get_by_role(
+                "button",
+                name="消息",
+                exact=True,
+            ).click()
             expect(bob_page.locator(".relationship-warning")).to_contain_text(
                 "无法继续发送消息",
             )
@@ -305,16 +396,26 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             bob_page.screenshot(path=str(screenshot), full_page=True)
             login_ui(mobile_page, alice_name)
             expect(mobile_page.locator(".app-rail")).to_be_visible()
-            expect(mobile_page.get_by_label("消息内容")).to_be_visible()
+            mobile_contacts = open_contacts(mobile_page)
+            mobile_contacts.locator(".friend-row").filter(
+                has_text=carol_nickname
+            ).locator(".friend-avatar-button").click()
+            expect(mobile_page.locator(".contact-detail-panel")).to_contain_text(
+                carol_nickname
+            )
             mobile_screenshot = report_dir / "social-ux-mobile.png"
             mobile_page.screenshot(path=str(mobile_screenshot), full_page=True)
             result = {
                 "alice_id": alice["id"],
                 "bob_id": bob["id"],
                 "conversation_visible_without_refresh": True,
-                "profile_dialog": True,
+                "contacts_workspace": True,
+                "avatar_preview": True,
+                "single_character_search": True,
+                "group_invitation_created": True,
                 "double_click_direct": True,
                 "unilateral_delete_status": status,
+                "contacts_screenshot": str(contacts_screenshot),
                 "screenshot": str(screenshot),
                 "mobile_screenshot": str(mobile_screenshot),
             }

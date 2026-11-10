@@ -696,6 +696,7 @@ func conversationResponse(result Result) gin.H {
 		"avatar_url":               result.AvatarURL,
 		"last_seq":                 result.LastSeq,
 		"last_read_seq":            result.LastReadSeq,
+		"current_user_role":        result.CurrentUserRole,
 		"pinned":                   result.Pinned,
 		"unread_count":             result.UnreadCount,
 		"member_count":             result.MemberCount,

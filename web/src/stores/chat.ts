@@ -796,6 +796,21 @@ export const useChatStore = defineStore('chat', () => {
         return invitedCount
     }
 
+    // inviteUserToGroup 向指定群聊邀请一位好友
+    async function inviteUserToGroup(
+        conversationId: string,
+        userId: string,
+        inviteRemark: string,
+    ) {
+        clearError()
+        await conversationApi.inviteGroupMembers(
+            auth.token,
+            conversationId,
+            [userId],
+            inviteRemark.trim(),
+        )
+    }
+
     // removeGroupMember 从当前群聊移除指定成员
     async function removeGroupMember(targetUserID: string) {
         const conversationId = activeConversationId.value
@@ -1473,6 +1488,7 @@ export const useChatStore = defineStore('chat', () => {
         selectConversation,
         loadMembers,
         inviteGroupMembers,
+        inviteUserToGroup,
         removeGroupMember,
         setGroupMemberRole,
         transferGroupOwner,

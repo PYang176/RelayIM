@@ -145,7 +145,7 @@ function searchSenderName(message: MessageSearchResult) {
                             v-model="searchText"
                             autocomplete="off"
                             maxlength="64"
-                            placeholder="搜索聊天记录，至少输入 2 个字符"
+                            placeholder="搜索聊天记录"
                             type="search"
                     />
                 </label>

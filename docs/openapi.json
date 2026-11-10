@@ -311,6 +311,15 @@
             ],
             "type": "integer"
           },
+          "current_user_role": {
+            "description": "当前用户在会话中的角色；1 普通成员、2 管理员、3 群主",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "type": "integer"
+          },
           "direct_friendship_active": {
             "description": "私聊双方都未删除好友时可以继续发送消息；群聊固定为 true",
             "type": "boolean"
@@ -367,6 +376,7 @@
           "avatar_url",
           "last_seq",
           "last_read_seq",
+          "current_user_role",
           "pinned",
           "unread_count",
           "member_count",
@@ -2431,13 +2441,13 @@
             "$ref": "#/components/parameters/ConversationID"
           },
           {
-            "description": "全文搜索词，2 到 64 个 Unicode 字符",
+            "description": "全文搜索词，1 到 64 个 Unicode 字符",
             "in": "query",
             "name": "q",
             "required": true,
             "schema": {
               "maxLength": 64,
-              "minLength": 2,
+              "minLength": 1,
               "type": "string"
             }
           },

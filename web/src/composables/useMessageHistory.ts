@@ -80,14 +80,6 @@ export function useMessageHistory() {
             clearSearch()
             return
         }
-        if ([...value].length < 2) {
-            activeQuery.value = ''
-            searchResults.value = []
-            searchHasMore.value = false
-            error.value = '搜索词至少需要 2 个字符'
-            return
-        }
-
         const currentGeneration = ++generation
         const targetConversationId = conversationId
         searching.value = true

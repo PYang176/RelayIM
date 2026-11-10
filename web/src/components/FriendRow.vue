@@ -6,11 +6,12 @@ import type {Friend} from '@/types/api'
 const props = defineProps<{
     friend: Friend
     busy: boolean
+    selected: boolean
 }>()
 
 const emit = defineEmits<{
+    select: []
     message: [userID: string]
-    profile: [userID: string]
     updateRemark: [remark: string]
     block: []
     unblock: []
@@ -68,20 +69,24 @@ function cancelEdit() {
 
 <template>
     <article
-            :class="{inactive: !friend.relationship_active}"
+            :class="{
+                inactive: !friend.relationship_active,
+                selected,
+            }"
             class="friend-row"
             :title="
                 friend.relationship_active && !friend.blocked_by_me
                     ? '双击打开私聊'
                     : undefined
             "
+            @click="emit('select')"
             @dblclick="openConversation"
     >
         <button
                 class="friend-avatar friend-avatar-button"
                 :aria-label="`查看${displayName}的资料`"
                 type="button"
-                @click.stop="emit('profile', friend.user.id)"
+                @click.stop="emit('select')"
                 @dblclick.stop
         >
             <img
@@ -103,7 +108,12 @@ function cancelEdit() {
             </p>
         </div>
 
-        <div v-if="editing" class="friend-inline-form" @dblclick.stop>
+        <div
+                v-if="editing"
+                class="friend-inline-form"
+                @click.stop
+                @dblclick.stop
+        >
             <label class="sr-only" :for="`remark-${friend.user.id}`">好友备注</label>
             <input
                     :id="`remark-${friend.user.id}`"
@@ -115,19 +125,29 @@ function cancelEdit() {
             <button type="button" @click="cancelEdit">取消</button>
         </div>
 
-        <div v-else-if="confirmingDelete" class="friend-inline-form" @dblclick.stop>
+        <div
+                v-else-if="confirmingDelete"
+                class="friend-inline-form"
+                @click.stop
+                @dblclick.stop
+        >
             <span>确认删除好友？</span>
             <button :disabled="busy" type="button" @click="emit('remove')">确认</button>
             <button type="button" @click="confirmingDelete = false">取消</button>
         </div>
 
-        <div v-else-if="confirmingBlock" class="friend-inline-form" @dblclick.stop>
+        <div
+                v-else-if="confirmingBlock"
+                class="friend-inline-form"
+                @click.stop
+                @dblclick.stop
+        >
             <span>拉黑后双方将不能私聊或发送好友申请</span>
             <button :disabled="busy" type="button" @click="emit('block')">确认拉黑</button>
             <button type="button" @click="confirmingBlock = false">取消</button>
         </div>
 
-        <div v-else class="friend-actions" @dblclick.stop>
+        <div v-else class="friend-actions" @click.stop @dblclick.stop>
             <button
                     v-if="friend.relationship_active && !friend.blocked_by_me"
                     :disabled="busy"
@@ -165,11 +185,37 @@ function cancelEdit() {
 
 <style scoped>
 .friend-row {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
     cursor: default;
 }
 
 .friend-row:not(.inactive):hover {
     background: color-mix(in srgb, var(--surface-muted) 65%, transparent);
+}
+
+.friend-row.selected {
+    border-radius: var(--radius-sm);
+    background: var(--signal-soft);
+}
+
+.friend-row :deep(.friend-actions) {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+    max-height: 0;
+    margin-top: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.friend-row:hover :deep(.friend-actions),
+.friend-row.selected :deep(.friend-actions),
+.friend-row :deep(.friend-actions:focus-within) {
+    max-height: 5rem;
+    margin-top: 0.375rem;
+    overflow: visible;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .friend-avatar-button {

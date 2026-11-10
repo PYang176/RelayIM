@@ -138,11 +138,11 @@ func TestServiceSearchMessagesValidation(t *testing.T) {
 			wantErr: ErrInvalidMessage,
 		},
 		{
-			name: "搜索词过短",
+			name: "搜索词为空",
 			command: SearchMessagesCommand{
 				ConversationID: 1,
 				UserID:         1,
-				Query:          "搜",
+				Query:          " ",
 			},
 			wantErr: ErrInvalidSearchQuery,
 		},

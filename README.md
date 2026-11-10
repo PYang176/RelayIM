@@ -30,6 +30,7 @@ RelayIM 是一个面向工程实践的即时通讯项目。项目保留单体应
 - OpenTelemetry 消息链路 Trace、OTLP 导出、Tempo 存储和异步 `traceparent` 传播。
 - 孤儿附件定时清理、清理租约、失败重试和 Prometheus 指标。
 - Vue 3 + TypeScript 演示前端，覆盖核心聊天流程。
+- QQ 式左侧导航、会话/联系人列表、联系人资料主区和头像放大交互。
 
 ## 架构
 

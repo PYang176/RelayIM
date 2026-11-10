@@ -1178,10 +1178,10 @@ paths:
         - name: q
           in: query
           required: true
-          description: 全文搜索词，2 到 64 个 Unicode 字符
+          description: 全文搜索词，1 到 64 个 Unicode 字符
           schema:
             type: string
-            minLength: 2
+            minLength: 1
             maxLength: 64
         - name: before_seq
           in: query
@@ -1812,6 +1812,7 @@ components:
           avatar_url,
           last_seq,
           last_read_seq,
+          current_user_role,
           pinned,
           unread_count,
           member_count,
@@ -1843,6 +1844,10 @@ components:
           type: integer
           format: int64
           minimum: 0
+        current_user_role:
+          type: integer
+          enum: [1, 2, 3]
+          description: 当前用户在会话中的角色；1 普通成员、2 管理员、3 群主
         pinned:
           type: boolean
           description: 当前用户是否置顶该会话

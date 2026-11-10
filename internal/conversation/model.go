@@ -194,6 +194,9 @@ type conversationSummary struct {
 	// LastReadSeq 是当前用户最后已读序号。
 	LastReadSeq uint64 `gorm:"column:last_read_seq"`
 
+	// CurrentUserRole 是当前用户在会话中的角色。
+	CurrentUserRole int `gorm:"column:current_user_role"`
+
 	// Pinned 表示当前用户是否将会话置顶。
 	Pinned bool `gorm:"column:pinned"`
 

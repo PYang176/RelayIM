@@ -420,6 +420,22 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		t.Fatalf("非成员查询历史错误 = %v，期望 ErrNotMember", err)
 	}
 
+	singleCharacterPage, err := service.SearchMessages(
+		context.Background(),
+		SearchMessagesCommand{
+			ConversationID: conversationID,
+			UserID:         memberID,
+			Query:          "并",
+			Limit:          10,
+		},
+	)
+	if err != nil {
+		t.Fatalf("单字符搜索会话消息失败: %v", err)
+	}
+	if len(singleCharacterPage.Messages) != 5 {
+		t.Fatalf("单字符搜索结果数量 = %d，期望 5", len(singleCharacterPage.Messages))
+	}
+
 	searchPage, err := service.SearchMessages(
 		context.Background(),
 		SearchMessagesCommand{
