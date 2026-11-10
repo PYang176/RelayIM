@@ -74,7 +74,7 @@ HTTP 发送
 
 | 层级 | 技术 |
 | --- | --- |
-| 后端 | Go 1.25、Gin、GORM |
+| 后端 | Go 1.26.10、Gin、GORM |
 | 数据库 | MySQL 8.0 |
 | 缓存与限流 | Redis 7.4、Lua + ZSET 滑动窗口 |
 | 消息队列 | RabbitMQ 4.3、amqp091-go |
@@ -82,7 +82,7 @@ HTTP 发送
 | 可观测性 | OpenTelemetry、Tempo、Prometheus、Grafana、slog、Request ID |
 | 前端 | Vue 3、TypeScript、Vite、Pinia、Vue Router |
 | 压测 | k6 |
-| 质量门禁 | GitHub Actions、go vet、go test、race、vue-tsc、Vite build |
+| 质量门禁 | GitHub Actions、go vet、go test、race、govulncheck、npm audit、vue-tsc、Vite build |
 
 ## 快速启动
 
@@ -137,12 +137,17 @@ npm run dev
 git diff --name-only -- "*.go" | ForEach-Object { gofmt -w $_ }
 go vet ./...
 go test ./...
-go test -race ./internal/messaging ./internal/realtime ./internal/platform/rabbitmq
+go test -race ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 Set-Location web
+npm audit --audit-level=high
 npm run typecheck
 npm run test:unit
 npm run build
 ```
+
+项目在 `go.mod` 中固定使用 Go `1.26.10`。如果本机还安装了旧版 Go，请保持
+`GOTOOLCHAIN=auto`，让 Go 自动选择项目声明的安全工具链。
 
 前后端和基础设施启动后，可执行真实浏览器验收：
 
@@ -205,6 +210,7 @@ python scripts\attachment-size-limit-e2e.py
 OpenTelemetry 消息链路 Trace 可运行：
 
 ```powershell
+$env:RELAYIM_E2E_USERNAME = "seed-demo.ps1 输出的阿岚账号"
 python scripts\otel-trace-e2e.py
 ```
 

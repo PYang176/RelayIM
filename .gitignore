@@ -1,6 +1,11 @@
 /internal/config/app.yml
 /internal/config/app.env
 /deploy/.env
+/.env
+/.env.*
+!/.env.example
+*.pem
+*.key
 /.idea/
 /.tools/
 /.tmp/

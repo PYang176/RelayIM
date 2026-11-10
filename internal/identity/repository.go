@@ -212,7 +212,20 @@ func (r *Repository) TouchDevice(
 	if result.Error != nil {
 		return fmt.Errorf("更新设备活跃时间: %w", result.Error)
 	}
-	if result.RowsAffected != 1 {
+	if result.RowsAffected == 1 {
+		return nil
+	}
+
+	// MySQL 默认返回实际变更行数，同一毫秒内重复刷新可能为零。
+	// 此时继续确认设备仍有效，避免把幂等刷新误判为设备不存在。
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&device{}).
+		Where("id = ? AND revoked_at IS NULL", deviceID).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("确认设备活跃状态: %w", err)
+	}
+	if count != 1 {
 		return ErrDeviceNotFound
 	}
 	return nil

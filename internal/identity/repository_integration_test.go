@@ -24,12 +24,12 @@ type stubTokenIssuer struct {
 	refreshCounter int
 }
 
-// IssueToken 判断sue令牌条件
+// IssueToken 返回集成测试使用的固定访问令牌
 func (s *stubTokenIssuer) IssueToken(context.Context, uint64) (string, error) {
 	return s.token, s.err
 }
 
-// IssueRefreshToken 判断sue刷新令牌条件
+// IssueRefreshToken 生成可轮换的测试刷新令牌
 func (s *stubTokenIssuer) IssueRefreshToken(
 	context.Context,
 ) (string, string, time.Time, error) {

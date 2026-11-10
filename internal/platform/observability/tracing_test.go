@@ -39,3 +39,46 @@ func TestTraceParentRoundTrip(t *testing.T) {
 		)
 	}
 }
+
+// TestTraceExportEndpoint 覆盖 OTLP HTTP 基地址和完整导出路径的规范化
+func TestTraceExportEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		expected string
+	}{
+		{
+			name:     "基地址",
+			endpoint: "http://127.0.0.1:4318",
+			expected: "http://127.0.0.1:4318/v1/traces",
+		},
+		{
+			name:     "尾斜杠",
+			endpoint: "http://127.0.0.1:4318/",
+			expected: "http://127.0.0.1:4318/v1/traces",
+		},
+		{
+			name:     "完整路径",
+			endpoint: "http://127.0.0.1:4318/v1/traces",
+			expected: "http://127.0.0.1:4318/v1/traces",
+		},
+		{
+			name:     "空配置",
+			endpoint: " ",
+			expected: "http://127.0.0.1:4318/v1/traces",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if actual := traceExportEndpoint(test.endpoint); actual != test.expected {
+				t.Fatalf(
+					"traceExportEndpoint(%q) = %q，期望 %q",
+					test.endpoint,
+					actual,
+					test.expected,
+				)
+			}
+		})
+	}
+}

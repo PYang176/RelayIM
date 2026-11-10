@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -34,7 +35,7 @@ func InitTracing(
 
 	exporter, err := otlptracehttp.New(
 		ctx,
-		otlptracehttp.WithEndpointURL(cfg.OTLPEndpoint),
+		otlptracehttp.WithEndpointURL(traceExportEndpoint(cfg.OTLPEndpoint)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("创建 OTLP Trace Exporter: %w", err)
@@ -56,6 +57,18 @@ func InitTracing(
 	)
 	otel.SetTracerProvider(provider)
 	return provider.Shutdown, nil
+}
+
+// traceExportEndpoint 把 OTLP HTTP 基地址规范化为 Trace 导出路径。
+func traceExportEndpoint(endpoint string) string {
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if endpoint == "" {
+		return "http://127.0.0.1:4318/v1/traces"
+	}
+	if strings.HasSuffix(endpoint, "/v1/traces") {
+		return endpoint
+	}
+	return endpoint + "/v1/traces"
 }
 
 // TraceParent 把当前 Span 上下文编码为 W3C traceparent。

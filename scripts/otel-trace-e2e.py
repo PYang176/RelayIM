@@ -12,11 +12,16 @@ from typing import Any
 
 from playwright.sync_api import APIRequestContext, sync_playwright
 
-PASSWORD = "Demo123456!"
-USERNAME = "demo_alice_1110032019"
+PASSWORD = os.getenv("RELAYIM_E2E_PASSWORD", "Demo123456!")
+USERNAME = os.getenv("RELAYIM_E2E_USERNAME", "")
 
 
 def api_login(api: APIRequestContext) -> dict[str, Any]:
+    """登录 Trace 验收账号并返回认证响应。"""
+    if not USERNAME:
+        raise RuntimeError(
+            "请先设置 RELAYIM_E2E_USERNAME，可复制 seed-demo.ps1 输出的阿岚账号"
+        )
     response = api.post(
         "/api/v1/auth/login",
         data={
