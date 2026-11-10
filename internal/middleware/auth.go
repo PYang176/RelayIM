@@ -9,16 +9,16 @@ import (
 )
 
 const (
-	// ContextUserIDKey 保存不会因 32 位平台而降窄的 Snowflake 用户 ID。
+	// ContextUserIDKey 保存不会因 32 位平台而降窄的 Snowflake 用户 ID
 	ContextUserIDKey = "user_id_u64"
 
-	// ContextTokenKey 保存当前请求已验证的原始 Token。
+	// ContextTokenKey 保存当前请求已验证的原始 Token
 	ContextTokenKey = "auth_token"
 
-	// ContextJTIKey 保存 Token 的唯一标识，用于退出登录写入黑名单。
+	// ContextJTIKey 保存 Token 的唯一标识，用于退出登录写入黑名单
 	ContextJTIKey = "auth_jti"
 
-	// ContextExpiresAtKey 保存 Token 过期时间，用于计算黑名单 TTL。
+	// ContextExpiresAtKey 保存 Token 过期时间，用于计算黑名单 TTL
 	ContextExpiresAtKey = "auth_expires_at"
 
 	// ContextSessionKey 保存认证组件返回的完整会话。
@@ -61,7 +61,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// CurrentUserID 返回认证中间件写入的 Snowflake 用户 ID。
+// CurrentUserID 返回认证中间件写入的 Snowflake 用户 ID
 func CurrentUserID(context *gin.Context) (uint64, bool) {
 	value, exists := context.Get(ContextUserIDKey)
 	if !exists {
