@@ -3,10 +3,10 @@ package messaging
 import (
 	"context"
 	"errors"
-	"ginChatProject/internal/middleware"
 	"io"
 	"mime"
 	"net/http"
+	"relayim/internal/middleware"
 	"strconv"
 	"strings"
 	"time"

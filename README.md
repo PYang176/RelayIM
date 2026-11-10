@@ -1,6 +1,6 @@
-# GinChat
+# RelayIM
 
-GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应用的开发效率，同时实现了可靠消息、一次性 WebSocket Ticket、消息幂等、断线补拉、对象存储、限流和 Prometheus 观测等生产环境常见能力。
+RelayIM 是一个面向工程实践的即时通讯项目。项目保留单体应用的开发效率，同时实现了可靠消息、一次性 WebSocket Ticket、消息幂等、断线补拉、对象存储、限流和 Prometheus 观测等生产环境常见能力。
 
 当前目标是做出可演示、可复现、可解释的单机 Web IM，并继续补强故障注入、长稳测试和运维告警。
 
@@ -99,7 +99,7 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 
 ```powershell
 go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
-goose -dir migrations mysql "root:你的密码@tcp(127.0.0.1:3306)/ginchat_v2?charset=utf8mb4&parseTime=true&loc=UTC" up
+goose -dir migrations mysql "root:你的密码@tcp(127.0.0.1:3306)/relayim?charset=utf8mb4&parseTime=true&loc=UTC" up
 ```
 
 数据库字段、索引和约束说明见 [数据库开发指南](docs/数据库开发指南.md)。
@@ -150,7 +150,7 @@ npm run build
 python scripts\latest-first-e2e.py
 ```
 
-脚本先通过 API 创建两名用户、好友关系和 65 条私聊消息，再用本机 Chrome 的无头模式验证首次最新页、向上加载历史、在线实时消息和断线重连后的窗口替换。Chrome 不在默认路径时通过 `GINCHAT_E2E_CHROME_PATH` 指定。
+脚本先通过 API 创建两名用户、好友关系和 65 条私聊消息，再用本机 Chrome 的无头模式验证首次最新页、向上加载历史、在线实时消息和断线重连后的窗口替换。Chrome 不在默认路径时通过 `RELAYIM_E2E_CHROME_PATH` 指定。
 
 好友拉黑链路可单独运行：
 
@@ -219,13 +219,13 @@ python scripts\group-invitation-e2e.py
 启用真实依赖的 Go 集成测试需要：
 
 ```text
-GINCHAT_TEST_MYSQL_DSN
-GINCHAT_TEST_REDIS_ADDR
-GINCHAT_TEST_REDIS_PASSWORD
-GINCHAT_TEST_RABBITMQ_URL
-GINCHAT_TEST_S3_ENDPOINT
-GINCHAT_TEST_S3_ACCESS_KEY
-GINCHAT_TEST_S3_SECRET_KEY
+RELAYIM_TEST_MYSQL_DSN
+RELAYIM_TEST_REDIS_ADDR
+RELAYIM_TEST_REDIS_PASSWORD
+RELAYIM_TEST_RABBITMQ_URL
+RELAYIM_TEST_S3_ENDPOINT
+RELAYIM_TEST_S3_ACCESS_KEY
+RELAYIM_TEST_S3_SECRET_KEY
 ```
 
 GitHub Actions 会在 PR 和主分支提交上执行后端静态检查、真实依赖集成测试、竞态检查前端类型检查和生产构建。

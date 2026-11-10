@@ -1,9 +1,9 @@
 package messaging
 
 import (
-	messagingapp "ginChatProject/internal/messaging"
-	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/observability"
+	messagingapp "relayim/internal/messaging"
+	"relayim/internal/middleware"
+	"relayim/internal/platform/observability"
 	"time"
 
 	"github.com/gin-gonic/gin"

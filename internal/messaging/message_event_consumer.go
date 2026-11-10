@@ -8,13 +8,13 @@ import (
 	"log/slog"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"relayim/internal/config"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/rabbitmq"
 )
 
 const maxEventBodyBytes = 1 << 20

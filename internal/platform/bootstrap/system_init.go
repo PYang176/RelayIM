@@ -4,16 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/jwt"
-	"ginChatProject/internal/platform/redisstore"
-	"ginChatProject/internal/platform/snowflake"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
 	"os"
+	"relayim/internal/config"
+	"relayim/internal/platform/jwt"
+	"relayim/internal/platform/redisstore"
+	"relayim/internal/platform/snowflake"
 	"strings"
 	"time"
 )
@@ -27,7 +27,7 @@ func InitConfig() error {
 		return err
 	}
 
-	if configFile := strings.TrimSpace(os.Getenv("GINCHAT_CONFIG_FILE")); configFile != "" {
+	if configFile := strings.TrimSpace(os.Getenv("RELAYIM_CONFIG_FILE")); configFile != "" {
 		v.SetConfigFile(configFile)
 	} else {
 		v.SetConfigName("app")
@@ -40,57 +40,57 @@ func InitConfig() error {
 	return nil
 }
 
-// bindConfigEnv 绑定 GINCHAT 环境变量到配置键，保证运行参数覆盖 YAML
+// bindConfigEnv 绑定 RELAYIM 环境变量到配置键，保证运行参数覆盖 YAML
 func bindConfigEnv(v *viper.Viper) error {
 	// 前缀、键名替换和 AutomaticEnv 为后续普通字段提供统一覆盖规则；
 	// 下面显式绑定关键字段，保证嵌套 YAML 键的环境变量名稳定可控。
-	v.SetEnvPrefix("GINCHAT")
+	v.SetEnvPrefix("RELAYIM")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
 	bindings := map[string]string{
-		"mysql.host":                             "GINCHAT_MYSQL_HOST",
-		"mysql.port":                             "GINCHAT_MYSQL_PORT",
-		"mysql.user":                             "GINCHAT_MYSQL_USER",
-		"mysql.password":                         "GINCHAT_MYSQL_PASSWORD",
-		"mysql.dbname":                           "GINCHAT_MYSQL_DBNAME",
-		"mysql.config.charset":                   "GINCHAT_MYSQL_CHARSET",
-		"mysql.config.parseTime":                 "GINCHAT_MYSQL_PARSE_TIME",
-		"mysql.config.loc":                       "GINCHAT_MYSQL_LOCATION",
-		"jwt.secret":                             "GINCHAT_JWT_SECRET",
-		"jwt.expire_hours":                       "GINCHAT_JWT_EXPIRE_HOURS",
-		"jwt.refresh_expire_days":                "GINCHAT_JWT_REFRESH_EXPIRE_DAYS",
-		"redis.host":                             "GINCHAT_REDIS_HOST",
-		"redis.port":                             "GINCHAT_REDIS_PORT",
-		"redis.password":                         "GINCHAT_REDIS_PASSWORD",
-		"redis.db":                               "GINCHAT_REDIS_DB",
-		"rabbitmq.url":                           "GINCHAT_RABBITMQ_URL",
-		"rabbitmq.publish_timeout_seconds":       "GINCHAT_RABBITMQ_PUBLISH_TIMEOUT_SECONDS",
-		"rabbitmq.poll_interval_ms":              "GINCHAT_RABBITMQ_POLL_INTERVAL_MS",
-		"rabbitmq.batch_size":                    "GINCHAT_RABBITMQ_BATCH_SIZE",
-		"rabbitmq.max_publish_attempts":          "GINCHAT_RABBITMQ_MAX_PUBLISH_ATTEMPTS",
-		"rabbitmq.retry_base_seconds":            "GINCHAT_RABBITMQ_RETRY_BASE_SECONDS",
-		"rabbitmq.claim_lease_seconds":           "GINCHAT_RABBITMQ_CLAIM_LEASE_SECONDS",
-		"rabbitmq.prefetch":                      "GINCHAT_RABBITMQ_PREFETCH",
-		"s3.endpoint":                            "GINCHAT_S3_ENDPOINT",
-		"s3.access_key":                          "GINCHAT_S3_ACCESS_KEY",
-		"s3.secret_key":                          "GINCHAT_S3_SECRET_KEY",
-		"s3.bucket":                              "GINCHAT_S3_BUCKET",
-		"s3.region":                              "GINCHAT_S3_REGION",
-		"s3.use_ssl":                             "GINCHAT_S3_USE_SSL",
-		"rate_limit.ws_ticket_global":            "GINCHAT_WS_TICKET_RATE_LIMIT_GLOBAL",
-		"rate_limit.ws_ticket_user":              "GINCHAT_WS_TICKET_RATE_LIMIT_USER",
-		"rate_limit.ws_ticket_window_ms":         "GINCHAT_WS_TICKET_RATE_LIMIT_WINDOW_MS",
-		"snowflake.workID":                       "GINCHAT_SNOWFLAKE_WORK_ID",
-		"tracing.enabled":                        "GINCHAT_TRACING_ENABLED",
-		"tracing.service_name":                   "GINCHAT_TRACING_SERVICE_NAME",
-		"tracing.otlp_endpoint":                  "GINCHAT_TRACING_OTLP_ENDPOINT",
-		"tracing.sample_ratio":                   "GINCHAT_TRACING_SAMPLE_RATIO",
-		"attachment_cleanup.enabled":             "GINCHAT_ATTACHMENT_CLEANUP_ENABLED",
-		"attachment_cleanup.interval_seconds":    "GINCHAT_ATTACHMENT_CLEANUP_INTERVAL_SECONDS",
-		"attachment_cleanup.pending_ttl_hours":   "GINCHAT_ATTACHMENT_CLEANUP_PENDING_TTL_HOURS",
-		"attachment_cleanup.claim_lease_seconds": "GINCHAT_ATTACHMENT_CLEANUP_CLAIM_LEASE_SECONDS",
-		"attachment_cleanup.batch_size":          "GINCHAT_ATTACHMENT_CLEANUP_BATCH_SIZE",
+		"mysql.host":                             "RELAYIM_MYSQL_HOST",
+		"mysql.port":                             "RELAYIM_MYSQL_PORT",
+		"mysql.user":                             "RELAYIM_MYSQL_USER",
+		"mysql.password":                         "RELAYIM_MYSQL_PASSWORD",
+		"mysql.dbname":                           "RELAYIM_MYSQL_DBNAME",
+		"mysql.config.charset":                   "RELAYIM_MYSQL_CHARSET",
+		"mysql.config.parseTime":                 "RELAYIM_MYSQL_PARSE_TIME",
+		"mysql.config.loc":                       "RELAYIM_MYSQL_LOCATION",
+		"jwt.secret":                             "RELAYIM_JWT_SECRET",
+		"jwt.expire_hours":                       "RELAYIM_JWT_EXPIRE_HOURS",
+		"jwt.refresh_expire_days":                "RELAYIM_JWT_REFRESH_EXPIRE_DAYS",
+		"redis.host":                             "RELAYIM_REDIS_HOST",
+		"redis.port":                             "RELAYIM_REDIS_PORT",
+		"redis.password":                         "RELAYIM_REDIS_PASSWORD",
+		"redis.db":                               "RELAYIM_REDIS_DB",
+		"rabbitmq.url":                           "RELAYIM_RABBITMQ_URL",
+		"rabbitmq.publish_timeout_seconds":       "RELAYIM_RABBITMQ_PUBLISH_TIMEOUT_SECONDS",
+		"rabbitmq.poll_interval_ms":              "RELAYIM_RABBITMQ_POLL_INTERVAL_MS",
+		"rabbitmq.batch_size":                    "RELAYIM_RABBITMQ_BATCH_SIZE",
+		"rabbitmq.max_publish_attempts":          "RELAYIM_RABBITMQ_MAX_PUBLISH_ATTEMPTS",
+		"rabbitmq.retry_base_seconds":            "RELAYIM_RABBITMQ_RETRY_BASE_SECONDS",
+		"rabbitmq.claim_lease_seconds":           "RELAYIM_RABBITMQ_CLAIM_LEASE_SECONDS",
+		"rabbitmq.prefetch":                      "RELAYIM_RABBITMQ_PREFETCH",
+		"s3.endpoint":                            "RELAYIM_S3_ENDPOINT",
+		"s3.access_key":                          "RELAYIM_S3_ACCESS_KEY",
+		"s3.secret_key":                          "RELAYIM_S3_SECRET_KEY",
+		"s3.bucket":                              "RELAYIM_S3_BUCKET",
+		"s3.region":                              "RELAYIM_S3_REGION",
+		"s3.use_ssl":                             "RELAYIM_S3_USE_SSL",
+		"rate_limit.ws_ticket_global":            "RELAYIM_WS_TICKET_RATE_LIMIT_GLOBAL",
+		"rate_limit.ws_ticket_user":              "RELAYIM_WS_TICKET_RATE_LIMIT_USER",
+		"rate_limit.ws_ticket_window_ms":         "RELAYIM_WS_TICKET_RATE_LIMIT_WINDOW_MS",
+		"snowflake.workID":                       "RELAYIM_SNOWFLAKE_WORK_ID",
+		"tracing.enabled":                        "RELAYIM_TRACING_ENABLED",
+		"tracing.service_name":                   "RELAYIM_TRACING_SERVICE_NAME",
+		"tracing.otlp_endpoint":                  "RELAYIM_TRACING_OTLP_ENDPOINT",
+		"tracing.sample_ratio":                   "RELAYIM_TRACING_SAMPLE_RATIO",
+		"attachment_cleanup.enabled":             "RELAYIM_ATTACHMENT_CLEANUP_ENABLED",
+		"attachment_cleanup.interval_seconds":    "RELAYIM_ATTACHMENT_CLEANUP_INTERVAL_SECONDS",
+		"attachment_cleanup.pending_ttl_hours":   "RELAYIM_ATTACHMENT_CLEANUP_PENDING_TTL_HOURS",
+		"attachment_cleanup.claim_lease_seconds": "RELAYIM_ATTACHMENT_CLEANUP_CLAIM_LEASE_SECONDS",
+		"attachment_cleanup.batch_size":          "RELAYIM_ATTACHMENT_CLEANUP_BATCH_SIZE",
 	}
 
 	// 显式绑定让环境变量名成为稳定契约，不依赖结构体字段或 YAML 大小写。
@@ -116,7 +116,7 @@ func loadTracingConfig(v *viper.Viper) config.TracingConfig {
 		SampleRatio:  v.GetFloat64("tracing.sample_ratio"),
 	}
 	if cfg.ServiceName == "" {
-		cfg.ServiceName = "ginchat"
+		cfg.ServiceName = "relayim"
 	}
 	if cfg.OTLPEndpoint == "" {
 		cfg.OTLPEndpoint = "http://127.0.0.1:4318"
@@ -244,7 +244,7 @@ func loadObjectStorageConfig(v *viper.Viper) config.ObjectStorageConfig {
 		cfg.Endpoint = "127.0.0.1:8333"
 	}
 	if cfg.Bucket == "" {
-		cfg.Bucket = "ginchat-media"
+		cfg.Bucket = "relayim-media"
 	}
 	if cfg.Region == "" {
 		cfg.Region = "us-east-1"
@@ -253,7 +253,7 @@ func loadObjectStorageConfig(v *viper.Viper) config.ObjectStorageConfig {
 }
 
 // LoadMySQLConfig 从 Viper 读取 MySQL 配置。
-// 逐字段读取可以确保已绑定的 GINCHAT_* 环境变量可靠覆盖 YAML 中的空值。
+// 逐字段读取可以确保已绑定的 RELAYIM_* 环境变量可靠覆盖 YAML 中的空值。
 func LoadMySQLConfig() config.MySQLConfig {
 	return loadMySQLConfig(viper.GetViper())
 }

@@ -7,17 +7,17 @@ import (
 	"os"
 	"testing"
 
-	"ginChatProject/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"relayim/internal/platform/snowflake"
 )
 
 // TestFriendshipRepositoryIntegration 覆盖好友申请、关系、备注和拉黑的数据一致性
 func TestFriendshipRepositoryIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -223,9 +223,9 @@ func TestFriendshipRepositoryIntegration(t *testing.T) {
 
 // TestFriendshipPaginationIntegration 覆盖好友、申请和拉黑列表的游标分页
 func TestFriendshipPaginationIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{

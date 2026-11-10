@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"go.yaml.in/yaml/v3"
+	"relayim/internal/platform/observability"
 )
 
 // TestOpenAPIContractMatchesRouter 覆盖 OpenAPI 路径、方法和真实路由的一致性

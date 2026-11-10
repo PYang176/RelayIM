@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"relayim/internal/config"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/rabbitmq"
 )
 
 type stubOutboxStore struct {

@@ -16,7 +16,7 @@ interface ChatSocketOptions {
     onError: (message: string) => void
 }
 
-const DEVICE_KEY = 'ginchat.device_id'
+const DEVICE_KEY = 'relayim.device_id'
 
 /**
  * 管理一次性 Ticket、WebSocket 生命周期和指数退避重连。

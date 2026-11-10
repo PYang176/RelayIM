@@ -14,17 +14,17 @@ import (
 	"syscall"
 	"time"
 
-	"ginChatProject/internal/messaging"
-	"ginChatProject/internal/platform/bootstrap"
-	"ginChatProject/internal/platform/objectstore"
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/ratelimit"
-	"ginChatProject/internal/platform/redisstore"
-	"ginChatProject/internal/presence"
-	"ginChatProject/internal/realtime"
-	"ginChatProject/internal/router"
-	"ginChatProject/internal/ws"
 	"gorm.io/gorm"
+	"relayim/internal/messaging"
+	"relayim/internal/platform/bootstrap"
+	"relayim/internal/platform/objectstore"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/ratelimit"
+	"relayim/internal/platform/redisstore"
+	"relayim/internal/presence"
+	"relayim/internal/realtime"
+	"relayim/internal/router"
+	"relayim/internal/ws"
 )
 
 const (
@@ -92,7 +92,7 @@ func Run() error {
 	rateLimitConfig := bootstrap.LoadWSTicketRateLimitConfig()
 	slidingWindowLimiter := ratelimit.NewSlidingWindowLimiter(
 		redisstore.RDB,
-		"ginchat",
+		"relayim",
 	)
 	wsTicketLimiter := ratelimit.NewWSTicketLimiter(
 		slidingWindowLimiter,
@@ -118,10 +118,10 @@ func Run() error {
 			slog.Warn("关闭 OpenTelemetry Trace 失败", "error", err)
 		}
 	}()
-	presenceService := presence.NewService(redisstore.RDB, "ginchat")
+	presenceService := presence.NewService(redisstore.RDB, "relayim")
 	realtimeRegistry := realtime.NewRegistry(
 		redisstore.RDB,
-		"ginchat",
+		"relayim",
 		serviceInstanceID,
 	)
 
@@ -291,7 +291,7 @@ func loadOutboxStats(
 
 // serverAddr 读取服务监听地址配置，缺省时返回默认端口
 func serverAddr() string {
-	if addr := strings.TrimSpace(os.Getenv("GINCHAT_SERVER_ADDR")); addr != "" {
+	if addr := strings.TrimSpace(os.Getenv("RELAYIM_SERVER_ADDR")); addr != "" {
 		return addr
 	}
 	return defaultServerAddr
@@ -329,7 +329,7 @@ func runServer(ctx context.Context, server *http.Server) error {
 func instanceID() string {
 	hostname, err := os.Hostname()
 	if err != nil || strings.TrimSpace(hostname) == "" {
-		hostname = "ginchat"
+		hostname = "relayim"
 	}
 	// PID 可能被操作系统复用。加入进程启动时间，保证临时节点队列和 Redis
 	// 路由不会与已经退出的旧进程混用。

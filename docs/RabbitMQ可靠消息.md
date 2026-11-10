@@ -74,7 +74,7 @@ Consumers 根据事件类型查询消息接收者或被邀请人，再通过 Red
 在 `internal/config/app.env` 中增加：
 
 ```text
-GINCHAT_RABBITMQ_URL=amqp://用户名:密码@127.0.0.1:5672/ginchat
+RELAYIM_RABBITMQ_URL=amqp://用户名:密码@127.0.0.1:5672/relayim
 ```
 
 URL 必须与应用使用的 RabbitMQ VHost 一致。`deploy/.env` 只用于 Compose 容器，不会被 Go 应用自动加载。
@@ -88,7 +88,7 @@ URL 必须与应用使用的 RabbitMQ VHost 一致。`deploy/.env` 只用于 Com
 观测队列：
 
 ```powershell
-docker exec ginchat-rabbitmq rabbitmqctl list_queues name messages messages_ready messages_unacknowledged
+docker exec relayim-rabbitmq rabbitmqctl list_queues name messages messages_ready messages_unacknowledged
 ```
 
 管理界面：

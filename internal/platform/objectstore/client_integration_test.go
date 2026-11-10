@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
+	"relayim/internal/config"
 )
 
 // TestObjectStorageIntegration 覆盖 SeaweedFS 对象写入、读取和删除
 func TestObjectStorageIntegration(t *testing.T) {
-	endpoint := os.Getenv("GINCHAT_TEST_S3_ENDPOINT")
-	accessKey := os.Getenv("GINCHAT_TEST_S3_ACCESS_KEY")
-	secretKey := os.Getenv("GINCHAT_TEST_S3_SECRET_KEY")
+	endpoint := os.Getenv("RELAYIM_TEST_S3_ENDPOINT")
+	accessKey := os.Getenv("RELAYIM_TEST_S3_ACCESS_KEY")
+	secretKey := os.Getenv("RELAYIM_TEST_S3_SECRET_KEY")
 	if endpoint == "" || accessKey == "" || secretKey == "" {
 		t.Skip("未设置测试 S3 配置，跳过对象存储集成测试")
 	}
@@ -27,7 +27,7 @@ func TestObjectStorageIntegration(t *testing.T) {
 		Endpoint:  endpoint,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
-		Bucket:    "ginchat-test",
+		Bucket:    "relayim-test",
 		Region:    "us-east-1",
 	})
 	if err != nil {
@@ -35,7 +35,7 @@ func TestObjectStorageIntegration(t *testing.T) {
 	}
 
 	key := fmt.Sprintf("tests/%d.txt", time.Now().UnixNano())
-	body := []byte("ginchat object storage integration")
+	body := []byte("relayim object storage integration")
 	if err := client.PutObject(
 		ctx,
 		key,

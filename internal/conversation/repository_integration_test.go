@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/platform/rabbitmq"
-	"ginChatProject/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"relayim/internal/platform/rabbitmq"
+	"relayim/internal/platform/snowflake"
 )
 
 var (
@@ -34,9 +34,9 @@ func initConversationSnowflake(t *testing.T) {
 
 // TestConversationRepositoryIntegration 覆盖会话、成员和权限规则的真实数据库链路
 func TestConversationRepositoryIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -493,9 +493,9 @@ func TestConversationRepositoryIntegration(t *testing.T) {
 
 // TestConversationPaginationIntegration 覆盖会话列表复合游标分页的真实数据库行为
 func TestConversationPaginationIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -714,9 +714,9 @@ func TestConversationPaginationIntegration(t *testing.T) {
 
 // TestCreateDirectConcurrentIntegration 覆盖并发创建同一私聊会话时的唯一性约束
 func TestCreateDirectConcurrentIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -789,9 +789,9 @@ func TestCreateDirectConcurrentIntegration(t *testing.T) {
 
 // TestGroupInvitationLifecycleIntegration 覆盖群邀请创建、审批、取消和过期的完整生命周期
 func TestGroupInvitationLifecycleIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{

@@ -26,7 +26,7 @@
 每个运行实例仍必须使用不同的 Worker ID：
 
 ```text
-GINCHAT_SNOWFLAKE_WORK_ID
+RELAYIM_SNOWFLAKE_WORK_ID
 ```
 
 数据库启动水位只能防止时间回拨造成的重复，不能解决两个实例配置同一个 Worker ID 的问题。

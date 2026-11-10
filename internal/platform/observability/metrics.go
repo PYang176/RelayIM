@@ -33,7 +33,7 @@ func NewMetrics() *Metrics {
 	registry.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{
-			Namespace: "ginchat",
+			Namespace: "relayim",
 		}),
 	)
 
@@ -41,7 +41,7 @@ func NewMetrics() *Metrics {
 		registry: registry,
 		requests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "http",
 				Name:      "requests_total",
 				Help:      "HTTP 请求总数",
@@ -50,7 +50,7 @@ func NewMetrics() *Metrics {
 		),
 		requestLatency: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "http",
 				Name:      "request_duration_seconds",
 				Help:      "HTTP 请求耗时",
@@ -70,14 +70,14 @@ func NewMetrics() *Metrics {
 			[]string{"method", "route", "status"},
 		),
 		inFlight: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "ginchat",
+			Namespace: "relayim",
 			Subsystem: "http",
 			Name:      "requests_in_flight",
 			Help:      "当前正在处理的 HTTP 请求数",
 		}),
 		messages: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "message",
 				Name:      "accepted_total",
 				Help:      "服务端成功接受并持久化的消息数",
@@ -86,7 +86,7 @@ func NewMetrics() *Metrics {
 		),
 		attachments: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "attachment",
 				Name:      "uploads_total",
 				Help:      "附件上传统计",
@@ -95,7 +95,7 @@ func NewMetrics() *Metrics {
 		),
 		attachmentCleanup: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "attachment_cleanup",
 				Name:      "total",
 				Help:      "孤儿附件清理结果数量",
@@ -104,7 +104,7 @@ func NewMetrics() *Metrics {
 		),
 		rateLimited: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "rate_limit",
 				Name:      "rejected_total",
 				Help:      "被限流拒绝的请求数",
@@ -113,7 +113,7 @@ func NewMetrics() *Metrics {
 		),
 		messageEvents: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "message_consumer",
 				Name:      "events_total",
 				Help:      "消息消费者按事件类型和处理结果统计的投递数",
@@ -122,7 +122,7 @@ func NewMetrics() *Metrics {
 		),
 		eventDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "message_consumer",
 				Name:      "duration_seconds",
 				Help:      "消息消费者处理单条事件的耗时",
@@ -145,7 +145,7 @@ func NewMetrics() *Metrics {
 		),
 		eventLag: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "message_consumer",
 				Name:      "lag_seconds",
 				Help:      "事件发生到消费者开始处理的端到端延迟",
@@ -275,7 +275,7 @@ func (m *Metrics) ObserveHTTP(
 func (m *Metrics) RegisterWebSocketConnections(count func() int) {
 	m.registry.MustRegister(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
-			Namespace: "ginchat",
+			Namespace: "relayim",
 			Name:      "websocket_connections",
 			Help:      "当前进程内有效 WebSocket 连接数",
 		},
@@ -292,7 +292,7 @@ func (m *Metrics) RegisterDatabaseStats(stats func() sql.DBStats) {
 		state := state
 		m.registry.MustRegister(prometheus.NewGaugeFunc(
 			prometheus.GaugeOpts{
-				Namespace: "ginchat",
+				Namespace: "relayim",
 				Subsystem: "db",
 				Name:      "connections",
 				Help:      "MySQL 连接池连接数",
@@ -359,19 +359,19 @@ type outboxCollector struct {
 
 var (
 	outboxEventsDesc = prometheus.NewDesc(
-		"ginchat_outbox_events",
+		"relayim_outbox_events",
 		"Outbox 各状态事件数量",
 		[]string{"status"},
 		nil,
 	)
 	outboxQuerySuccessDesc = prometheus.NewDesc(
-		"ginchat_outbox_query_success",
+		"relayim_outbox_query_success",
 		"最近一次 Outbox 状态查询是否成功",
 		nil,
 		nil,
 	)
 	attachmentOrphansDesc = prometheus.NewDesc(
-		"ginchat_attachment_orphans",
+		"relayim_attachment_orphans",
 		"当前满足清理条件的孤儿附件数量",
 		nil,
 		nil,

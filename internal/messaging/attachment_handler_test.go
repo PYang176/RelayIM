@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ginChatProject/internal/middleware"
 	"github.com/gin-gonic/gin"
+	"relayim/internal/middleware"
 )
 
 type stubAttachmentManager struct {

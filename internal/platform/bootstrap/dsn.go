@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
-	"ginChatProject/internal/config"
+	"relayim/internal/config"
 	"strings"
 )
 

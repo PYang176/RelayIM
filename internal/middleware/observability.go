@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
+	"relayim/internal/platform/observability"
 )
 
 const requestIDHeader = "X-Request-ID"

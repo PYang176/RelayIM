@@ -2,16 +2,16 @@ mysql:
   host: 127.0.0.1
   port: 3306
   user: root
-  # 本地密码通过 GINCHAT_MYSQL_PASSWORD 注入。
+  # 本地密码通过 RELAYIM_MYSQL_PASSWORD 注入。
   password: ""
-  dbname: ginchat_v2
+  dbname: relayim
   config:
     charset: utf8mb4
     parseTime: true
     loc: UTC
 
 jwt:
-  # 本地密钥通过 GINCHAT_JWT_SECRET 注入。
+  # 本地密钥通过 RELAYIM_JWT_SECRET 注入。
   secret: ""
   expire_hours: 24
   refresh_expire_days: 30
@@ -19,12 +19,12 @@ jwt:
 redis:
   host: 127.0.0.1
   port: 6379
-  # 本地密码通过 GINCHAT_REDIS_PASSWORD 注入。
+  # 本地密码通过 RELAYIM_REDIS_PASSWORD 注入。
   password: ""
   db: 0
 
 rabbitmq:
-  # 完整 AMQP 地址通过 GINCHAT_RABBITMQ_URL 注入；为空时禁用 RabbitMQ 后台任务。
+  # 完整 AMQP 地址通过 RELAYIM_RABBITMQ_URL 注入；为空时禁用 RabbitMQ 后台任务。
   url: ""
   publish_timeout_seconds: 5
   poll_interval_ms: 500
@@ -38,7 +38,7 @@ s3:
   endpoint: 127.0.0.1:8333
   access_key: ""
   secret_key: ""
-  bucket: ginchat-media
+  bucket: relayim-media
   region: us-east-1
   use_ssl: false
 
@@ -54,7 +54,7 @@ snowflake:
 tracing:
   # 本地开发默认导出到 deploy/docker-compose.yml 中的 Tempo。
   enabled: true
-  service_name: ginchat
+  service_name: relayim
   otlp_endpoint: http://127.0.0.1:4318
   sample_ratio: 1.0
 

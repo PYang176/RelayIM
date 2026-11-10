@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: GinChat API
+  title: RelayIM API
   version: 1.0.0
   description: |
-    GinChat 即时通讯服务的 HTTP 接口契约。
+    RelayIM 即时通讯服务的 HTTP 接口契约。
 
     - Snowflake ID 一律使用字符串，避免 JavaScript 数字精度丢失。
     - 除注册、登录、刷新、健康检查和首页外，接口均使用 Bearer JWT。
@@ -1544,7 +1544,7 @@ components:
           properties:
             bio:
               type: string
-              example: 正在完善 GinChat
+              example: 正在完善 RelayIM
     RegisterRequest:
       type: object
       required: [username, password, confirm_password]

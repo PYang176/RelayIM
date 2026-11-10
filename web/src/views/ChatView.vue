@@ -416,7 +416,7 @@ onBeforeUnmount(() => {
             <div class="app-brand">
                 <span class="brand-dot">G</span>
                 <div>
-                    <strong>GinChat</strong>
+                    <strong>RelayIM</strong>
                     <small :class="['connection-state', chat.connectionState]">
                         {{ connectionLabel }}
                     </small>

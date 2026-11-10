@@ -15,7 +15,7 @@ scrape_configs:
           - rabbitmq:15692
 
   # 开发阶段 Go 服务运行在 Windows 主机，通过 Docker 网关抓取指标。
-  - job_name: ginchat-app
+  - job_name: relayim-app
     metrics_path: /metrics
     static_configs:
       - targets:

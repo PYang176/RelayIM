@@ -1,4 +1,4 @@
-module ginChatProject
+module relayim
 
 go 1.25.0
 

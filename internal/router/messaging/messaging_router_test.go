@@ -1,8 +1,8 @@
 package messaging_test
 
 import (
-	"ginChatProject/internal/router/conversation"
-	messagingrouter "ginChatProject/internal/router/messaging"
+	"relayim/internal/router/conversation"
+	messagingrouter "relayim/internal/router/messaging"
 	"testing"
 
 	"github.com/gin-gonic/gin"

@@ -78,7 +78,7 @@ function Add-DemoFriend {
         -Token $Requester.token `
         -Body @{
             target_user_id = $Recipient.id
-            remark = "GinChat 演示好友"
+            remark = "RelayIM 演示好友"
         } | Out-Null
 
     $received = Invoke-Api `
@@ -163,10 +163,10 @@ $group = Invoke-Api `
     -Path "/conversations/groups" `
     -Token $alice.token `
     -Body @{
-        name = "GinChat 演示群 $Suffix"
+        name = "RelayIM 演示群 $Suffix"
         avatar_url = ""
         member_user_ids = @($bob.id, $carol.id)
-        invite_remark = "邀请参与 GinChat 群聊演示"
+        invite_remark = "邀请参与 RelayIM 群聊演示"
     }
 Invoke-Api `
     -Method "POST" `
@@ -174,7 +174,7 @@ Invoke-Api `
     -Token $alice.token `
     -Body @{
         member_user_ids = @($dave.id)
-        invite_remark = "邀请参与 GinChat 群管理员演示"
+        invite_remark = "邀请参与 RelayIM 群管理员演示"
     } | Out-Null
 Accept-DemoGroupInvitation $bob $group.id
 Accept-DemoGroupInvitation $carol $group.id
@@ -189,14 +189,14 @@ Invoke-Api `
     -Path "/conversations/$($group.id)/profile" `
     -Token $alice.token `
     -Body @{
-        name = "GinChat 演示群 $Suffix"
-        avatar_url = "https://example.com/ginchat-group.png"
+        name = "RelayIM 演示群 $Suffix"
+        avatar_url = "https://example.com/relayim-group.png"
     } | Out-Null
 
 $groupWelcome = Send-DemoMessage `
     $alice `
     $group.id `
-    "欢迎来到 GinChat 演示群，这里可以演示群聊、实时消息、已读和群管理。"
+    "欢迎来到 RelayIM 演示群，这里可以演示群聊、实时消息、已读和群管理。"
 $groupReply = Send-DemoMessage `
     $bob `
     $group.id `

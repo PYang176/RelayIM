@@ -42,7 +42,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ginchat_http_requests_total[5m]))",
+          "expr": "sum(rate(relayim_http_requests_total[5m]))",
           "legendFormat": "请求速率",
           "refId": "A"
         }
@@ -80,7 +80,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(ginchat_http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "expr": "histogram_quantile(0.95, sum(rate(relayim_http_request_duration_seconds_bucket[5m])) by (le, route))",
           "legendFormat": "{{route}}",
           "refId": "A"
         }
@@ -123,7 +123,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ginchat_http_requests_total{status=\"5xx\"}[5m])) / clamp_min(sum(rate(ginchat_http_requests_total[5m])), 0.001)",
+          "expr": "sum(rate(relayim_http_requests_total{status=\"5xx\"}[5m])) / clamp_min(sum(rate(relayim_http_requests_total[5m])), 0.001)",
           "legendFormat": "5xx 比例",
           "refId": "A"
         }
@@ -161,12 +161,12 @@
       },
       "targets": [
         {
-          "expr": "ginchat_http_requests_in_flight",
+          "expr": "relayim_http_requests_in_flight",
           "legendFormat": "处理中",
           "refId": "A"
         },
         {
-          "expr": "ginchat_websocket_connections",
+          "expr": "relayim_websocket_connections",
           "legendFormat": "WebSocket 连接",
           "refId": "B"
         }
@@ -204,7 +204,7 @@
       },
       "targets": [
         {
-          "expr": "ginchat_db_connections",
+          "expr": "relayim_db_connections",
           "legendFormat": "{{state}}",
           "refId": "A"
         }
@@ -285,7 +285,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ginchat_message_accepted_total[5m])) by (type, duplicate)",
+          "expr": "sum(rate(relayim_message_accepted_total[5m])) by (type, duplicate)",
           "legendFormat": "{{type}} duplicate={{duplicate}}",
           "refId": "A"
         }
@@ -323,12 +323,12 @@
       },
       "targets": [
         {
-          "expr": "ginchat_outbox_events",
+          "expr": "relayim_outbox_events",
           "legendFormat": "{{status}}",
           "refId": "A"
         },
         {
-          "expr": "ginchat_outbox_query_success",
+          "expr": "relayim_outbox_query_success",
           "legendFormat": "查询成功",
           "refId": "B"
         }
@@ -366,7 +366,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ginchat_attachment_uploads_total[5m])) by (result)",
+          "expr": "sum(rate(relayim_attachment_uploads_total[5m])) by (result)",
           "legendFormat": "{{result}}",
           "refId": "A"
         }
@@ -404,7 +404,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ginchat_rate_limit_rejected_total[5m])) by (scope)",
+          "expr": "sum(rate(relayim_rate_limit_rejected_total[5m])) by (scope)",
           "legendFormat": "{{scope}}",
           "refId": "A"
         }
@@ -442,12 +442,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ginchat_message_consumer_events_total{result=\"success\"}[5m])) by (event_type) / clamp_min(sum(rate(ginchat_message_consumer_events_total[5m])) by (event_type), 0.001)",
+          "expr": "sum(rate(relayim_message_consumer_events_total{result=\"success\"}[5m])) by (event_type) / clamp_min(sum(rate(relayim_message_consumer_events_total[5m])) by (event_type), 0.001)",
           "legendFormat": "{{event_type}} 成功率",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(ginchat_message_consumer_events_total{result=\"dead\"}[5m])) by (event_type) / clamp_min(sum(rate(ginchat_message_consumer_events_total[5m])) by (event_type), 0.001)",
+          "expr": "sum(rate(relayim_message_consumer_events_total{result=\"dead\"}[5m])) by (event_type) / clamp_min(sum(rate(relayim_message_consumer_events_total[5m])) by (event_type), 0.001)",
           "legendFormat": "{{event_type}} 死信率",
           "refId": "B"
         }
@@ -485,12 +485,12 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(ginchat_message_consumer_duration_seconds_bucket[5m])) by (le, event_type))",
+          "expr": "histogram_quantile(0.95, sum(rate(relayim_message_consumer_duration_seconds_bucket[5m])) by (le, event_type))",
           "legendFormat": "{{event_type}} 处理 P95",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(ginchat_message_consumer_lag_seconds_bucket[5m])) by (le, event_type))",
+          "expr": "histogram_quantile(0.95, sum(rate(relayim_message_consumer_lag_seconds_bucket[5m])) by (le, event_type))",
           "legendFormat": "{{event_type}} 排队 P95",
           "refId": "B"
         }
@@ -502,7 +502,7 @@
   "refresh": "10s",
   "schemaVersion": 39,
   "tags": [
-    "ginchat",
+    "relayim",
     "go"
   ],
   "templating": {
@@ -513,7 +513,7 @@
     "to": "now"
   },
   "timezone": "browser",
-  "title": "GinChat Overview",
-  "uid": "ginchat-overview",
+  "title": "RelayIM Overview",
+  "uid": "relayim-overview",
   "version": 1
 }

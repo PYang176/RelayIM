@@ -4,11 +4,11 @@ import {computed, ref} from 'vue'
 import * as authApi from '@/api/auth'
 import type {UserSummary} from '@/types/api'
 
-const TOKEN_KEY = 'ginchat.access_token'
-const REFRESH_TOKEN_KEY = 'ginchat.refresh_token'
-const DEVICE_KEY = 'ginchat.device_id'
-const DEVICE_IDS_KEY = 'ginchat.device_ids'
-const USER_KEY = 'ginchat.user'
+const TOKEN_KEY = 'relayim.access_token'
+const REFRESH_TOKEN_KEY = 'relayim.refresh_token'
+const DEVICE_KEY = 'relayim.device_id'
+const DEVICE_IDS_KEY = 'relayim.device_ids'
+const USER_KEY = 'relayim.user'
 
 // accountDeviceKey 生成账号维度的设备缓存键
 function accountDeviceKey(username: string) {

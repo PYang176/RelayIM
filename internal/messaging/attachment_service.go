@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"ginChatProject/internal/platform/snowflake"
+	"relayim/internal/platform/snowflake"
 )
 
 const (

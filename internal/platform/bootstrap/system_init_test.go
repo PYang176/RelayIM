@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/snowflake"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"relayim/internal/config"
+	"relayim/internal/platform/snowflake"
 )
 
 // TestEnsureSnowflakeClockAhead 覆盖雪花时间水位回拨等待与拒绝启动
@@ -80,9 +80,9 @@ func TestEnsureSnowflakeClockAheadCanceled(t *testing.T) {
 
 // TestLatestSnowflakeTimeIntegration 覆盖从真实数据库读取雪花时间水位
 func TestLatestSnowflakeTimeIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 雪花时间水位测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 雪花时间水位测试")
 	}
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
@@ -121,7 +121,7 @@ func TestLatestSnowflakeTimeIntegration(t *testing.T) {
 	}
 }
 
-// TestBindConfigEnv 覆盖 GINCHAT 环境变量到配置键的绑定
+// TestBindConfigEnv 覆盖 RELAYIM 环境变量到配置键的绑定
 func TestBindConfigEnv(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -132,38 +132,38 @@ func TestBindConfigEnv(t *testing.T) {
 	}{
 		{
 			name:    "MySQL 密码覆盖",
-			envName: "GINCHAT_MYSQL_PASSWORD",
+			envName: "RELAYIM_MYSQL_PASSWORD",
 			envVal:  "local-password",
 			key:     "mysql.password",
 			want:    "local-password",
 		},
 		{
 			name:    "数据库名覆盖",
-			envName: "GINCHAT_MYSQL_DBNAME",
-			envVal:  "ginchat_v2",
+			envName: "RELAYIM_MYSQL_DBNAME",
+			envVal:  "relayim",
 			key:     "mysql.dbname",
-			want:    "ginchat_v2",
+			want:    "relayim",
 		},
 		{
 			name:    "布尔配置覆盖",
-			envName: "GINCHAT_MYSQL_PARSE_TIME",
+			envName: "RELAYIM_MYSQL_PARSE_TIME",
 			envVal:  "false",
 			key:     "mysql.config.parseTime",
 			want:    false,
 		},
 		{
 			name:    "Snowflake worker ID 覆盖",
-			envName: "GINCHAT_SNOWFLAKE_WORK_ID",
+			envName: "RELAYIM_SNOWFLAKE_WORK_ID",
 			envVal:  "7",
 			key:     "snowflake.workID",
 			want:    int64(7),
 		},
 		{
 			name:    "RabbitMQ 地址覆盖",
-			envName: "GINCHAT_RABBITMQ_URL",
-			envVal:  "amqp://user:password@127.0.0.1:5672/ginchat",
+			envName: "RELAYIM_RABBITMQ_URL",
+			envVal:  "amqp://user:password@127.0.0.1:5672/relayim",
 			key:     "rabbitmq.url",
-			want:    "amqp://user:password@127.0.0.1:5672/ginchat",
+			want:    "amqp://user:password@127.0.0.1:5672/relayim",
 		},
 	}
 
@@ -195,14 +195,14 @@ func TestBindConfigEnv(t *testing.T) {
 
 // TestLoadRabbitMQConfigFromEnvironment 覆盖 RabbitMQ 配置的环境变量覆盖和默认值
 func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
-	t.Setenv("GINCHAT_RABBITMQ_URL", "amqp://user:password@127.0.0.1:5672/ginchat")
-	t.Setenv("GINCHAT_RABBITMQ_PUBLISH_TIMEOUT_SECONDS", "6")
-	t.Setenv("GINCHAT_RABBITMQ_POLL_INTERVAL_MS", "250")
-	t.Setenv("GINCHAT_RABBITMQ_BATCH_SIZE", "50")
-	t.Setenv("GINCHAT_RABBITMQ_MAX_PUBLISH_ATTEMPTS", "8")
-	t.Setenv("GINCHAT_RABBITMQ_RETRY_BASE_SECONDS", "3")
-	t.Setenv("GINCHAT_RABBITMQ_CLAIM_LEASE_SECONDS", "45")
-	t.Setenv("GINCHAT_RABBITMQ_PREFETCH", "30")
+	t.Setenv("RELAYIM_RABBITMQ_URL", "amqp://user:password@127.0.0.1:5672/relayim")
+	t.Setenv("RELAYIM_RABBITMQ_PUBLISH_TIMEOUT_SECONDS", "6")
+	t.Setenv("RELAYIM_RABBITMQ_POLL_INTERVAL_MS", "250")
+	t.Setenv("RELAYIM_RABBITMQ_BATCH_SIZE", "50")
+	t.Setenv("RELAYIM_RABBITMQ_MAX_PUBLISH_ATTEMPTS", "8")
+	t.Setenv("RELAYIM_RABBITMQ_RETRY_BASE_SECONDS", "3")
+	t.Setenv("RELAYIM_RABBITMQ_CLAIM_LEASE_SECONDS", "45")
+	t.Setenv("RELAYIM_RABBITMQ_PREFETCH", "30")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -210,7 +210,7 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 	}
 
 	cfg := loadRabbitMQConfig(v)
-	if cfg.URL != "amqp://user:password@127.0.0.1:5672/ginchat" ||
+	if cfg.URL != "amqp://user:password@127.0.0.1:5672/relayim" ||
 		cfg.PublishTimeoutSeconds != 6 ||
 		cfg.PollIntervalMilliseconds != 250 ||
 		cfg.BatchSize != 50 ||
@@ -224,10 +224,10 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 
 // TestLoadTracingConfigFromEnvironment 覆盖 Trace 配置的环境变量覆盖和采样边界
 func TestLoadTracingConfigFromEnvironment(t *testing.T) {
-	t.Setenv("GINCHAT_TRACING_ENABLED", "true")
-	t.Setenv("GINCHAT_TRACING_SERVICE_NAME", "ginchat-test")
-	t.Setenv("GINCHAT_TRACING_OTLP_ENDPOINT", "http://127.0.0.1:4319")
-	t.Setenv("GINCHAT_TRACING_SAMPLE_RATIO", "0.25")
+	t.Setenv("RELAYIM_TRACING_ENABLED", "true")
+	t.Setenv("RELAYIM_TRACING_SERVICE_NAME", "relayim-test")
+	t.Setenv("RELAYIM_TRACING_OTLP_ENDPOINT", "http://127.0.0.1:4319")
+	t.Setenv("RELAYIM_TRACING_SAMPLE_RATIO", "0.25")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -236,7 +236,7 @@ func TestLoadTracingConfigFromEnvironment(t *testing.T) {
 	cfg := loadTracingConfig(v)
 	expected := config.TracingConfig{
 		Enabled:      true,
-		ServiceName:  "ginchat-test",
+		ServiceName:  "relayim-test",
 		OTLPEndpoint: "http://127.0.0.1:4319",
 		SampleRatio:  0.25,
 	}
@@ -247,11 +247,11 @@ func TestLoadTracingConfigFromEnvironment(t *testing.T) {
 
 // TestLoadAttachmentCleanupConfigFromEnvironment 覆盖附件清理配置的环境变量覆盖和默认值
 func TestLoadAttachmentCleanupConfigFromEnvironment(t *testing.T) {
-	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_ENABLED", "true")
-	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_INTERVAL_SECONDS", "60")
-	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_PENDING_TTL_HOURS", "12")
-	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_CLAIM_LEASE_SECONDS", "120")
-	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_BATCH_SIZE", "25")
+	t.Setenv("RELAYIM_ATTACHMENT_CLEANUP_ENABLED", "true")
+	t.Setenv("RELAYIM_ATTACHMENT_CLEANUP_INTERVAL_SECONDS", "60")
+	t.Setenv("RELAYIM_ATTACHMENT_CLEANUP_PENDING_TTL_HOURS", "12")
+	t.Setenv("RELAYIM_ATTACHMENT_CLEANUP_CLAIM_LEASE_SECONDS", "120")
+	t.Setenv("RELAYIM_ATTACHMENT_CLEANUP_BATCH_SIZE", "25")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -276,12 +276,12 @@ func TestLoadAttachmentCleanupConfigFromEnvironment(t *testing.T) {
 
 // TestLoadObjectStorageConfigFromEnvironment 覆盖对象存储配置的环境变量覆盖和默认值
 func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
-	t.Setenv("GINCHAT_S3_ENDPOINT", "127.0.0.1:8333")
-	t.Setenv("GINCHAT_S3_ACCESS_KEY", "test-access")
-	t.Setenv("GINCHAT_S3_SECRET_KEY", "test-secret")
-	t.Setenv("GINCHAT_S3_BUCKET", "ginchat-test")
-	t.Setenv("GINCHAT_S3_REGION", "us-east-1")
-	t.Setenv("GINCHAT_S3_USE_SSL", "false")
+	t.Setenv("RELAYIM_S3_ENDPOINT", "127.0.0.1:8333")
+	t.Setenv("RELAYIM_S3_ACCESS_KEY", "test-access")
+	t.Setenv("RELAYIM_S3_SECRET_KEY", "test-secret")
+	t.Setenv("RELAYIM_S3_BUCKET", "relayim-test")
+	t.Setenv("RELAYIM_S3_REGION", "us-east-1")
+	t.Setenv("RELAYIM_S3_USE_SSL", "false")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -292,7 +292,7 @@ func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
 	if cfg.Endpoint != "127.0.0.1:8333" ||
 		cfg.AccessKey != "test-access" ||
 		cfg.SecretKey != "test-secret" ||
-		cfg.Bucket != "ginchat-test" ||
+		cfg.Bucket != "relayim-test" ||
 		cfg.Region != "us-east-1" ||
 		cfg.UseSSL {
 		t.Fatalf("LoadObjectStorageConfig() = %+v", cfg)
@@ -301,9 +301,9 @@ func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
 
 // TestLoadWSTicketRateLimitConfigFromEnvironment 覆盖 Ticket 限流配置的环境变量覆盖
 func TestLoadWSTicketRateLimitConfigFromEnvironment(t *testing.T) {
-	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_GLOBAL", "500")
-	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_USER", "20")
-	t.Setenv("GINCHAT_WS_TICKET_RATE_LIMIT_WINDOW_MS", "2000")
+	t.Setenv("RELAYIM_WS_TICKET_RATE_LIMIT_GLOBAL", "500")
+	t.Setenv("RELAYIM_WS_TICKET_RATE_LIMIT_USER", "20")
+	t.Setenv("RELAYIM_WS_TICKET_RATE_LIMIT_WINDOW_MS", "2000")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -323,14 +323,14 @@ func TestLoadWSTicketRateLimitConfigFromEnvironment(t *testing.T) {
 
 // TestLoadMySQLConfigFromEnvironment 覆盖 MySQL 配置的环境变量覆盖
 func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
-	t.Setenv("GINCHAT_MYSQL_HOST", "127.0.0.1")
-	t.Setenv("GINCHAT_MYSQL_PORT", "3307")
-	t.Setenv("GINCHAT_MYSQL_USER", "test-user")
-	t.Setenv("GINCHAT_MYSQL_PASSWORD", "test-password")
-	t.Setenv("GINCHAT_MYSQL_DBNAME", "ginchat_v2")
-	t.Setenv("GINCHAT_MYSQL_CHARSET", "utf8mb4")
-	t.Setenv("GINCHAT_MYSQL_PARSE_TIME", "true")
-	t.Setenv("GINCHAT_MYSQL_LOCATION", "UTC")
+	t.Setenv("RELAYIM_MYSQL_HOST", "127.0.0.1")
+	t.Setenv("RELAYIM_MYSQL_PORT", "3307")
+	t.Setenv("RELAYIM_MYSQL_USER", "test-user")
+	t.Setenv("RELAYIM_MYSQL_PASSWORD", "test-password")
+	t.Setenv("RELAYIM_MYSQL_DBNAME", "relayim")
+	t.Setenv("RELAYIM_MYSQL_CHARSET", "utf8mb4")
+	t.Setenv("RELAYIM_MYSQL_PARSE_TIME", "true")
+	t.Setenv("RELAYIM_MYSQL_LOCATION", "UTC")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -342,7 +342,7 @@ func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
 		cfg.Port != 3307 ||
 		cfg.User != "test-user" ||
 		cfg.Password != "test-password" ||
-		cfg.DBName != "ginchat_v2" ||
+		cfg.DBName != "relayim" ||
 		cfg.Config.Charset != "utf8mb4" ||
 		!cfg.Config.ParseTime ||
 		cfg.Config.Loc != "UTC" {

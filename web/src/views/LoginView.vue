@@ -50,7 +50,7 @@ function switchMode(nextMode: 'login' | 'register') {
             <div class="brand-mark">G</div>
             <h1>消息抵达之前，<br/>每一步都有记录</h1>
             <p class="story-copy">
-                从会话序号、事务写入，到异步投递和设备确认，GinChat
+                从会话序号、事务写入，到异步投递和设备确认，RelayIM
                 把聊天中容易被忽略的状态做成可追踪的记录。
             </p>
             <ol class="delivery-path" aria-label="一条消息的处理路径">
@@ -146,7 +146,7 @@ function switchMode(nextMode: 'login' | 'register') {
                     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
 
                     <button class="primary-button" :disabled="busy" type="submit">
-                        {{ busy ? '处理中…' : mode === 'login' ? '进入 GinChat' : '注册并登录' }}
+                        {{ busy ? '处理中…' : mode === 'login' ? '进入 RelayIM' : '注册并登录' }}
                     </button>
                 </form>
             </div>

@@ -1,9 +1,9 @@
 package conversation
 
 import (
-	conversationapp "ginChatProject/internal/conversation"
-	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/observability"
+	conversationapp "relayim/internal/conversation"
+	"relayim/internal/middleware"
+	"relayim/internal/platform/observability"
 	"time"
 
 	"github.com/gin-gonic/gin"

@@ -7,19 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
 	"github.com/redis/go-redis/v9"
+	"relayim/internal/config"
 )
 
 // TestWSTicketLimiterIntegration 覆盖 WebSocket Ticket 用户和全局滑动限流
 func TestWSTicketLimiterIntegration(t *testing.T) {
-	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
+	address := os.Getenv("RELAYIM_TEST_REDIS_ADDR")
 	if address == "" {
-		t.Skip("未设置 GINCHAT_TEST_REDIS_ADDR，跳过 Redis 限流集成测试")
+		t.Skip("未设置 RELAYIM_TEST_REDIS_ADDR，跳过 Redis 限流集成测试")
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr:     address,
-		Password: os.Getenv("GINCHAT_TEST_REDIS_PASSWORD"),
+		Password: os.Getenv("RELAYIM_TEST_REDIS_PASSWORD"),
 	})
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
@@ -108,13 +108,13 @@ func TestWSTicketLimiterIntegration(t *testing.T) {
 
 // TestWSTicketLimiterSlidingWindowBoundary 覆盖 Ticket 限流窗口滑动后的恢复
 func TestWSTicketLimiterSlidingWindowBoundary(t *testing.T) {
-	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
+	address := os.Getenv("RELAYIM_TEST_REDIS_ADDR")
 	if address == "" {
-		t.Skip("未设置 GINCHAT_TEST_REDIS_ADDR，跳过 Redis 限流集成测试")
+		t.Skip("未设置 RELAYIM_TEST_REDIS_ADDR，跳过 Redis 限流集成测试")
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr:     address,
-		Password: os.Getenv("GINCHAT_TEST_REDIS_PASSWORD"),
+		Password: os.Getenv("RELAYIM_TEST_REDIS_PASSWORD"),
 	})
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {

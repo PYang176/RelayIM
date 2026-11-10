@@ -1,6 +1,6 @@
 # OpenAPI 接口契约
 
-GinChat 采用“契约优先”，直接维护 OpenAPI 3.0.3 文档，不依赖 Handler 注解生成接口说明。
+RelayIM 采用“契约优先”，直接维护 OpenAPI 3.0.3 文档，不依赖 Handler 注解生成接口说明。
 
 ## 1. 文件
 

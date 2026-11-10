@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"ginChatProject/internal/config"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"relayim/internal/config"
 )
 
 type stubLocalSender struct {

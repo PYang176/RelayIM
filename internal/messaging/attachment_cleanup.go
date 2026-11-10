@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"relayim/internal/config"
+	"relayim/internal/platform/observability"
 )
 
 type attachmentCleanupStore interface {
@@ -92,7 +92,7 @@ func (w *AttachmentCleanupWorker) CleanupOnce(
 		"attachment.cleanup",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(attribute.Int(
-			"ginchat.attachment.batch_size",
+			"relayim.attachment.batch_size",
 			w.config.BatchSize,
 		)),
 	)
@@ -114,7 +114,7 @@ func (w *AttachmentCleanupWorker) CleanupOnce(
 		return 0, err
 	}
 	span.SetAttributes(attribute.Int(
-		"ginchat.attachment.candidates",
+		"relayim.attachment.candidates",
 		len(candidates),
 	))
 
@@ -147,7 +147,7 @@ func (w *AttachmentCleanupWorker) CleanupOnce(
 		deleted++
 		w.recordMetric("deleted")
 	}
-	span.SetAttributes(attribute.Int("ginchat.attachment.deleted", deleted))
+	span.SetAttributes(attribute.Int("relayim.attachment.deleted", deleted))
 	return deleted, nil
 }
 

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"ginChatProject/internal/platform/observability"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"relayim/internal/platform/observability"
 )
 
 const (
@@ -340,7 +340,7 @@ func (p *Publisher) PublishRaw(
 			MessageId:    messageID,
 			Timestamp:    occurredAt,
 			Type:         messageType,
-			AppId:        "ginchat",
+			AppId:        "relayim",
 			Body:         body,
 		},
 	)

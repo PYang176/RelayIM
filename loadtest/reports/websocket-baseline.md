@@ -6,7 +6,7 @@
 
 ## 2. 测试目标
 
-验证单实例 GinChat 在 20 个在线 WebSocket 接收连接下：
+验证单实例 RelayIM 在 20 个在线 WebSocket 接收连接下：
 
 - 一次性 Ticket 建连是否稳定。
 - 群消息通过 RabbitMQ Consumer 到在线连接的非阻塞扇出。

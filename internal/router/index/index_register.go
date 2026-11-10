@@ -1,8 +1,8 @@
 package index
 
 import (
-	"ginChatProject/internal/api"
 	"github.com/gin-gonic/gin"
+	"relayim/internal/api"
 )
 
 // Register 注册

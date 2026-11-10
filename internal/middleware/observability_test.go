@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/ratelimit"
 	"github.com/gin-gonic/gin"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/ratelimit"
 )
 
 // TestObserveRequestPreservesSafeRequestID 覆盖安全 Request ID 的原样透传

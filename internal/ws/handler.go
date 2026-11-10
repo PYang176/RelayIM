@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"ginChatProject/internal/platform/authn"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
+	"relayim/internal/platform/authn"
 	"strconv"
 	"time"
 

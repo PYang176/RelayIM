@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/rabbitmq"
+	"relayim/internal/config"
+	"relayim/internal/platform/rabbitmq"
 )
 
 type stubRouteResolver struct {

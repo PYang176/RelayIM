@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"ginChatProject/internal/platform/authn"
-	"ginChatProject/internal/platform/security"
-	"ginChatProject/internal/platform/snowflake"
+	"relayim/internal/platform/authn"
+	"relayim/internal/platform/security"
+	"relayim/internal/platform/snowflake"
 )
 
 const (

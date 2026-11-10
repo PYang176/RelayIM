@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/platform/ratelimit"
 	"github.com/gin-gonic/gin"
+	"relayim/internal/platform/ratelimit"
 )
 
 type rateLimitCall struct {

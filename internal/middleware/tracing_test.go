@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"relayim/internal/platform/observability"
 )
 
 // TestTraceRequestPropagatesIncomingTrace 覆盖 HTTP 请求 Trace 上下文和响应头传播

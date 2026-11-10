@@ -13,9 +13,9 @@ import (
 
 // TestOutboxRepositoryIntegration 覆盖 Outbox 领取、租约、发布和重试状态转换
 func TestOutboxRepositoryIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{

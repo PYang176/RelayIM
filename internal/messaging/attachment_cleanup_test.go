@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
+	"relayim/internal/config"
 )
 
 type stubCleanupStore struct {

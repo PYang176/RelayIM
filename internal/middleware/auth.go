@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"errors"
-	"ginChatProject/internal/platform/authn"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"relayim/internal/platform/authn"
 	"strings"
 )
 

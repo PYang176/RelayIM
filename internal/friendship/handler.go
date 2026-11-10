@@ -2,8 +2,8 @@ package friendship
 
 import (
 	"errors"
-	"ginChatProject/internal/middleware"
 	"net/http"
+	"relayim/internal/middleware"
 	"strconv"
 	"time"
 

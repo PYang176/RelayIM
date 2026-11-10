@@ -1,8 +1,8 @@
-const baseURL1 = process.env.GINCHAT_E2E_BASE_URL_1 ?? 'http://127.0.0.1:18081'
-const baseURL2 = process.env.GINCHAT_E2E_BASE_URL_2 ?? 'http://127.0.0.1:18082'
-const userA = process.env.GINCHAT_E2E_USER_A ?? 'demo_alice_e2e'
-const userB = process.env.GINCHAT_E2E_USER_B ?? 'demo_bob_e2e'
-const password = process.env.GINCHAT_E2E_PASSWORD ?? 'Demo123456!'
+const baseURL1 = process.env.RELAYIM_E2E_BASE_URL_1 ?? 'http://127.0.0.1:18081'
+const baseURL2 = process.env.RELAYIM_E2E_BASE_URL_2 ?? 'http://127.0.0.1:18082'
+const userA = process.env.RELAYIM_E2E_USER_A ?? 'demo_alice_e2e'
+const userB = process.env.RELAYIM_E2E_USER_B ?? 'demo_bob_e2e'
+const password = process.env.RELAYIM_E2E_PASSWORD ?? 'Demo123456!'
 
 async function call(baseURL, path, options = {}, token = '') {
     const headers = new Headers(options.headers)

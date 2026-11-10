@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"ginChatProject/internal/platform/rabbitmq"
+	"relayim/internal/platform/rabbitmq"
 )
 
 // TestMessageEventProcessorRejectsInvalidEvent 覆盖非法领域事件的不可重试处理

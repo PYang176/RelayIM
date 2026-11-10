@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/rabbitmq"
-	"ginChatProject/internal/ws"
 	"gorm.io/gorm"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/rabbitmq"
+	"relayim/internal/ws"
 )
 
 const businessEventsConsumerName = "business-events-v1"

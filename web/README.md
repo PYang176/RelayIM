@@ -1,4 +1,4 @@
-# GinChat Web
+# RelayIM Web
 
 ## 技术栈
 
@@ -47,14 +47,14 @@ src/
 先启动 Go 后端、MySQL、Redis 和 RabbitMQ：
 
 ```powershell
-cd "E:\Develop Projects\golang projects\ginChatProject"
+cd "E:\Develop Projects\golang projects\relayim"
 .\scripts\run-server.ps1
 ```
 
 再启动前端：
 
 ```powershell
-cd "E:\Develop Projects\golang projects\ginChatProject\web"
+cd "E:\Develop Projects\golang projects\relayim\web"
 npm install
 npm run dev
 ```

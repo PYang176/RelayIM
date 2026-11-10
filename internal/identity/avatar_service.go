@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"ginChatProject/internal/platform/snowflake"
+	"relayim/internal/platform/snowflake"
 )
 
 const maxAvatarBytes = 5 << 20

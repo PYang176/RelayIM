@@ -11,12 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/rabbitmq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"relayim/internal/config"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/rabbitmq"
 )
 
 const maxDeliveryPayloadBytes = 1 << 20

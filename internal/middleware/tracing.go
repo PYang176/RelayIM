@@ -3,13 +3,13 @@ package middleware
 import (
 	"net/http"
 
-	"ginChatProject/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"relayim/internal/platform/observability"
 )
 
 // TraceRequest 创建 HTTP Server Span，并提取上游 W3C traceparent。
@@ -32,7 +32,7 @@ func TraceRequest() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 		c.Header("X-Trace-ID", observability.TraceID(ctx))
 		span.SetAttributes(attribute.String(
-			"ginchat.request_id",
+			"relayim.request_id",
 			c.GetString("request_id"),
 		))
 

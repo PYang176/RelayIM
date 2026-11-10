@@ -27,7 +27,7 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: rootpassword
-          MYSQL_DATABASE: ginchat_v2
+          MYSQL_DATABASE: relayim
         ports:
           - 3306:3306
         options: >-
@@ -49,7 +49,7 @@ jobs:
         env:
           RABBITMQ_DEFAULT_USER: admin
           RABBITMQ_DEFAULT_PASS: integration-password
-          RABBITMQ_DEFAULT_VHOST: ginchat
+          RABBITMQ_DEFAULT_VHOST: relayim
         ports:
           - 5672:5672
         options: >-
@@ -58,13 +58,13 @@ jobs:
           --health-timeout=5s
           --health-retries=12
     env:
-      GINCHAT_TEST_MYSQL_DSN: "root:rootpassword@tcp(127.0.0.1:3306)/ginchat_v2?charset=utf8mb4&parseTime=true&loc=UTC"
-      GINCHAT_TEST_REDIS_ADDR: "127.0.0.1:6379"
-      GINCHAT_TEST_REDIS_PASSWORD: ""
-      GINCHAT_TEST_RABBITMQ_URL: "amqp://admin:integration-password@127.0.0.1:5672/ginchat"
-      GINCHAT_TEST_S3_ENDPOINT: "127.0.0.1:8333"
-      GINCHAT_TEST_S3_ACCESS_KEY: "admin"
-      GINCHAT_TEST_S3_SECRET_KEY: "integration-password"
+      RELAYIM_TEST_MYSQL_DSN: "root:rootpassword@tcp(127.0.0.1:3306)/relayim?charset=utf8mb4&parseTime=true&loc=UTC"
+      RELAYIM_TEST_REDIS_ADDR: "127.0.0.1:6379"
+      RELAYIM_TEST_REDIS_PASSWORD: ""
+      RELAYIM_TEST_RABBITMQ_URL: "amqp://admin:integration-password@127.0.0.1:5672/relayim"
+      RELAYIM_TEST_S3_ENDPOINT: "127.0.0.1:8333"
+      RELAYIM_TEST_S3_ACCESS_KEY: "admin"
+      RELAYIM_TEST_S3_SECRET_KEY: "integration-password"
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +76,7 @@ jobs:
       - name: 启动 SeaweedFS
         run: |
           docker run -d \
-            --name ginchat-seaweedfs-ci \
+            --name relayim-seaweedfs-ci \
             -p 8333:8333 \
             -e AWS_ACCESS_KEY_ID=admin \
             -e AWS_SECRET_ACCESS_KEY=integration-password \
@@ -88,14 +88,14 @@ jobs:
             fi
             sleep 2
           done
-          docker logs ginchat-seaweedfs-ci
+          docker logs relayim-seaweedfs-ci
           exit 1
 
       - name: 安装 Goose
         run: go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
 
       - name: 初始化数据库
-        run: "$(go env GOPATH)/bin/goose -dir migrations mysql \"$GINCHAT_TEST_MYSQL_DSN\" up"
+        run: "$(go env GOPATH)/bin/goose -dir migrations mysql \"$RELAYIM_TEST_MYSQL_DSN\" up"
 
       - name: 静态检查
         run: go vet ./...

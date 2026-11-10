@@ -1,10 +1,10 @@
 package identity
 
 import (
-	identityapp "ginChatProject/internal/identity"
-	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/authn"
-	"ginChatProject/internal/platform/observability"
+	identityapp "relayim/internal/identity"
+	"relayim/internal/middleware"
+	"relayim/internal/platform/authn"
+	"relayim/internal/platform/observability"
 	"time"
 
 	"github.com/gin-gonic/gin"

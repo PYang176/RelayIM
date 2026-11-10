@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/jwt"
-	"ginChatProject/internal/platform/redisstore"
-	"ginChatProject/internal/platform/snowflake"
+	"relayim/internal/config"
+	"relayim/internal/platform/jwt"
+	"relayim/internal/platform/redisstore"
+	"relayim/internal/platform/snowflake"
 )
 
 // TestManagerIntegration 覆盖认证管理器的真实 Redis 令牌生命周期
 func TestManagerIntegration(t *testing.T) {
-	redisAddr := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
+	redisAddr := os.Getenv("RELAYIM_TEST_REDIS_ADDR")
 	if redisAddr == "" {
-		t.Skip("未设置 GINCHAT_TEST_REDIS_ADDR，跳过 Redis 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_REDIS_ADDR，跳过 Redis 集成测试")
 	}
 
 	redisHost, redisPortText, err := net.SplitHostPort(redisAddr)
@@ -33,7 +33,7 @@ func TestManagerIntegration(t *testing.T) {
 	if err := redisstore.InitRedis(config.RedisConfig{
 		Host:     redisHost,
 		Port:     redisPort,
-		Password: os.Getenv("GINCHAT_TEST_REDIS_PASSWORD"),
+		Password: os.Getenv("RELAYIM_TEST_REDIS_PASSWORD"),
 		DB:       0,
 	}); err != nil {
 		t.Fatalf("连接测试 Redis 失败: %v", err)

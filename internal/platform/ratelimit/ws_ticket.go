@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"ginChatProject/internal/config"
+	"relayim/internal/config"
 )
 
 // WSTicketLimiter 使用 Redis ZSET 原子检查全局和单用户滑动窗口配额。

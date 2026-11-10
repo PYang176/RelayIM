@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"ginChatProject/internal/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -13,9 +12,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"relayim/internal/config"
 )
 
-const tracerName = "ginchat"
+const tracerName = "relayim"
 
 // InitTracing 初始化 OTLP Trace Provider 并返回关闭函数。
 func InitTracing(

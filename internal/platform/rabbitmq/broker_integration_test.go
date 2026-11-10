@@ -17,9 +17,9 @@ import (
 
 // TestPublisherIntegration 覆盖 RabbitMQ 持久化发布、Confirm 和 Trace Header
 func TestPublisherIntegration(t *testing.T) {
-	rabbitURL := os.Getenv("GINCHAT_TEST_RABBITMQ_URL")
+	rabbitURL := os.Getenv("RELAYIM_TEST_RABBITMQ_URL")
 	if rabbitURL == "" {
-		t.Skip("未设置 GINCHAT_TEST_RABBITMQ_URL，跳过 RabbitMQ 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_RABBITMQ_URL，跳过 RabbitMQ 集成测试")
 	}
 
 	publisher, err := NewPublisher(rabbitURL)

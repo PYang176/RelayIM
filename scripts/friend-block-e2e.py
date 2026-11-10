@@ -131,7 +131,7 @@ def login_ui(page: Page, username: str) -> None:
     page.goto("/login", wait_until="networkidle")
     page.get_by_label("用户名").fill(username)
     page.get_by_label("密码").fill(PASSWORD)
-    page.get_by_role("button", name="进入 GinChat").click()
+    page.get_by_role("button", name="进入 RelayIM").click()
     page.wait_for_url("**/")
     expect(page.locator(".conversation-item").first).to_be_visible()
 
@@ -304,32 +304,32 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="验证 GinChat 好友拉黑链路")
+    parser = argparse.ArgumentParser(description="验证 RelayIM 好友拉黑链路")
     parser.add_argument(
         "--frontend-url",
         default=os.getenv(
-            "GINCHAT_E2E_FRONTEND_URL",
+            "RELAYIM_E2E_FRONTEND_URL",
             "http://127.0.0.1:5173",
         ),
     )
     parser.add_argument(
         "--api-url",
         default=os.getenv(
-            "GINCHAT_E2E_API_URL",
+            "RELAYIM_E2E_API_URL",
             "http://127.0.0.1:8081",
         ),
     )
     parser.add_argument(
         "--output-dir",
         default=os.getenv(
-            "GINCHAT_E2E_OUTPUT_DIR",
+            "RELAYIM_E2E_OUTPUT_DIR",
             ".tmp/friend-block-e2e",
         ),
     )
     parser.add_argument(
         "--chrome-path",
         default=os.getenv(
-            "GINCHAT_E2E_CHROME_PATH",
+            "RELAYIM_E2E_CHROME_PATH",
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         ),
     )

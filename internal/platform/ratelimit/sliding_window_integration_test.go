@@ -148,7 +148,7 @@ func TestSlidingWindowLimiterKeepsRecentRequestsAcrossFixedBoundaries(t *testing
 
 // TestSlidingWindowLimiterRejectsInvalidPolicy 覆盖非法限流策略的拒绝
 func TestSlidingWindowLimiterRejectsInvalidPolicy(t *testing.T) {
-	limiter := NewSlidingWindowLimiter(nil, "ginchat_test")
+	limiter := NewSlidingWindowLimiter(nil, "relayim_test")
 	_, err := limiter.Allow(
 		context.Background(),
 		"",
@@ -165,13 +165,13 @@ func TestSlidingWindowLimiterRejectsInvalidPolicy(t *testing.T) {
 // newRateLimitTestRedis 创建速率限制TestRedis并完成必要依赖注入
 func newRateLimitTestRedis(t *testing.T) *redis.Client {
 	t.Helper()
-	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
+	address := os.Getenv("RELAYIM_TEST_REDIS_ADDR")
 	if address == "" {
-		t.Skip("未设置 GINCHAT_TEST_REDIS_ADDR，跳过 Redis 限流集成测试")
+		t.Skip("未设置 RELAYIM_TEST_REDIS_ADDR，跳过 Redis 限流集成测试")
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr:     address,
-		Password: os.Getenv("GINCHAT_TEST_REDIS_PASSWORD"),
+		Password: os.Getenv("RELAYIM_TEST_REDIS_PASSWORD"),
 	})
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {

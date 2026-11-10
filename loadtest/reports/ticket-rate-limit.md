@@ -33,7 +33,7 @@
 限流拒绝会记录：
 
 ```text
-ginchat_rate_limit_rejected_total{scope="user"}
+relayim_rate_limit_rejected_total{scope="user"}
 ```
 
 ## 4. 原始摘要

@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	"ginChatProject/internal/config"
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"relayim/internal/config"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/rabbitmq"
 )
 
 const (
@@ -140,7 +140,7 @@ func (c *NodeConsumer) processDelivery(
 		return nil
 	}
 	span.SetAttributes(attribute.String(
-		"ginchat.delivery_id",
+		"relayim.delivery_id",
 		command.DeliveryID,
 	))
 	if command.DeliveryID == "" || len(command.UserIDs) == 0 ||
@@ -166,7 +166,7 @@ func (c *NodeConsumer) processDelivery(
 		return nil
 	}
 	sent := c.local.SendToUsers(userIDs, command.Payload)
-	span.SetAttributes(attribute.Int("ginchat.websocket.enqueued", sent))
+	span.SetAttributes(attribute.Int("relayim.websocket.enqueued", sent))
 	return nil
 }
 

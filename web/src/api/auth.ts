@@ -39,7 +39,7 @@ export function login(
             username,
             password,
             device_id: deviceID || undefined,
-            device_name: 'GinChat Web',
+            device_name: 'RelayIM Web',
             platform: 1,
         }),
     })
@@ -138,7 +138,7 @@ export function issueWsTicket(
             method: 'POST',
             body: JSON.stringify({
                 device_id: deviceId || undefined,
-                device_name: 'GinChat Web',
+                device_name: 'RelayIM Web',
                 platform: 1,
             }),
         },

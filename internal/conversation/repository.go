@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"time"
 
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/rabbitmq"
-	"ginChatProject/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/rabbitmq"
+	"relayim/internal/platform/snowflake"
 )
 
 const (

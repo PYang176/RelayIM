@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"ginChatProject/internal/config"
+	"relayim/internal/config"
 	"strconv"
 	"time"
 

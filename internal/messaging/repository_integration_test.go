@@ -11,20 +11,20 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/platform/snowflake"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"relayim/internal/platform/snowflake"
 )
 
 // TestRepositorySendTextIntegration 覆盖消息事务、序号、附件、Outbox 和搜索的完整链路
 func TestRepositorySendTextIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{

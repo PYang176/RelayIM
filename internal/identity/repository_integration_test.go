@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"ginChatProject/internal/platform/authn"
-	"ginChatProject/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"relayim/internal/platform/authn"
+	"relayim/internal/platform/snowflake"
 )
 
 type stubTokenIssuer struct {
@@ -53,9 +53,9 @@ func (s *stubTokenIssuer) Revoke(
 
 // TestUserRegisterAndLoginIntegration 覆盖用户注册、登录和令牌持久化的真实数据库链路
 func TestUserRegisterAndLoginIntegration(t *testing.T) {
-	dsn := os.Getenv("GINCHAT_TEST_MYSQL_DSN")
+	dsn := os.Getenv("RELAYIM_TEST_MYSQL_DSN")
 	if dsn == "" {
-		t.Skip("未设置 GINCHAT_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
+		t.Skip("未设置 RELAYIM_TEST_MYSQL_DSN，跳过 MySQL 集成测试")
 	}
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -147,7 +147,7 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 			UserID:    registered.ID,
 			Nickname:  "更新后的昵称",
 			AvatarURL: testStringPointer("https://example.com/avatar.png"),
-			Bio:       "正在完善 GinChat",
+			Bio:       "正在完善 RelayIM",
 		},
 	)
 	if err != nil {
@@ -155,7 +155,7 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 	}
 	if updated.Nickname != "更新后的昵称" ||
 		updated.AvatarURL != "https://example.com/avatar.png" ||
-		updated.Bio != "正在完善 GinChat" {
+		updated.Bio != "正在完善 RelayIM" {
 		t.Fatalf("更新后用户资料 = %+v", updated)
 	}
 	reloaded, err := service.Me(context.Background(), registered.ID)
@@ -286,7 +286,7 @@ func TestUserRegisterAndLoginIntegration(t *testing.T) {
 		Username:   secondUsername,
 		Password:   password,
 		DeviceID:   login.DeviceID,
-		DeviceName: "GinChat Web",
+		DeviceName: "RelayIM Web",
 		Platform:   1,
 	})
 	if err != nil {

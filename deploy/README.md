@@ -1,4 +1,4 @@
-# GinChat Docker 基础设施
+# RelayIM Docker 基础设施
 
 这套 Compose 配置用于启动项目依赖，暂时不要求把 Go 应用也放进容器：
 
@@ -12,7 +12,7 @@
 MySQL 暂不放入 Compose。开发环境继续使用 Windows 本机的 MySQL 8.0.34。
 
 `deploy/.env` 只保存 Compose 基础设施变量，不会自动注入 Windows 上直接运行的 Go 应用。
-应用配置及其 `GINCHAT_*` 环境变量说明见
+应用配置及其 `RELAYIM_*` 环境变量说明见
 [配置管理指南](../docs/配置管理指南.md)。
 
 ## 首次启动
@@ -76,48 +76,48 @@ AMQP URI 中的 `/` 是路径分隔符，不是 VHost 名称的一部分。
 推荐使用不带前导斜杠的 VHost 名称：
 
 ```text
-ginchat
+relayim
 ```
 
 此时 Windows 上的 Go 程序使用以下连接地址：
 
 ```text
-amqp://<RABBITMQ_DEFAULT_USER>:<RABBITMQ_DEFAULT_PASS>@localhost:5672/ginchat
+amqp://<RABBITMQ_DEFAULT_USER>:<RABBITMQ_DEFAULT_PASS>@localhost:5672/relayim
 ```
 
 配置示例：
 
 ```text
-amqp://admin:你的密码@localhost:5672/ginchat
+amqp://admin:你的密码@localhost:5672/relayim
 ```
 
 ### 已有数据卷的 VHost 初始化
 
 修改 `.env` 中的 `RABBITMQ_VHOST` 不会自动修改已经存在的 RabbitMQ 数据卷。
 
-如果当前 VHost 是 `/ginchat`，需要一次性创建新的 `ginchat` VHost：
+如果当前 VHost 是 `/relayim`，需要一次性创建新的 `relayim` VHost：
 
 ```powershell
-docker exec ginchat-rabbitmq rabbitmqctl add_vhost ginchat
-docker exec ginchat-rabbitmq rabbitmqctl set_permissions -p ginchat admin ".*" ".*" ".*"
+docker exec relayim-rabbitmq rabbitmqctl add_vhost relayim
+docker exec relayim-rabbitmq rabbitmqctl set_permissions -p relayim admin ".*" ".*" ".*"
 ```
 
 随后修改 `deploy\.env`：
 
 ```text
-RABBITMQ_VHOST=ginchat
+RABBITMQ_VHOST=relayim
 ```
 
 确认 VHost：
 
 ```powershell
-docker exec ginchat-rabbitmq rabbitmqctl list_vhosts
+docker exec relayim-rabbitmq rabbitmqctl list_vhosts
 ```
 
-也可以保留已有的 `/ginchat` VHost，但连接地址必须对前导斜杠编码：
+也可以保留已有的 `/relayim` VHost，但连接地址必须对前导斜杠编码：
 
 ```text
-amqp://admin:你的密码@localhost:5672/%2Fginchat
+amqp://admin:你的密码@localhost:5672/%2Frelayim
 ```
 
 ## 指标状态
@@ -128,13 +128,13 @@ RabbitMQ 的 Prometheus 指标地址是：
 rabbitmq:15692
 ```
 
-`ginchat-app` 的抓取地址是：
+`relayim-app` 的抓取地址是：
 
 ```text
 host.docker.internal:8081
 ```
 
-Go 服务提供 `/metrics`、`/health/live` 和 `/health/ready`。Grafana 会自动加载 `GinChat Overview` 面板，详细说明见
+Go 服务提供 `/metrics`、`/health/live` 和 `/health/ready`。Grafana 会自动加载 `RelayIM Overview` 面板，详细说明见
 [可观测性](../docs/可观测性.md)。
 
 ## 对象存储
@@ -157,7 +157,7 @@ MINIO_ROOT_PASSWORD
 默认 Bucket：
 
 ```text
-ginchat-media
+relayim-media
 ```
 
 可以通过 `S3_BUCKET` 修改。

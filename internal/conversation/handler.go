@@ -3,9 +3,9 @@ package conversation
 import (
 	"encoding/base64"
 	"errors"
-	"ginChatProject/internal/middleware"
 	"io"
 	"net/http"
+	"relayim/internal/middleware"
 	"strconv"
 	"strings"
 	"time"

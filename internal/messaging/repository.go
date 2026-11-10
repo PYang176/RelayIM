@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"ginChatProject/internal/platform/observability"
-	"ginChatProject/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"relayim/internal/platform/observability"
+	"relayim/internal/platform/snowflake"
 )
 
 // Repository 负责消息相关数据库事务。

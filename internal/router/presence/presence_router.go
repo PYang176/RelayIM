@@ -1,9 +1,9 @@
 package presence
 
 import (
-	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/observability"
-	presenceapp "ginChatProject/internal/presence"
+	"relayim/internal/middleware"
+	"relayim/internal/platform/observability"
+	presenceapp "relayim/internal/presence"
 	"time"
 
 	"github.com/gin-gonic/gin"

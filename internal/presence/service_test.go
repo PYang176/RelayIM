@@ -29,13 +29,13 @@ func TestNormalizeUserIDs(t *testing.T) {
 
 // TestPresenceServiceIntegration 覆盖 Redis 多设备在线状态的写入、查询和清理
 func TestPresenceServiceIntegration(t *testing.T) {
-	address := os.Getenv("GINCHAT_TEST_REDIS_ADDR")
+	address := os.Getenv("RELAYIM_TEST_REDIS_ADDR")
 	if address == "" {
-		t.Skip("未设置 GINCHAT_TEST_REDIS_ADDR，跳过 Redis 在线状态集成测试")
+		t.Skip("未设置 RELAYIM_TEST_REDIS_ADDR，跳过 Redis 在线状态集成测试")
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr:     address,
-		Password: os.Getenv("GINCHAT_TEST_REDIS_PASSWORD"),
+		Password: os.Getenv("RELAYIM_TEST_REDIS_PASSWORD"),
 	})
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {

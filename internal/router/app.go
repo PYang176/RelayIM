@@ -1,20 +1,20 @@
 package router
 
 import (
-	messagingapp "ginChatProject/internal/messaging"
-	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/observability"
-	presenceapp "ginChatProject/internal/presence"
-	realtimeapp "ginChatProject/internal/realtime"
-	conversationrouter "ginChatProject/internal/router/conversation"
-	friendshiprouter "ginChatProject/internal/router/friendship"
-	identityrouter "ginChatProject/internal/router/identity"
-	"ginChatProject/internal/router/index"
-	messagingrouter "ginChatProject/internal/router/messaging"
-	presencerouter "ginChatProject/internal/router/presence"
-	"ginChatProject/internal/router/ws"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	messagingapp "relayim/internal/messaging"
+	"relayim/internal/middleware"
+	"relayim/internal/platform/observability"
+	presenceapp "relayim/internal/presence"
+	realtimeapp "relayim/internal/realtime"
+	conversationrouter "relayim/internal/router/conversation"
+	friendshiprouter "relayim/internal/router/friendship"
+	identityrouter "relayim/internal/router/identity"
+	"relayim/internal/router/index"
+	messagingrouter "relayim/internal/router/messaging"
+	presencerouter "relayim/internal/router/presence"
+	"relayim/internal/router/ws"
 )
 
 // Router 计算r目标并完成路由

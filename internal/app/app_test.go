@@ -27,7 +27,7 @@ func TestServerAddr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("GINCHAT_SERVER_ADDR", tt.env)
+			t.Setenv("RELAYIM_SERVER_ADDR", tt.env)
 			if got := serverAddr(); got != tt.want {
 				t.Fatalf("serverAddr() = %q, want %q", got, tt.want)
 			}

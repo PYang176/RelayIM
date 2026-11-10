@@ -48,8 +48,8 @@ docker run --rm `
 
 - `http_req_duration{endpoint:send_message}`：消息 HTTP 接口耗时，不等同于 WebSocket 端到端投递延迟。
 - `http_req_failed`：HTTP 失败率。
-- `ginchat_message_accepted_total`：服务端成功持久化的消息数。
-- `ginchat_outbox_events`：压测过程中 Outbox 是否积压。
+- `relayim_message_accepted_total`：服务端成功持久化的消息数。
+- `relayim_outbox_events`：压测过程中 Outbox 是否积压。
 
 压测账号使用 `load_http_*` 前缀，测试结束必须清理，不能把测试消息和 Outbox 事件留在开发库。
 

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"ginChatProject/internal/middleware"
 	"github.com/gin-gonic/gin"
+	"relayim/internal/middleware"
 )
 
 const maxPresenceBodyBytes = 16 << 10

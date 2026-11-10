@@ -3,10 +3,10 @@ package identity
 import (
 	"context"
 	"errors"
-	"ginChatProject/internal/middleware"
-	"ginChatProject/internal/platform/authn"
 	"io"
 	"net/http"
+	"relayim/internal/middleware"
+	"relayim/internal/platform/authn"
 	"strconv"
 	"time"
 
