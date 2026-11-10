@@ -5,3 +5,4 @@
 /.tmp/
 /web/node_modules/
 /web/dist/
+/scripts/__pycache__/

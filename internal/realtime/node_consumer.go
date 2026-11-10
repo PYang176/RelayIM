@@ -9,8 +9,12 @@ import (
 	"time"
 
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -107,17 +111,42 @@ func (c *NodeConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
 ) error {
+	traceParent, _ := delivery.Headers["traceparent"].(string)
+	deliveryCtx := observability.ContextWithTraceParent(ctx, traceParent)
+	deliveryCtx, span := observability.Tracer().Start(
+		deliveryCtx,
+		"rabbitmq.consume ws.delivery",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "rabbitmq"),
+			attribute.String("messaging.destination.name", delivery.RoutingKey),
+		),
+	)
+	defer span.End()
+
 	if len(delivery.Body) > maxDeliveryPayloadBytes {
+		err := fmt.Errorf("节点投递命令超过 1 MB")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		slog.Warn("丢弃超大节点投递命令", "size", len(delivery.Body))
 		return nil
 	}
 	var command NodeDelivery
 	if err := json.Unmarshal(delivery.Body, &command); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		slog.Warn("丢弃无法解析的节点投递命令", "error", err)
 		return nil
 	}
+	span.SetAttributes(attribute.String(
+		"ginchat.delivery_id",
+		command.DeliveryID,
+	))
 	if command.DeliveryID == "" || len(command.UserIDs) == 0 ||
 		len(command.Payload) == 0 {
+		err := fmt.Errorf("节点投递命令字段不完整")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		slog.Warn("丢弃字段不完整的节点投递命令")
 		return nil
 	}
@@ -125,6 +154,8 @@ func (c *NodeConsumer) processDelivery(
 	for _, rawUserID := range command.UserIDs {
 		userID, err := strconv.ParseUint(rawUserID, 10, 64)
 		if err != nil || userID == 0 {
+			span.RecordError(fmt.Errorf("节点投递命令包含非法用户 ID"))
+			span.SetStatus(codes.Error, "非法用户 ID")
 			slog.Warn("丢弃包含非法用户 ID 的节点投递命令")
 			return nil
 		}
@@ -133,7 +164,8 @@ func (c *NodeConsumer) processDelivery(
 	if c.local == nil {
 		return nil
 	}
-	c.local.SendToUsers(userIDs, command.Payload)
+	sent := c.local.SendToUsers(userIDs, command.Payload)
+	span.SetAttributes(attribute.Int("ginchat.websocket.enqueued", sent))
 	return nil
 }
 

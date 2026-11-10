@@ -5,6 +5,7 @@
 - RabbitMQ 4.3.7，包含管理界面和 Prometheus 指标插件。
 - Redis 7.4，启用 AOF 持久化和密码认证。
 - SeaweedFS 4.52，用于图片和文件的 S3 兼容对象存储。
+- Tempo 2.7，用于接收 OpenTelemetry OTLP Trace。
 - Prometheus，负责采集指标。
 - Grafana，负责展示指标面板。
 
@@ -63,6 +64,8 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml down -v
 | SeaweedFS S3 | http://localhost:8333 |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 |
+| Tempo OTLP HTTP | http://localhost:4318 |
+| Tempo HTTP API | http://localhost:3200 |
 
 账号和密码以 `deploy\.env` 为准。
 

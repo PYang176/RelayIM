@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
 	"ginChatProject/internal/ws"
 	"gorm.io/gorm"
@@ -221,6 +222,7 @@ func (p *EventProcessor) processMessageCreated(
 				URL:            attachmentURL,
 				FileName:       payload.AttachmentName,
 				Action:         ws.ActionMessage,
+				TraceID:        observability.TraceID(ctx),
 			})
 			if err != nil {
 				return fmt.Errorf("序列化在线消息: %w", err)
@@ -354,6 +356,7 @@ func (p *EventProcessor) processMessageRecalled(
 			Seq:            payload.Seq,
 			Action:         ws.ActionMessageRecalled,
 			RecalledAt:     payload.RecalledAt.UTC().Format(time.RFC3339Nano),
+			TraceID:        observability.TraceID(ctx),
 		})
 		if err != nil {
 			return fmt.Errorf("序列化在线撤回事件: %w", err)
@@ -439,6 +442,7 @@ func (p *EventProcessor) processGroupInvitationCreated(
 			InviterName:      record.InviterName,
 			InviteRemark:     record.InviteRemark,
 			ExpiresAt:        record.ExpiresAt.UTC().Format(time.RFC3339Nano),
+			TraceID:          observability.TraceID(ctx),
 		})
 		if err != nil {
 			return fmt.Errorf("序列化群邀请实时通知: %w", err)
@@ -498,6 +502,7 @@ func (p *EventProcessor) processGroupInvitationCancelled(
 			Action:         ws.ActionGroupInvitationCancelled,
 			InvitationID:   strconv.FormatUint(invitationID, 10),
 			ConversationID: strconv.FormatUint(conversationID, 10),
+			TraceID:        observability.TraceID(ctx),
 		})
 		if err != nil {
 			return fmt.Errorf("序列化群邀请取消通知: %w", err)

@@ -50,3 +50,18 @@ rate_limit:
 snowflake:
   # 多实例部署时，每个实例必须使用不同且唯一的 worker ID。
   workID: 1
+
+tracing:
+  # 本地开发默认导出到 deploy/docker-compose.yml 中的 Tempo。
+  enabled: true
+  service_name: ginchat
+  otlp_endpoint: http://127.0.0.1:4318
+  sample_ratio: 1.0
+
+attachment_cleanup:
+  # 清理超过 24 小时仍未绑定消息的待确认附件。
+  enabled: true
+  interval_seconds: 3600
+  pending_ttl_hours: 24
+  claim_lease_seconds: 600
+  batch_size: 100

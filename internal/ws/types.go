@@ -42,6 +42,9 @@ type GroupInvitationMessage struct {
 
 	// ExpiresAt 是邀请失效的 UTC 时间。
 	ExpiresAt string `json:"expires_at,omitempty"`
+
+	// TraceID 是产生该通知的 Trace 标识。
+	TraceID string `json:"trace_id,omitempty"`
 }
 
 // WsMessage WebSocket 消息结构
@@ -78,4 +81,7 @@ type WsMessage struct {
 
 	// RecalledAt 是撤回发生的 UTC 时间。
 	RecalledAt string `json:"recalled_at,omitempty"`
+
+	// TraceID 是产生该消息事件的 Trace 标识。
+	TraceID string `json:"trace_id,omitempty"`
 }

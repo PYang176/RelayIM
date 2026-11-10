@@ -12,7 +12,11 @@ import (
 	"time"
 
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const maxDeliveryPayloadBytes = 1 << 20
@@ -89,6 +93,16 @@ func (r *DeliveryRouter) Route(
 	userIDs []uint64,
 	payload []byte,
 ) error {
+	ctx, span := observability.Tracer().Start(
+		ctx,
+		"realtime.route",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.Int("messaging.recipient_count", len(userIDs)),
+		),
+	)
+	defer span.End()
+
 	if len(userIDs) == 0 || len(payload) == 0 {
 		return nil
 	}
@@ -98,6 +112,8 @@ func (r *DeliveryRouter) Route(
 
 	routes, err := r.routes.QueryInstances(ctx, userIDs)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("查询跨实例实时路由: %w", err)
 	}
 	if len(routes) == 0 {
@@ -121,6 +137,7 @@ func (r *DeliveryRouter) Route(
 		instanceIDs = append(instanceIDs, instanceID)
 	}
 	sort.Strings(instanceIDs)
+	span.SetAttributes(attribute.Int("messaging.instance_count", len(instanceIDs)))
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -131,6 +148,8 @@ func (r *DeliveryRouter) Route(
 			groups[instanceID],
 			payload,
 		); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}

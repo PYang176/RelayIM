@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"ginChatProject/internal/platform/observability"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -322,6 +323,10 @@ func (p *Publisher) PublishRaw(
 	occurredAt time.Time,
 	body []byte,
 ) error {
+	headers := amqp.Table{}
+	for key, value := range observability.TraceHeaders(ctx) {
+		headers[key] = value
+	}
 	confirmation, err := p.channel.PublishWithDeferredConfirmWithContext(
 		ctx,
 		exchange,
@@ -329,6 +334,7 @@ func (p *Publisher) PublishRaw(
 		true,
 		false,
 		amqp.Publishing{
+			Headers:      headers,
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
 			MessageId:    messageID,

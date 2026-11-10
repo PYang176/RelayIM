@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
@@ -265,6 +266,7 @@ func (r *Repository) sendMessage(
 			AggregateID:   input.ConversationID,
 			EventType:     "message.created.v1",
 			Payload:       string(payload),
+			TraceParent:   traceParentPointer(observability.TraceParent(ctx)),
 			Status:        outboxStatusPending,
 			AvailableAt:   now,
 			CreatedAt:     now,
@@ -538,6 +540,7 @@ func (r *Repository) recallMessage(
 			AggregateID:   conversationID,
 			EventType:     "message.recalled.v1",
 			Payload:       string(payload),
+			TraceParent:   traceParentPointer(observability.TraceParent(ctx)),
 			Status:        outboxStatusPending,
 			AvailableAt:   now,
 			CreatedAt:     now,
@@ -546,6 +549,13 @@ func (r *Repository) recallMessage(
 		}
 		return nil
 	})
+}
+
+func traceParentPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // acknowledgeMessage 记录消息到具体设备的幂等送达回执。

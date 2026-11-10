@@ -202,6 +202,9 @@ type outboxEvent struct {
 	// Payload 是 RabbitMQ 发布的最小 JSON 载荷。
 	Payload string `gorm:"column:payload"`
 
+	// TraceParent 是创建 Outbox 时记录的 W3C Trace 上下文。
+	TraceParent *string `gorm:"column:trace_parent"`
+
 	// Status 表示发布状态：0 待发布、1 处理中、2 已发布、3 死信。
 	Status int `gorm:"column:status"`
 

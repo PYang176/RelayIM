@@ -10,6 +10,9 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 func TestPublisherIntegration(t *testing.T) {
@@ -61,6 +64,17 @@ func TestPublisherIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	previousPropagator := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() {
+		otel.SetTextMapPropagator(previousPropagator)
+		_ = provider.Shutdown(context.Background())
+	})
+	ctx, span := provider.Tracer("rabbitmq-test").Start(ctx, "publish")
+	defer span.End()
 	deliveries, err := channel.ConsumeWithContext(
 		ctx,
 		queue.Name,
@@ -97,6 +111,9 @@ func TestPublisherIntegration(t *testing.T) {
 		}
 		if delivery.DeliveryMode != amqp.Persistent {
 			t.Fatalf("DeliveryMode = %d，期望持久化", delivery.DeliveryMode)
+		}
+		if traceParent, _ := delivery.Headers["traceparent"].(string); traceParent == "" {
+			t.Fatal("RabbitMQ 消息缺少 traceparent 头")
 		}
 		if err := delivery.Ack(false); err != nil {
 			t.Fatalf("ACK 测试消息失败: %v", err)

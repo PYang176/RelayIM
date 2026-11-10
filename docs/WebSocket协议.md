@@ -51,11 +51,14 @@ RabbitMQ Consumer 完成事件幂等校验后，会向同一会话全部有效�
   "sender_id": "1839281749283749001",
   "seq": 7,
   "msg_type": 1,
-  "content": "你好"
+  "content": "你好",
+  "trace_id": "3e59b06f3d94221356882648b8dbd208"
 }
 ```
 
 客户端必须以 `message_id` 去重，并按 `conversation_id + seq` 排序。RabbitMQ 采用至少一次投递，不能依赖 WebSocket 帧顺序作为最终消息顺序。
+
+`trace_id` 是该事件在服务端 OpenTelemetry Trace 中的标识，只用于可观测性排查，不参与业务权限或消息去重。生产业务逻辑不能依赖该字段存在。
 
 实时消息可能因重试、跨实例节点队列或网络延迟乱序到达。WebSocket 只负责在线实时事件，不重复推送完整离线历史。客户端维护每个会话的连续 `seq` 水位：
 

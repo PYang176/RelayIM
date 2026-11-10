@@ -94,3 +94,36 @@ type WSTicketRateLimitConfig struct {
 	// WindowMilliseconds 是滑动限流窗口长度。
 	WindowMilliseconds int `mapstructure:"window_ms"`
 }
+
+// TracingConfig 控制 OpenTelemetry Trace 的采样和 OTLP 导出。
+type TracingConfig struct {
+	// Enabled 表示是否启用 Trace；关闭时使用无操作 Provider。
+	Enabled bool `mapstructure:"enabled"`
+
+	// ServiceName 是 Trace 中展示的服务名称。
+	ServiceName string `mapstructure:"service_name"`
+
+	// OTLPEndpoint 是 OTLP HTTP Trace 接收地址。
+	OTLPEndpoint string `mapstructure:"otlp_endpoint"`
+
+	// SampleRatio 是根 Span 的采样比例，范围 0 到 1。
+	SampleRatio float64 `mapstructure:"sample_ratio"`
+}
+
+// AttachmentCleanupConfig 控制未绑定附件的后台清理。
+type AttachmentCleanupConfig struct {
+	// Enabled 表示是否启动清理任务。
+	Enabled bool `mapstructure:"enabled"`
+
+	// IntervalSeconds 是两轮清理之间的间隔。
+	IntervalSeconds int `mapstructure:"interval_seconds"`
+
+	// PendingTTLHours 是待确认附件进入清理前保留的小时数。
+	PendingTTLHours int `mapstructure:"pending_ttl_hours"`
+
+	// ClaimLeaseSeconds 是清理中状态的最长租约，用于回收崩溃任务。
+	ClaimLeaseSeconds int `mapstructure:"claim_lease_seconds"`
+
+	// BatchSize 是单轮最多清理的附件数。
+	BatchSize int `mapstructure:"batch_size"`
+}

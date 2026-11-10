@@ -9,8 +9,12 @@ import (
 	"time"
 
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const maxEventBodyBytes = 1 << 20
@@ -103,25 +107,53 @@ func (c *EventConsumer) processDelivery(
 	ctx context.Context,
 	delivery amqp.Delivery,
 ) error {
+	traceParent, _ := delivery.Headers["traceparent"].(string)
+	consumerCtx := observability.ContextWithTraceParent(ctx, traceParent)
+	consumerCtx, span := observability.Tracer().Start(
+		consumerCtx,
+		"rabbitmq.consume",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "rabbitmq"),
+			attribute.String("messaging.destination.name", delivery.RoutingKey),
+		),
+	)
+	defer span.End()
+
 	startedAt := time.Now()
 	if len(delivery.Body) > maxEventBodyBytes {
-		c.recordMetrics("invalid", "dead", startedAt, time.Time{})
-		return permanentEventError{err: fmt.Errorf(
+		err := permanentEventError{err: fmt.Errorf(
 			"%w: 事件体超过 1 MB",
 			ErrInvalidEvent,
 		)}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.recordMetrics("invalid", "dead", startedAt, time.Time{})
+		return err
 	}
 
 	var envelope rabbitmq.EventEnvelope
 	if err := json.Unmarshal(delivery.Body, &envelope); err != nil {
-		c.recordMetrics("invalid", "dead", startedAt, time.Time{})
-		return permanentEventError{err: fmt.Errorf(
+		eventErr := permanentEventError{err: fmt.Errorf(
 			"%w: 解析事件信封: %v",
 			ErrInvalidEvent,
 			err,
 		)}
+		span.RecordError(eventErr)
+		span.SetStatus(codes.Error, eventErr.Error())
+		c.recordMetrics("invalid", "dead", startedAt, time.Time{})
+		return eventErr
 	}
-	err := c.processor.Process(ctx, envelope)
+	span.SetName("rabbitmq.consume " + envelope.EventType)
+	span.SetAttributes(
+		attribute.String("messaging.message.id", envelope.EventID),
+		attribute.String("messaging.operation.name", "process"),
+	)
+	err := c.processor.Process(consumerCtx, envelope)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	c.recordMetrics(
 		envelope.EventType,
 		messageEventResult(err, delivery.Headers),

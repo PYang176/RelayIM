@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"ginChatProject/internal/platform/snowflake"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -155,8 +159,21 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 
 	repository := NewRepository(db)
 	service := NewService(repository)
+	traceProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	previousPropagator := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() {
+		otel.SetTextMapPropagator(previousPropagator)
+		_ = traceProvider.Shutdown(context.Background())
+	})
+	sendCtx, sendSpan := traceProvider.Tracer("test").Start(
+		context.Background(),
+		"send-message",
+	)
 	// 场景 1：正常发送首条消息，验证 seq 从 1 开始且首次请求不标记重复。
-	first, err := service.SendText(context.Background(), SendTextCommand{
+	first, err := service.SendText(sendCtx, SendTextCommand{
 		ConversationID:  conversationID,
 		SenderID:        ownerID,
 		ClientMessageID: "client-message-1",
@@ -167,6 +184,18 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	}
 	if first.Seq != 1 || first.Duplicate {
 		t.Fatalf("首条消息结果 = %+v，期望 seq=1 且非重复", first)
+	}
+	sendSpan.End()
+	var persistedTraceParent string
+	if err := db.Table("outbox_events").
+		Where("aggregate_id = ? AND event_type = ?", conversationID, "message.created.v1").
+		Order("id DESC").
+		Pluck("trace_parent", &persistedTraceParent).Error; err != nil {
+		t.Fatalf("查询 Outbox Trace 上下文失败: %v", err)
+	}
+	if persistedTraceParent == "" ||
+		!strings.HasPrefix(persistedTraceParent, "00-") {
+		t.Fatalf("Outbox trace_parent = %q", persistedTraceParent)
 	}
 
 	// 场景 2：模拟客户端超时重试，必须返回原消息而不是再分配 seq。

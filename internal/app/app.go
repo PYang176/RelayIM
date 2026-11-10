@@ -100,6 +100,24 @@ func Run() error {
 	)
 	serviceInstanceID := instanceID()
 	slog.Info("服务实例标识已生成", "instance_id", serviceInstanceID)
+	shutdownTracing, err := observability.InitTracing(
+		ctx,
+		bootstrap.LoadTracingConfig(),
+		serviceInstanceID,
+	)
+	if err != nil {
+		return fmt.Errorf("初始化 OpenTelemetry Trace: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			5*time.Second,
+		)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			slog.Warn("关闭 OpenTelemetry Trace 失败", "error", err)
+		}
+	}()
 	presenceService := presence.NewService(redisstore.RDB, "ginchat")
 	realtimeRegistry := realtime.NewRegistry(
 		redisstore.RDB,

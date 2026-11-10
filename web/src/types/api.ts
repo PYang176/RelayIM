@@ -163,6 +163,7 @@ export interface WsMessage {
     inviter_name?: string
     invite_remark?: string
     expires_at?: string
+    trace_id?: string
 }
 
 export interface ReadState {

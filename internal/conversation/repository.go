@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
 	"ginChatProject/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
@@ -170,6 +171,7 @@ func (r *Repository) CreateGroup(
 			memberUserIDs,
 			inviteRemark,
 			now,
+			observability.TraceParent(ctx),
 		)
 		return err
 	})
@@ -408,6 +410,7 @@ func (r *Repository) InviteMembers(
 			memberUserIDs,
 			inviteRemark,
 			now,
+			observability.TraceParent(ctx),
 		)
 		if err != nil {
 			return err
@@ -431,6 +434,7 @@ func createGroupInvitations(
 	inviteeIDs []uint64,
 	inviteRemark string,
 	now time.Time,
+	traceParent string,
 ) (int, error) {
 	var members []conversationMember
 	if err := tx.Where(
@@ -533,6 +537,7 @@ func createGroupInvitations(
 			invitation,
 			rabbitmq.GroupInvitationCreatedRoutingKey,
 			now,
+			traceParent,
 		); err != nil {
 			return 0, err
 		}
@@ -545,6 +550,7 @@ func createGroupInvitationOutboxEvent(
 	invitation groupInvitation,
 	eventType string,
 	now time.Time,
+	traceParent string,
 ) error {
 	payload, err := json.Marshal(groupInvitationEventPayload{
 		InvitationID:   fmt.Sprintf("%d", invitation.ID),
@@ -557,12 +563,13 @@ func createGroupInvitationOutboxEvent(
 	if err := tx.Exec(
 		`INSERT INTO outbox_events
 			(event_id, aggregate_type, aggregate_id, event_type, payload,
-			 status, attempt_count, available_at, created_at)
-		 VALUES (?, 'conversation', ?, ?, ?, 0, 0, ?, ?)`,
+			 trace_parent, status, attempt_count, available_at, created_at)
+		 VALUES (?, 'conversation', ?, ?, ?, ?, 0, 0, ?, ?)`,
 		uint64(snowflake.Generate()),
 		invitation.ConversationID,
 		eventType,
 		string(payload),
+		nullableTraceParent(traceParent),
 		now,
 		now,
 	).Error; err != nil {
@@ -794,6 +801,7 @@ func (r *Repository) cancelInvitation(
 			invitation,
 			rabbitmq.GroupInvitationCancelledRoutingKey,
 			now,
+			observability.TraceParent(ctx),
 		)
 	})
 }
@@ -1431,6 +1439,13 @@ func isForeignKeyError(err error) bool {
 }
 
 func nullableString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func nullableTraceParent(value string) *string {
 	if value == "" {
 		return nil
 	}

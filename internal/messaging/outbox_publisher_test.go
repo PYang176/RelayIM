@@ -3,12 +3,17 @@ package messaging
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 type stubOutboxStore struct {
@@ -67,16 +72,18 @@ func (s *stubOutboxStore) markOutboxDead(
 }
 
 type stubEventPublisher struct {
-	err       error
-	envelopes []rabbitmq.EventEnvelope
-	closed    chan *amqp.Error
+	err          error
+	envelopes    []rabbitmq.EventEnvelope
+	traceParents []string
+	closed       chan *amqp.Error
 }
 
 func (s *stubEventPublisher) Publish(
-	_ context.Context,
+	ctx context.Context,
 	envelope rabbitmq.EventEnvelope,
 ) error {
 	s.envelopes = append(s.envelopes, envelope)
+	s.traceParents = append(s.traceParents, observability.TraceParent(ctx))
 	return s.err
 }
 
@@ -90,6 +97,21 @@ func (s *stubEventPublisher) Close() error {
 
 func TestOutboxWorkerDispatchPublished(t *testing.T) {
 	createdAt := time.Date(2026, time.November, 7, 9, 0, 0, 0, time.UTC)
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	previousPropagator := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() {
+		otel.SetTextMapPropagator(previousPropagator)
+		_ = provider.Shutdown(context.Background())
+	})
+	parentCtx, parentSpan := provider.Tracer("test").Start(
+		context.Background(),
+		"send-message",
+	)
+	parentTraceParent := observability.TraceParent(parentCtx)
+	parentSpan.End()
 	store := &stubOutboxStore{
 		events: []outboxEvent{
 			{
@@ -98,6 +120,7 @@ func TestOutboxWorkerDispatchPublished(t *testing.T) {
 				AggregateID:  200,
 				EventType:    "message.created.v1",
 				Payload:      `{"message_id":"300"}`,
+				TraceParent:  &parentTraceParent,
 				AttemptCount: 1,
 				CreatedAt:    createdAt,
 			},
@@ -130,6 +153,24 @@ func TestOutboxWorkerDispatchPublished(t *testing.T) {
 		!envelope.OccurredAt.Equal(createdAt) {
 		t.Fatalf("事件信封 = %+v", envelope)
 	}
+	if len(publisher.traceParents) != 1 ||
+		publisher.traceParents[0] == "" ||
+		traceIDPart(publisher.traceParents[0]) !=
+			traceIDPart(parentTraceParent) {
+		t.Fatalf(
+			"Outbox 发布 traceparent = %v，父级 = %q",
+			publisher.traceParents,
+			parentTraceParent,
+		)
+	}
+}
+
+func traceIDPart(traceParent string) string {
+	parts := strings.Split(traceParent, "-")
+	if len(parts) != 4 {
+		return ""
+	}
+	return parts[1]
 }
 
 func TestOutboxWorkerRetriesFailedPublish(t *testing.T) {

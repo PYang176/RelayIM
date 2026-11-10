@@ -9,8 +9,12 @@ import (
 	"time"
 
 	"ginChatProject/internal/config"
+	"ginChatProject/internal/platform/observability"
 	"ginChatProject/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -168,6 +172,26 @@ func (w *OutboxWorker) publishEvent(
 	publisher eventPublisher,
 	event outboxEvent,
 ) error {
+	traceParent := ""
+	if event.TraceParent != nil {
+		traceParent = *event.TraceParent
+	}
+	eventCtx := observability.ContextWithTraceParent(ctx, traceParent)
+	eventCtx, span := observability.Tracer().Start(
+		eventCtx,
+		"outbox.publish "+event.EventType,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.Int64("outbox.id", int64(event.ID)),
+			attribute.String("messaging.message.id", strconv.FormatUint(
+				event.EventID,
+				10,
+			)),
+			attribute.String("messaging.destination.name", event.EventType),
+		),
+	)
+	defer span.End()
+
 	envelope := rabbitmq.EventEnvelope{
 		EventID:     strconv.FormatUint(event.EventID, 10),
 		EventType:   event.EventType,
@@ -180,7 +204,7 @@ func (w *OutboxWorker) publishEvent(
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	publishCtx, cancel := context.WithTimeout(ctx, timeout)
+	publishCtx, cancel := context.WithTimeout(eventCtx, timeout)
 	publishErr := publisher.Publish(publishCtx, envelope)
 	cancel()
 
@@ -195,6 +219,8 @@ func (w *OutboxWorker) publishEvent(
 		}
 		return nil
 	}
+	span.RecordError(publishErr)
+	span.SetStatus(codes.Error, publishErr.Error())
 
 	lastError := publishErr.Error()
 	maxAttempts := w.config.MaxPublishAttempts

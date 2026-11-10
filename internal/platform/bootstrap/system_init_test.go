@@ -196,6 +196,56 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+func TestLoadTracingConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GINCHAT_TRACING_ENABLED", "true")
+	t.Setenv("GINCHAT_TRACING_SERVICE_NAME", "ginchat-test")
+	t.Setenv("GINCHAT_TRACING_OTLP_ENDPOINT", "http://127.0.0.1:4319")
+	t.Setenv("GINCHAT_TRACING_SAMPLE_RATIO", "0.25")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+	cfg := loadTracingConfig(v)
+	expected := config.TracingConfig{
+		Enabled:      true,
+		ServiceName:  "ginchat-test",
+		OTLPEndpoint: "http://127.0.0.1:4319",
+		SampleRatio:  0.25,
+	}
+	if cfg != expected {
+		t.Fatalf("LoadTracingConfig() = %+v，期望 %+v", cfg, expected)
+	}
+}
+
+func TestLoadAttachmentCleanupConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_ENABLED", "true")
+	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_INTERVAL_SECONDS", "60")
+	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_PENDING_TTL_HOURS", "12")
+	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_CLAIM_LEASE_SECONDS", "120")
+	t.Setenv("GINCHAT_ATTACHMENT_CLEANUP_BATCH_SIZE", "25")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+	cfg := loadAttachmentCleanupConfig(v)
+	expected := config.AttachmentCleanupConfig{
+		Enabled:           true,
+		IntervalSeconds:   60,
+		PendingTTLHours:   12,
+		ClaimLeaseSeconds: 120,
+		BatchSize:         25,
+	}
+	if cfg != expected {
+		t.Fatalf(
+			"LoadAttachmentCleanupConfig() = %+v，期望 %+v",
+			cfg,
+			expected,
+		)
+	}
+}
+
 func TestLoadObjectStorageConfigFromEnvironment(t *testing.T) {
 	t.Setenv("GINCHAT_S3_ENDPOINT", "127.0.0.1:8333")
 	t.Setenv("GINCHAT_S3_ACCESS_KEY", "test-access")

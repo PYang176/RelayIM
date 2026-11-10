@@ -1432,7 +1432,7 @@
     }
   },
   "info": {
-    "description": "GinChat 即时通讯服务的 HTTP 接口契约。\n\n- Snowflake ID 一律使用字符串，避免 JavaScript 数字精度丢失。\n- 除注册、登录、刷新、健康检查和首页外，接口均使用 Bearer JWT。\n- 限流接口可能返回 429，并携带 Retry-After 与 X-RateLimit-Scope。\n- WebSocket 建连流程和实时事件见 docs/WebSocket协议.md。\n",
+    "description": "GinChat 即时通讯服务的 HTTP 接口契约。\n\n- Snowflake ID 一律使用字符串，避免 JavaScript 数字精度丢失。\n- 除注册、登录、刷新、健康检查和首页外，接口均使用 Bearer JWT。\n- 限流接口可能返回 429，并携带 Retry-After 与 X-RateLimit-Scope。\n- 启用 OpenTelemetry 时，HTTP 响应携带 X-Trace-ID，可用于在 Tempo 中查询链路。\n- WebSocket 建连流程和实时事件见 docs/WebSocket协议.md。\n",
     "title": "GinChat API",
     "version": "1.0.0"
   },

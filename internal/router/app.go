@@ -34,6 +34,7 @@ func Router(
 	r.ForwardedByClientIP = false
 	r.Use(
 		middleware.ObserveRequest(metrics),
+		middleware.TraceRequest(),
 		gin.Recovery(),
 	)
 
