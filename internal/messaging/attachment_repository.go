@@ -7,7 +7,19 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+type attachmentCleanupCandidate struct {
+	// ID 是待清理附件 Snowflake ID。
+	ID uint64 `gorm:"column:id"`
+
+	// ObjectKey 是对象存储中的内部键。
+	ObjectKey string `gorm:"column:object_key"`
+
+	// CreatedAt 是附件元数据创建时间。
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
 
 func (r *Repository) createAttachment(
 	ctx context.Context,
@@ -47,6 +59,126 @@ func (r *Repository) deleteAttachmentMetadata(
 	return r.db.WithContext(ctx).
 		Where("id = ?", attachmentID).
 		Delete(&attachment{}).Error
+}
+
+// claimOrphanAttachments 领取超过 TTL 且未绑定消息的附件。
+func (r *Repository) claimOrphanAttachments(
+	ctx context.Context,
+	now time.Time,
+	pendingTTL time.Duration,
+	lease time.Duration,
+	limit int,
+) ([]attachmentCleanupCandidate, error) {
+	var candidates []attachmentCleanupCandidate
+	cutoff := now.Add(-pendingTTL)
+	staleLease := now.Add(-lease)
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("attachments AS a").
+			Select("a.id, a.object_key, a.created_at").
+			Where(
+				"((a.status IN ? AND a.created_at < ?) OR "+
+					"(a.status = ? AND a.cleanup_started_at < ?)) "+
+					"AND NOT EXISTS ("+
+					"SELECT 1 FROM messages AS m WHERE m.attachment_id = a.id)",
+				[]int{
+					attachmentStatusPending,
+					attachmentStatusDeleted,
+				},
+				cutoff,
+				attachmentStatusCleaning,
+				staleLease,
+			).
+			Order("a.created_at ASC").
+			Limit(limit).
+			Clauses(clause.Locking{
+				Strength: "UPDATE",
+				Options:  "SKIP LOCKED",
+			}).
+			Find(&candidates).Error; err != nil {
+			return fmt.Errorf("查询孤儿附件: %w", err)
+		}
+		if len(candidates) == 0 {
+			return nil
+		}
+		ids := make([]uint64, 0, len(candidates))
+		for _, candidate := range candidates {
+			ids = append(ids, candidate.ID)
+		}
+		if err := tx.Model(&attachment{}).
+			Where("id IN ?", ids).
+			Updates(map[string]any{
+				"status":             attachmentStatusCleaning,
+				"cleanup_started_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("领取孤儿附件: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return candidates, nil
+}
+
+// markAttachmentCleanupFailed 把清理失败附件放回可重试状态。
+func (r *Repository) markAttachmentCleanupFailed(
+	ctx context.Context,
+	attachmentID uint64,
+) error {
+	result := r.db.WithContext(ctx).
+		Model(&attachment{}).
+		Where("id = ? AND status = ?", attachmentID, attachmentStatusCleaning).
+		Updates(map[string]any{
+			"status":             attachmentStatusDeleted,
+			"cleanup_started_at": nil,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("标记附件清理失败: %w", result.Error)
+	}
+	return nil
+}
+
+// deleteCleanedAttachmentMetadata 删除已经移除对象的附件元数据。
+func (r *Repository) deleteCleanedAttachmentMetadata(
+	ctx context.Context,
+	attachmentID uint64,
+) error {
+	result := r.db.WithContext(ctx).
+		Where("id = ? AND status = ?", attachmentID, attachmentStatusCleaning).
+		Delete(&attachment{})
+	if result.Error != nil {
+		return fmt.Errorf("删除清理后附件元数据: %w", result.Error)
+	}
+	return nil
+}
+
+// CountOrphanAttachments 统计当前满足清理条件的孤儿附件数量。
+func (r *Repository) CountOrphanAttachments(
+	ctx context.Context,
+	now time.Time,
+	pendingTTL time.Duration,
+	lease time.Duration,
+) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Table("attachments AS a").
+		Where(
+			"((a.status IN ? AND a.created_at < ?) OR "+
+				"(a.status = ? AND a.cleanup_started_at < ?)) "+
+				"AND NOT EXISTS ("+
+				"SELECT 1 FROM messages AS m WHERE m.attachment_id = a.id)",
+			[]int{
+				attachmentStatusPending,
+				attachmentStatusDeleted,
+			},
+			now.Add(-pendingTTL),
+			attachmentStatusCleaning,
+			now.Add(-lease),
+		).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("统计孤儿附件: %w", err)
+	}
+	return count, nil
 }
 
 func (r *Repository) findAccessibleAttachment(

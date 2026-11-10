@@ -44,6 +44,9 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	directConversationID := uint64(snowflake.Generate())
 	memberDeviceID := uint64(snowflake.Generate())
 	attachmentID := uint64(snowflake.Generate())
+	oldOrphanID := uint64(snowflake.Generate())
+	freshPendingID := uint64(snowflake.Generate())
+	staleCleaningID := uint64(snowflake.Generate())
 	userIDs := []uint64{ownerID, memberID, outsiderID}
 
 	// 先注册清理函数，保证后续任何步骤失败时都不会把测试数据留在本地库。
@@ -58,6 +61,10 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 			{"DELETE FROM messages WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM messages WHERE conversation_id = ?", []any{directConversationID}},
 			{"DELETE FROM attachments WHERE id = ?", []any{attachmentID}},
+			{
+				"DELETE FROM attachments WHERE id IN (?, ?, ?)",
+				[]any{oldOrphanID, freshPendingID, staleCleaningID},
+			},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{conversationID}},
 			{"DELETE FROM conversation_members WHERE conversation_id = ?", []any{directConversationID}},
 			{"DELETE FROM conversations WHERE id = ?", []any{conversationID}},
@@ -110,6 +117,50 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		1024,
 	).Error; err != nil {
 		t.Fatalf("创建测试附件失败: %v", err)
+	}
+	cleanupNow := time.Now().UTC()
+	for _, record := range []struct {
+		id        uint64
+		key       string
+		status    int
+		createdAt time.Time
+		startedAt *time.Time
+	}{
+		{
+			id:        oldOrphanID,
+			key:       fmt.Sprintf("tests/%d/old.bin", oldOrphanID),
+			status:    attachmentStatusPending,
+			createdAt: cleanupNow.Add(-48 * time.Hour),
+		},
+		{
+			id:        freshPendingID,
+			key:       fmt.Sprintf("tests/%d/fresh.bin", freshPendingID),
+			status:    attachmentStatusPending,
+			createdAt: cleanupNow.Add(-time.Hour),
+		},
+		{
+			id:        staleCleaningID,
+			key:       fmt.Sprintf("tests/%d/stale.bin", staleCleaningID),
+			status:    attachmentStatusCleaning,
+			createdAt: cleanupNow.Add(-48 * time.Hour),
+			startedAt: timePointer(cleanupNow.Add(-time.Hour)),
+		},
+	} {
+		if err := db.Exec(
+			`INSERT INTO attachments
+				(id, owner_id, object_key, original_name, mime_type,
+				 size_bytes, status, cleanup_started_at, created_at)
+			 VALUES (?, ?, ?, ?, 'application/octet-stream', 4, ?, ?, ?)`,
+			record.id,
+			ownerID,
+			record.key,
+			"cleanup.bin",
+			record.status,
+			record.startedAt,
+			record.createdAt,
+		).Error; err != nil {
+			t.Fatalf("创建孤儿附件清理测试数据失败: %v", err)
+		}
 	}
 
 	// 使用群会话测试，因为同一张 conversation_members 表也能代表发送权限。
@@ -610,6 +661,31 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		t.Fatalf("撤回 Outbox 数量 = %d，期望 1", recallOutboxCount)
 	}
 
+	cleanupCandidates, err := repository.claimOrphanAttachments(
+		context.Background(),
+		cleanupNow,
+		24*time.Hour,
+		10*time.Minute,
+		10,
+	)
+	if err != nil {
+		t.Fatalf("领取孤儿附件失败: %v", err)
+	}
+	if len(cleanupCandidates) != 2 ||
+		cleanupCandidates[0].ID != oldOrphanID ||
+		cleanupCandidates[1].ID != staleCleaningID {
+		t.Fatalf("孤儿附件候选 = %+v", cleanupCandidates)
+	}
+	var freshStatus int
+	if err := db.Table("attachments").
+		Where("id = ?", freshPendingID).
+		Pluck("status", &freshStatus).Error; err != nil {
+		t.Fatalf("查询新附件状态失败: %v", err)
+	}
+	if freshStatus != attachmentStatusPending {
+		t.Fatalf("新附件状态 = %d，期望 %d", freshStatus, attachmentStatusPending)
+	}
+
 	var memberMessage message
 	if err := db.Where(
 		"conversation_id = ? AND sender_id = ?",
@@ -656,6 +732,10 @@ func equalSequences(got []uint64, want []uint64) bool {
 		}
 	}
 	return true
+}
+
+func timePointer(value time.Time) *time.Time {
+	return &value
 }
 
 func hasReadState(states []ReadStateResult, userID uint64, seq uint64) bool {

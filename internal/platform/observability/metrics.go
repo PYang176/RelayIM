@@ -14,16 +14,17 @@ import (
 
 // Metrics 持有当前进程独立的 Prometheus 注册表和业务指标。
 type Metrics struct {
-	registry       *prometheus.Registry
-	requests       *prometheus.CounterVec
-	requestLatency *prometheus.HistogramVec
-	inFlight       prometheus.Gauge
-	messages       *prometheus.CounterVec
-	attachments    *prometheus.CounterVec
-	rateLimited    *prometheus.CounterVec
-	messageEvents  *prometheus.CounterVec
-	eventDuration  *prometheus.HistogramVec
-	eventLag       *prometheus.HistogramVec
+	registry          *prometheus.Registry
+	requests          *prometheus.CounterVec
+	requestLatency    *prometheus.HistogramVec
+	inFlight          prometheus.Gauge
+	messages          *prometheus.CounterVec
+	attachments       *prometheus.CounterVec
+	attachmentCleanup *prometheus.CounterVec
+	rateLimited       *prometheus.CounterVec
+	messageEvents     *prometheus.CounterVec
+	eventDuration     *prometheus.HistogramVec
+	eventLag          *prometheus.HistogramVec
 }
 
 // NewMetrics 创建指标注册表和 HTTP、运行时基础指标。
@@ -89,6 +90,15 @@ func NewMetrics() *Metrics {
 				Subsystem: "attachment",
 				Name:      "uploads_total",
 				Help:      "附件上传统计",
+			},
+			[]string{"result"},
+		),
+		attachmentCleanup: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "ginchat",
+				Subsystem: "attachment_cleanup",
+				Name:      "total",
+				Help:      "孤儿附件清理结果数量",
 			},
 			[]string{"result"},
 		),
@@ -165,6 +175,7 @@ func NewMetrics() *Metrics {
 		metrics.inFlight,
 		metrics.messages,
 		metrics.attachments,
+		metrics.attachmentCleanup,
 		metrics.rateLimited,
 		metrics.messageEvents,
 		metrics.eventDuration,
@@ -195,6 +206,18 @@ func (m *Metrics) RecordAttachmentUpload(success bool) {
 		result = "success"
 	}
 	m.attachments.WithLabelValues(result).Inc()
+}
+
+// RecordAttachmentCleanup 记录孤儿附件清理结果。
+func (m *Metrics) RecordAttachmentCleanup(result string) {
+	m.attachmentCleanup.WithLabelValues(result).Inc()
+}
+
+// RegisterAttachmentOrphanStats 注册孤儿附件数量采集器。
+func (m *Metrics) RegisterAttachmentOrphanStats(
+	load func(ctx context.Context) (int64, error),
+) {
+	m.registry.MustRegister(&attachmentOrphanCollector{load: load})
 }
 
 // RecordRateLimitRejected 记录被限流拒绝的请求。
@@ -346,12 +369,42 @@ var (
 		nil,
 		nil,
 	)
+	attachmentOrphansDesc = prometheus.NewDesc(
+		"ginchat_attachment_orphans",
+		"当前满足清理条件的孤儿附件数量",
+		nil,
+		nil,
+	)
 )
 
 // Describe 描述 Outbox 采集器产生的指标。
 func (c *outboxCollector) Describe(channel chan<- *prometheus.Desc) {
 	channel <- outboxEventsDesc
 	channel <- outboxQuerySuccessDesc
+}
+
+type attachmentOrphanCollector struct {
+	load func(ctx context.Context) (int64, error)
+}
+
+// Describe 描述孤儿附件采集器产生的指标。
+func (c *attachmentOrphanCollector) Describe(channel chan<- *prometheus.Desc) {
+	channel <- attachmentOrphansDesc
+}
+
+// Collect 每次抓取执行一次有界数据库统计。
+func (c *attachmentOrphanCollector) Collect(channel chan<- prometheus.Metric) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	count, err := c.load(ctx)
+	if err != nil {
+		return
+	}
+	channel <- prometheus.MustNewConstMetric(
+		attachmentOrphansDesc,
+		prometheus.GaugeValue,
+		float64(count),
+	)
 }
 
 // Collect 每次抓取只执行一次数据库聚合查询。

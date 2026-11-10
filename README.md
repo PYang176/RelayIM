@@ -2,7 +2,7 @@
 
 GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应用的开发效率，同时实现了可靠消息、一次性 WebSocket Ticket、消息幂等、断线补拉、对象存储、限流和 Prometheus 观测等生产环境常见能力。
 
-当前目标是做出可演示、可复现、可解释的单机 Web IM，并在后续阶段补齐全链路 Trace、两实例实时路由和更完整的故障注入。
+当前目标是做出可演示、可复现、可解释的单机 Web IM，并继续补强故障注入、长稳测试和运维告警。
 
 ## 已实现能力
 
@@ -26,6 +26,8 @@ GinChat 是一个面向工程实践的即时通讯项目。项目保留单体应
 - 注册、登录、好友申请、消息发送、消息撤回和附件上传滑动窗口限流。
 - SeaweedFS S3 兼容附件存储、短时预签名访问和附件归属校验。
 - Prometheus 指标、健康检查、请求 ID、结构化日志和 Grafana 面板。
+- OpenTelemetry 消息链路 Trace、OTLP 导出、Tempo 存储和异步 `traceparent` 传播。
+- 孤儿附件定时清理、清理租约、失败重试和 Prometheus 指标。
 - Vue 3 + TypeScript 演示前端，覆盖核心聊天流程。
 
 ## 架构
@@ -38,6 +40,7 @@ flowchart LR
     Redis[(Redis 7)]
     Rabbit[(RabbitMQ 4)]
     S3[(SeaweedFS S3)]
+    Tempo[(Grafana Tempo)]
     Prom[Prometheus]
     Grafana[Grafana]
 
@@ -45,10 +48,12 @@ flowchart LR
     API --> MySQL
     API --> Redis
     API --> S3
+    API -->|OTLP Trace| Tempo
     API -->|Outbox 发布| Rabbit
     Rabbit -->|消息创建/撤回| API
     Prom -->|抓取 /metrics| API
     Grafana --> Prom
+    Grafana --> Tempo
 ```
 
 核心消息链路：
@@ -74,7 +79,7 @@ HTTP 发送
 | 缓存与限流 | Redis 7.4、Lua + ZSET 滑动窗口 |
 | 消息队列 | RabbitMQ 4.3、amqp091-go |
 | 对象存储 | SeaweedFS S3 兼容接口、MinIO Go SDK |
-| 可观测性 | Prometheus、Grafana、slog、Request ID |
+| 可观测性 | OpenTelemetry、Tempo、Prometheus、Grafana、slog、Request ID |
 | 前端 | Vue 3、TypeScript、Vite、Pinia、Vue Router |
 | 压测 | k6 |
 | 质量门禁 | GitHub Actions、go vet、go test、race、vue-tsc、Vite build |
@@ -88,7 +93,7 @@ Copy-Item deploy\.env.example deploy\.env
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 ```
 
-默认启动 RabbitMQ、Redis、SeaweedFS、Prometheus 和 Grafana。MySQL 使用本机已有实例，不要求重装。
+默认启动 RabbitMQ、Redis、SeaweedFS、Tempo、Prometheus 和 Grafana。MySQL 使用本机已有实例，不要求重装。
 
 ### 2. 初始化数据库
 
@@ -132,7 +137,7 @@ npm run dev
 git diff --name-only -- "*.go" | ForEach-Object { gofmt -w $_ }
 go vet ./...
 go test ./...
-go test -race ./internal/messaging ./internal/ws ./internal/platform/ratelimit
+go test -race ./internal/messaging ./internal/realtime ./internal/platform/rabbitmq
 Set-Location web
 npm run typecheck
 npm run test:unit
@@ -195,6 +200,12 @@ python scripts\profile-avatar-e2e.py
 
 ```powershell
 python scripts\attachment-size-limit-e2e.py
+```
+
+OpenTelemetry 消息链路 Trace 可运行：
+
+```powershell
+python scripts\otel-trace-e2e.py
 ```
 
 群邀请审批链路可运行：
@@ -272,6 +283,6 @@ docs/              需求、协议、数据库和运维文档
 ## 当前边界
 
 - 已支持两实例实时投递；当前 CI 仍未自动启动两实例，故障切换和长时间稳定性需要继续补测。
-- 尚未接入 OpenTelemetry Trace、举报审核和后台管理系统。
-- 对象存储已控制普通成员访问，但孤儿附件定时清理和病毒扫描尚未实现。
+- 尚未接入举报审核和后台管理系统。
+- 对象存储已实现孤儿附件清理，但病毒扫描、断点续传和内容审核仍未实现。
 

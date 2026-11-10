@@ -18,9 +18,13 @@ func TestMetricsExposeHTTPAndWebSocketValues(t *testing.T) {
 	metrics.RegisterOutboxStats(func(context.Context) (OutboxStats, error) {
 		return OutboxStats{Pending: 4, Dead: 1}, nil
 	})
+	metrics.RegisterAttachmentOrphanStats(func(context.Context) (int64, error) {
+		return 2, nil
+	})
 	metrics.RecordMessageAccepted("text", false)
 	metrics.RecordMessageAccepted("text", true)
 	metrics.RecordAttachmentUpload(true)
+	metrics.RecordAttachmentCleanup("deleted")
 	metrics.RecordRateLimitRejected("user")
 	metrics.RecordMessageEvent(
 		"message.created.v1",
@@ -51,6 +55,8 @@ func TestMetricsExposeHTTPAndWebSocketValues(t *testing.T) {
 		"ginchat_websocket_connections",
 		"ginchat_message_accepted_total",
 		"ginchat_attachment_uploads_total",
+		"ginchat_attachment_cleanup_total",
+		"ginchat_attachment_orphans",
 		"ginchat_rate_limit_rejected_total",
 		"ginchat_message_consumer_events_total",
 		"ginchat_message_consumer_duration_seconds",

@@ -140,6 +140,7 @@ func Run() error {
 	// 启动阶段 2：启动具备明确取消语义的 RabbitMQ 后台任务。
 	var backgroundWorkers sync.WaitGroup
 	var deliveryRouter *realtime.DeliveryRouter
+	messagingRepository := messaging.NewRepository(db)
 	defer func() {
 		// Run 退出时先取消后台任务，再等待连接和轮询协程释放资源。
 		stop()
@@ -151,9 +152,35 @@ func Run() error {
 		}
 	}()
 
+	cleanupCfg := bootstrap.LoadAttachmentCleanupConfig()
+	if cleanupCfg.Enabled && attachmentStorage != nil {
+		pendingTTL := time.Duration(cleanupCfg.PendingTTLHours) * time.Hour
+		claimLease := time.Duration(cleanupCfg.ClaimLeaseSeconds) * time.Second
+		metrics.RegisterAttachmentOrphanStats(
+			func(loadCtx context.Context) (int64, error) {
+				return messagingRepository.CountOrphanAttachments(
+					loadCtx,
+					time.Now().UTC(),
+					pendingTTL,
+					claimLease,
+				)
+			},
+		)
+		cleanupWorker := messaging.NewAttachmentCleanupWorker(
+			messagingRepository,
+			attachmentStorage,
+			cleanupCfg,
+			metrics,
+		)
+		backgroundWorkers.Add(1)
+		go func() {
+			defer backgroundWorkers.Done()
+			cleanupWorker.Run(ctx)
+		}()
+	}
+
 	rabbitCfg := bootstrap.LoadRabbitMQConfig()
 	if rabbitCfg.URL != "" {
-		messagingRepository := messaging.NewRepository(db)
 		outboxWorker := messaging.NewOutboxWorker(
 			messagingRepository,
 			rabbitCfg,

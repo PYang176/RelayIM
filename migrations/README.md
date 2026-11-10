@@ -25,6 +25,8 @@
 | `00012_conversation_member_pinning.sql` | 会话成员个人置顶时间 |
 | `00013_message_fulltext_search.sql` | 消息正文 ngram 全文索引 |
 | `00014_user_avatar_object.sql` | 用户上传头像对象键 |
+| `00015_outbox_trace_context.sql` | Outbox 持久化 W3C traceparent |
+| `00016_attachment_cleanup_state.sql` | 附件清理租约状态 |
 
 ## 执行迁移
 

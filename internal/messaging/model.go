@@ -19,6 +19,7 @@ const (
 	attachmentStatusReady    = 2
 	attachmentStatusBlocked  = 3
 	attachmentStatusDeleted  = 4
+	attachmentStatusCleaning = 5
 )
 
 type conversation struct {
@@ -169,8 +170,11 @@ type attachment struct {
 	// SizeBytes 是附件字节数。
 	SizeBytes int64 `gorm:"column:size_bytes"`
 
-	// Status 表示附件状态：1 待确认、2 可用、3 阻止、4 删除。
+	// Status 表示附件状态：1 待确认、2 可用、3 阻止、4 删除、5 清理中。
 	Status int `gorm:"column:status"`
+
+	// CleanupStartedAt 是孤儿附件清理任务领取状态的时间。
+	CleanupStartedAt *time.Time `gorm:"column:cleanup_started_at"`
 
 	// CreatedAt 是附件元数据创建的 UTC 时间。
 	CreatedAt time.Time `gorm:"column:created_at"`
