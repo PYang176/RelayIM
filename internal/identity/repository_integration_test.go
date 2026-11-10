@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/authn"
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"relayim/internal/platform/authn"
-	"relayim/internal/platform/snowflake"
 )
 
 type stubTokenIssuer struct {

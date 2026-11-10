@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
+	"github.com/PYang176/RelayIM/internal/ws"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"relayim/internal/platform/rabbitmq"
-	"relayim/internal/ws"
 )
 
 // TestMessageEventProcessorIntegration 覆盖消息事件的幂等处理和实时投递事实

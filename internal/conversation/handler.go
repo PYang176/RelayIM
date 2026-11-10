@@ -3,9 +3,9 @@ package conversation
 import (
 	"encoding/base64"
 	"errors"
+	"github.com/PYang176/RelayIM/internal/middleware"
 	"io"
 	"net/http"
-	"relayim/internal/middleware"
 	"strconv"
 	"strings"
 	"time"

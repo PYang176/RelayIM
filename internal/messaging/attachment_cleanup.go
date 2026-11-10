@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"relayim/internal/config"
-	"relayim/internal/platform/observability"
 )
 
 type attachmentCleanupStore interface {

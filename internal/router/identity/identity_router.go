@@ -1,10 +1,10 @@
 package identity
 
 import (
-	identityapp "relayim/internal/identity"
-	"relayim/internal/middleware"
-	"relayim/internal/platform/authn"
-	"relayim/internal/platform/observability"
+	identityapp "github.com/PYang176/RelayIM/internal/identity"
+	"github.com/PYang176/RelayIM/internal/middleware"
+	"github.com/PYang176/RelayIM/internal/platform/authn"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"time"
 
 	"github.com/gin-gonic/gin"

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"relayim/internal/platform/observability"
 )
 
 const (

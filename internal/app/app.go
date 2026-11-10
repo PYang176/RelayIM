@@ -14,17 +14,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/messaging"
+	"github.com/PYang176/RelayIM/internal/platform/bootstrap"
+	"github.com/PYang176/RelayIM/internal/platform/objectstore"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/platform/ratelimit"
+	"github.com/PYang176/RelayIM/internal/platform/redisstore"
+	"github.com/PYang176/RelayIM/internal/presence"
+	"github.com/PYang176/RelayIM/internal/realtime"
+	"github.com/PYang176/RelayIM/internal/router"
+	"github.com/PYang176/RelayIM/internal/ws"
 	"gorm.io/gorm"
-	"relayim/internal/messaging"
-	"relayim/internal/platform/bootstrap"
-	"relayim/internal/platform/objectstore"
-	"relayim/internal/platform/observability"
-	"relayim/internal/platform/ratelimit"
-	"relayim/internal/platform/redisstore"
-	"relayim/internal/presence"
-	"relayim/internal/realtime"
-	"relayim/internal/router"
-	"relayim/internal/ws"
 )
 
 const (

@@ -1,8 +1,8 @@
 package messaging_test
 
 import (
-	"relayim/internal/router/conversation"
-	messagingrouter "relayim/internal/router/messaging"
+	"github.com/PYang176/RelayIM/internal/router/conversation"
+	messagingrouter "github.com/PYang176/RelayIM/internal/router/messaging"
 	"testing"
 
 	"github.com/gin-gonic/gin"

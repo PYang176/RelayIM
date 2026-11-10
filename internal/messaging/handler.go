@@ -3,10 +3,10 @@ package messaging
 import (
 	"context"
 	"errors"
+	"github.com/PYang176/RelayIM/internal/middleware"
 	"io"
 	"mime"
 	"net/http"
-	"relayim/internal/middleware"
 	"strconv"
 	"strings"
 	"time"

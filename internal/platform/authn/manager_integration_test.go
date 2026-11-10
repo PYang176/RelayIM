@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"relayim/internal/config"
-	"relayim/internal/platform/jwt"
-	"relayim/internal/platform/redisstore"
-	"relayim/internal/platform/snowflake"
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/jwt"
+	"github.com/PYang176/RelayIM/internal/platform/redisstore"
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 )
 
 // TestManagerIntegration 覆盖认证管理器的真实 Redis 令牌生命周期

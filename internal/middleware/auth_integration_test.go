@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/jwt"
+	"github.com/PYang176/RelayIM/internal/platform/redisstore"
 	"github.com/gin-gonic/gin"
-	"relayim/internal/config"
-	"relayim/internal/platform/jwt"
-	"relayim/internal/platform/redisstore"
 )
 
 // TestAuthMiddlewareIntegration 覆盖认证中间件对有效、缺失和已撤销凭证的处理

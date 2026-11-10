@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"relayim/internal/config"
-	"relayim/internal/platform/snowflake"
 )
 
 // TestEnsureSnowflakeClockAhead 覆盖雪花时间水位回拨等待与拒绝启动

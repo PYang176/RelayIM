@@ -1,20 +1,20 @@
 package router
 
 import (
+	messagingapp "github.com/PYang176/RelayIM/internal/messaging"
+	"github.com/PYang176/RelayIM/internal/middleware"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	presenceapp "github.com/PYang176/RelayIM/internal/presence"
+	realtimeapp "github.com/PYang176/RelayIM/internal/realtime"
+	conversationrouter "github.com/PYang176/RelayIM/internal/router/conversation"
+	friendshiprouter "github.com/PYang176/RelayIM/internal/router/friendship"
+	identityrouter "github.com/PYang176/RelayIM/internal/router/identity"
+	"github.com/PYang176/RelayIM/internal/router/index"
+	messagingrouter "github.com/PYang176/RelayIM/internal/router/messaging"
+	presencerouter "github.com/PYang176/RelayIM/internal/router/presence"
+	"github.com/PYang176/RelayIM/internal/router/ws"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	messagingapp "relayim/internal/messaging"
-	"relayim/internal/middleware"
-	"relayim/internal/platform/observability"
-	presenceapp "relayim/internal/presence"
-	realtimeapp "relayim/internal/realtime"
-	conversationrouter "relayim/internal/router/conversation"
-	friendshiprouter "relayim/internal/router/friendship"
-	identityrouter "relayim/internal/router/identity"
-	"relayim/internal/router/index"
-	messagingrouter "relayim/internal/router/messaging"
-	presencerouter "relayim/internal/router/presence"
-	"relayim/internal/router/ws"
 )
 
 // Router 计算r目标并完成路由

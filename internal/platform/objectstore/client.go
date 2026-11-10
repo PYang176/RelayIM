@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"relayim/internal/config"
 )
 
 // Client 负责附件对象的上传、读取和删除。

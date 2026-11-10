@@ -1,9 +1,9 @@
 package messaging
 
 import (
-	messagingapp "relayim/internal/messaging"
-	"relayim/internal/middleware"
-	"relayim/internal/platform/observability"
+	messagingapp "github.com/PYang176/RelayIM/internal/messaging"
+	"github.com/PYang176/RelayIM/internal/middleware"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"time"
 
 	"github.com/gin-gonic/gin"

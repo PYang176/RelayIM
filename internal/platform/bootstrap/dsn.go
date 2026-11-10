@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
-	"relayim/internal/config"
+	"github.com/PYang176/RelayIM/internal/config"
 	"strings"
 )
 

@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"relayim/internal/platform/snowflake"
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 )
 
 const (

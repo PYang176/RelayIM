@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"relayim/internal/config"
+	"github.com/PYang176/RelayIM/internal/config"
 )
 
 // TestObjectStorageIntegration 覆盖 SeaweedFS 对象写入、读取和删除

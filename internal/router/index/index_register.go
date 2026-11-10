@@ -1,8 +1,8 @@
 package index
 
 import (
+	"github.com/PYang176/RelayIM/internal/api"
 	"github.com/gin-gonic/gin"
-	"relayim/internal/api"
 )
 
 // Register 注册

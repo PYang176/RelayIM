@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"errors"
+	"github.com/PYang176/RelayIM/internal/platform/authn"
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"relayim/internal/platform/authn"
 	"strings"
 )
 

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/redis/go-redis/v9"
-	"relayim/internal/config"
 )
 
 // TestWSTicketLimiterIntegration 覆盖 WebSocket Ticket 用户和全局滑动限流

@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"relayim/internal/config"
+	"github.com/PYang176/RelayIM/internal/config"
 	"strconv"
 	"time"
 

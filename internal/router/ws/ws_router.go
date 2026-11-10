@@ -1,10 +1,10 @@
 package ws
 
 import (
+	messagingapp "github.com/PYang176/RelayIM/internal/messaging"
+	"github.com/PYang176/RelayIM/internal/ws"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	messagingapp "relayim/internal/messaging"
-	"relayim/internal/ws"
 )
 
 // Register 注册 WebSocket 路由。

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"relayim/internal/config"
-	"relayim/internal/platform/rabbitmq"
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
 )
 
 type stubRouteResolver struct {

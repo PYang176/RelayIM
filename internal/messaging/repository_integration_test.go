@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"relayim/internal/platform/snowflake"
 )
 
 // TestRepositorySendTextIntegration 覆盖消息事务、序号、附件、Outbox 和搜索的完整链路

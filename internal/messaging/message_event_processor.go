@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
+	"github.com/PYang176/RelayIM/internal/ws"
 	"gorm.io/gorm"
-	"relayim/internal/platform/observability"
-	"relayim/internal/platform/rabbitmq"
-	"relayim/internal/ws"
 )
 
 const businessEventsConsumerName = "business-events-v1"

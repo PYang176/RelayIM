@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"relayim/internal/platform/authn"
-	"relayim/internal/platform/security"
-	"relayim/internal/platform/snowflake"
+	"github.com/PYang176/RelayIM/internal/platform/authn"
+	"github.com/PYang176/RelayIM/internal/platform/security"
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 )
 
 const (

@@ -7,10 +7,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"relayim/internal/platform/snowflake"
 )
 
 // TestFriendshipRepositoryIntegration 覆盖好友申请、关系、备注和拉黑的数据一致性

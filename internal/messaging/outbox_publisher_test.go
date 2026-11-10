@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"relayim/internal/config"
-	"relayim/internal/platform/observability"
-	"relayim/internal/platform/rabbitmq"
 )
 
 type stubOutboxStore struct {

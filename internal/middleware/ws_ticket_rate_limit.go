@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/platform/ratelimit"
 	"github.com/gin-gonic/gin"
-	"relayim/internal/platform/observability"
-	"relayim/internal/platform/ratelimit"
 )
 
 // WSTicketRateLimiter 是 Ticket 限流依赖的最小能力。

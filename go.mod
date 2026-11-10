@@ -1,4 +1,4 @@
-module relayim
+module github.com/PYang176/RelayIM
 
 go 1.26.10
 

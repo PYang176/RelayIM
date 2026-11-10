@@ -3,8 +3,8 @@ package redisstore
 import (
 	"context"
 	"fmt"
+	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/redis/go-redis/v9"
-	"relayim/internal/config"
 )
 
 var (

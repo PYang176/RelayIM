@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"os"
 
-	"relayim/internal/app"
+	"github.com/PYang176/RelayIM/internal/app"
 )
 
 // main 启动 RelayIM 服务并处理启动阶段错误

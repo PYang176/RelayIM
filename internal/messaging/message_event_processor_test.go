@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"relayim/internal/platform/rabbitmq"
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
 )
 
 // TestMessageEventProcessorRejectsInvalidEvent 覆盖非法领域事件的不可重试处理

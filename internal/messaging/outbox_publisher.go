@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"relayim/internal/config"
-	"relayim/internal/platform/observability"
-	"relayim/internal/platform/rabbitmq"
 )
 
 const (

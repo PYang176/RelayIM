@@ -1,9 +1,9 @@
 package friendship
 
 import (
-	friendshipapp "relayim/internal/friendship"
-	"relayim/internal/middleware"
-	"relayim/internal/platform/observability"
+	friendshipapp "github.com/PYang176/RelayIM/internal/friendship"
+	"github.com/PYang176/RelayIM/internal/middleware"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"time"
 
 	"github.com/gin-gonic/gin"

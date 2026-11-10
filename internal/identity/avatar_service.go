@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"relayim/internal/platform/snowflake"
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 )
 
 const maxAvatarBytes = 5 << 20

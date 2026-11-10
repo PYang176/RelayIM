@@ -3,13 +3,13 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	"relayim/internal/platform/observability"
 )
 
 // TraceRequest 创建 HTTP Server Span，并提取上游 W3C traceparent。

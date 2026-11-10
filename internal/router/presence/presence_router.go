@@ -1,9 +1,9 @@
 package presence
 
 import (
-	"relayim/internal/middleware"
-	"relayim/internal/platform/observability"
-	presenceapp "relayim/internal/presence"
+	"github.com/PYang176/RelayIM/internal/middleware"
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	presenceapp "github.com/PYang176/RelayIM/internal/presence"
 	"time"
 
 	"github.com/gin-gonic/gin"

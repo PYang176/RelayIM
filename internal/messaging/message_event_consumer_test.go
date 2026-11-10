@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/PYang176/RelayIM/internal/platform/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"relayim/internal/platform/rabbitmq"
 )
 
 // TestMessageEventResult 覆盖消费者成功、重试和死信结果分类

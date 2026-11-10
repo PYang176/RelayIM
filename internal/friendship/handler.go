@@ -2,8 +2,8 @@ package friendship
 
 import (
 	"errors"
+	"github.com/PYang176/RelayIM/internal/middleware"
 	"net/http"
-	"relayim/internal/middleware"
 	"strconv"
 	"time"
 

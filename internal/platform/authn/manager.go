@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/jwt"
+	"github.com/PYang176/RelayIM/internal/platform/redisstore"
 	"github.com/redis/go-redis/v9"
-	"relayim/internal/platform/jwt"
-	"relayim/internal/platform/redisstore"
 )
 
 var (

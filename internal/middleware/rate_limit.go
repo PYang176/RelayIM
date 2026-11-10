@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
+	"github.com/PYang176/RelayIM/internal/platform/ratelimit"
 	"github.com/gin-gonic/gin"
-	"relayim/internal/platform/observability"
-	"relayim/internal/platform/ratelimit"
 )
 
 // RateLimitSubject 表示接口限流使用的请求主体。

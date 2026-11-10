@@ -3,10 +3,10 @@ package identity
 import (
 	"context"
 	"errors"
+	"github.com/PYang176/RelayIM/internal/middleware"
+	"github.com/PYang176/RelayIM/internal/platform/authn"
 	"io"
 	"net/http"
-	"relayim/internal/middleware"
-	"relayim/internal/platform/authn"
 	"strconv"
 	"time"
 

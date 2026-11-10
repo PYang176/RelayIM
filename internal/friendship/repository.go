@@ -7,10 +7,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"relayim/internal/platform/snowflake"
 )
 
 // Repository 负责好友关系和申请的数据访问。

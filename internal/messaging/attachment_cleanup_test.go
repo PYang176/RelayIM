@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"relayim/internal/config"
+	"github.com/PYang176/RelayIM/internal/config"
 )
 
 type stubCleanupStore struct {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PYang176/RelayIM/internal/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -13,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	"relayim/internal/config"
 )
 
 const tracerName = "relayim"

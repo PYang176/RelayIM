@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/PYang176/RelayIM/internal/middleware"
 	"github.com/gin-gonic/gin"
-	"relayim/internal/middleware"
 )
 
 type stubQuerier struct {

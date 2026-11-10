@@ -3,8 +3,8 @@ package router
 import (
 	"testing"
 
+	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"github.com/gin-gonic/gin"
-	"relayim/internal/platform/observability"
 )
 
 // TestRouterOnlyExposesVersionedApplicationAPI 覆盖仅暴露版本化业务接口的路由白名单
