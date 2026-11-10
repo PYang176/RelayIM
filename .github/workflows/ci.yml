@@ -104,7 +104,7 @@ jobs:
         run: go test ./...
 
       - name: 竞态检查
-        run: go test -race ./internal/messaging ./internal/ws ./internal/platform/ratelimit
+        run: go test -race ./...
 
   frontend:
     name: Vue typecheck and build
