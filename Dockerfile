@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     GOBIN=/out \
     go install github.com/pressly/goose/v3/cmd/goose@v3.24.3
 
-FROM alpine:3.22 AS runtime-base
+FROM alpine:3.24 AS runtime-base
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 relayim \
