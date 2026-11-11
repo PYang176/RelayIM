@@ -1,0 +1,111 @@
+{
+  "scenario": {
+    "executor": "constant-vus",
+    "vus": 40,
+    "duration": "2m",
+    "sleepSeconds": 1,
+    "senderUsers": 40
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "passes": 9360,
+        "fails": 0,
+        "rate": 1
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "passes": 8,
+        "fails": 4922,
+        "rate": 0.0016227180527383367
+      },
+      "thresholds": {}
+    },
+    "http_req_failed{endpoint:send_message}": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 4680
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 4930,
+        "rate": 8.103756221291983
+      },
+      "thresholds": {}
+    },
+    "iterations": {
+      "type": "counter",
+      "values": {
+        "count": 4680,
+        "rate": 7.692815236439449
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "avg": 25.659936693914805,
+        "min": 1.837589,
+        "med": 22.376283,
+        "p(90)": 39.36223900000002,
+        "p(95)": 50.03971575000003,
+        "p(99)": 66.74551497,
+        "max": 88.155364
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{endpoint:send_message}": {
+      "type": "trend",
+      "values": {
+        "avg": 25.581737283760695,
+        "min": 11.954982,
+        "med": 22.5603205,
+        "p(90)": 37.921413900000005,
+        "p(95)": 46.80071110000001,
+        "p(99)": 61.81922043,
+        "max": 82.416407
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        },
+        "p(99)<2000": {
+          "ok": true
+        }
+      }
+    },
+    "data_received": {
+      "type": "counter",
+      "values": {
+        "count": 1852313,
+        "rate": 3044.765313900612
+      },
+      "thresholds": {}
+    },
+    "data_sent": {
+      "type": "counter",
+      "values": {
+        "count": 2924691,
+        "rate": 4807.501599717378
+      },
+      "thresholds": {}
+    }
+  }
+}

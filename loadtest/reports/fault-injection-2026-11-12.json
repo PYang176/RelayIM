@@ -1,0 +1,32 @@
+{
+  "rabbitmq": {
+    "message_statuses_during_outage": [
+      201,
+      201,
+      201
+    ],
+    "max_outbox_pending": 3.0,
+    "recovery_ms": 12422.0,
+    "messages_recovered": true,
+    "consumer_success_delta": 0,
+    "dlq_messages_before": 21,
+    "dlq_messages_after": 21,
+    "main_queue": {
+      "messages": 0,
+      "consumers": 1
+    }
+  },
+  "redis": {
+    "auth_status_during_outage": 503,
+    "send_status_during_outage": 503,
+    "ready_status_during_outage": 503,
+    "recovery_ms": 11453.0,
+    "message_after_recovery": 201
+  },
+  "mysql": {
+    "send_status_during_outage": 500,
+    "ready_status_during_outage": 503,
+    "recovery_ms": 11359.0,
+    "message_after_recovery": 201
+  }
+}

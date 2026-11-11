@@ -67,6 +67,11 @@ func bindConfigEnv(v *viper.Viper) error {
 		"redis.port":                             "RELAYIM_REDIS_PORT",
 		"redis.password":                         "RELAYIM_REDIS_PASSWORD",
 		"redis.db":                               "RELAYIM_REDIS_DB",
+		"redis.dial_timeout_seconds":             "RELAYIM_REDIS_DIAL_TIMEOUT_SECONDS",
+		"redis.read_timeout_seconds":             "RELAYIM_REDIS_READ_TIMEOUT_SECONDS",
+		"redis.write_timeout_seconds":            "RELAYIM_REDIS_WRITE_TIMEOUT_SECONDS",
+		"redis.pool_timeout_seconds":             "RELAYIM_REDIS_POOL_TIMEOUT_SECONDS",
+		"redis.max_retries":                      "RELAYIM_REDIS_MAX_RETRIES",
 		"rabbitmq.url":                           "RELAYIM_RABBITMQ_URL",
 		"rabbitmq.publish_timeout_seconds":       "RELAYIM_RABBITMQ_PUBLISH_TIMEOUT_SECONDS",
 		"rabbitmq.poll_interval_ms":              "RELAYIM_RABBITMQ_POLL_INTERVAL_MS",
@@ -364,17 +369,26 @@ func InitJWT() error {
 
 // InitRedis 从配置文件初始化redis连接
 func InitRedis() error {
-	v := viper.GetViper()
-	redisCfg := config.RedisConfig{
-		Host:     v.GetString("redis.host"),
-		Port:     v.GetInt("redis.port"),
-		Password: v.GetString("redis.password"),
-		DB:       v.GetInt("redis.db"),
-	}
+	redisCfg := loadRedisConfig(viper.GetViper())
 	if err := redisstore.InitRedis(redisCfg); err != nil {
 		return fmt.Errorf("初始化 Redis 失败: %w", err)
 	}
 	return nil
+}
+
+// loadRedisConfig 加载 Redis 地址、超时和重试配置。
+func loadRedisConfig(v *viper.Viper) config.RedisConfig {
+	return config.RedisConfig{
+		Host:                v.GetString("redis.host"),
+		Port:                v.GetInt("redis.port"),
+		Password:            v.GetString("redis.password"),
+		DB:                  v.GetInt("redis.db"),
+		DialTimeoutSeconds:  v.GetInt("redis.dial_timeout_seconds"),
+		ReadTimeoutSeconds:  v.GetInt("redis.read_timeout_seconds"),
+		WriteTimeoutSeconds: v.GetInt("redis.write_timeout_seconds"),
+		PoolTimeoutSeconds:  v.GetInt("redis.pool_timeout_seconds"),
+		MaxRetries:          v.GetInt("redis.max_retries"),
+	}.WithDefaults()
 }
 
 // InitSnowFlake 校验数据库时间水位后初始化雪花算法。

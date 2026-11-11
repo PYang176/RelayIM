@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	stdcontext "context"
 	"errors"
 	"github.com/PYang176/RelayIM/internal/platform/authn"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -23,6 +25,9 @@ const (
 
 	// ContextSessionKey 保存认证组件返回的完整会话。
 	ContextSessionKey = "auth_session"
+
+	// authTimeout 限制 HTTP 认证访问 Redis 的总等待时间。
+	authTimeout = 5 * time.Second
 )
 
 // AuthMiddleware JWT鉴权中间件
@@ -38,7 +43,12 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		session, err := authn.DefaultManager.Authenticate(context, tokenStr)
+		authContext, cancel := stdcontext.WithTimeout(
+			context.Request.Context(),
+			authTimeout,
+		)
+		defer cancel()
+		session, err := authn.DefaultManager.Authenticate(authContext, tokenStr)
 		if err != nil {
 			if errors.Is(err, authn.ErrAuthUnavailable) {
 				context.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{

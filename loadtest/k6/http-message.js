@@ -9,7 +9,7 @@ const scenarioDuration = __ENV.DURATION || '30s'
 const sendIntervalSeconds = Number(__ENV.SLEEP_SECONDS || 0.8)
 
 export const options = {
-    setupTimeout: '5m',
+    setupTimeout: '15m',
     scenarios: {
         send_messages: {
             executor: 'constant-vus',
@@ -90,13 +90,13 @@ function login(username) {
 }
 
 export function setup() {
-    const receiverUsername = `load_http_receiver_${runID}`
+    const receiverUsername = `load_http_r_${runID}`
     const receiver = register(receiverUsername, '压测接收者')
     const receiverSession = login(receiverUsername)
     const senders = []
 
     for (let index = 0; index < scenarioVUs; index += 1) {
-        const senderUsername = `load_http_sender_${runID}_${index}`
+        const senderUsername = `load_http_s_${runID}_${index}`
         const sender = register(senderUsername, `压测发送者${index + 1}`)
         const senderSession = login(senderUsername)
 

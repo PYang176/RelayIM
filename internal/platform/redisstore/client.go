@@ -6,6 +6,7 @@ import (
 	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/redis/go-redis/v9"
 	"log/slog"
+	"time"
 )
 
 var (
@@ -15,10 +16,16 @@ var (
 
 // InitRedis 初始化 Redis 连接
 func InitRedis(cfg config.RedisConfig) error {
+	cfg = cfg.WithDefaults()
 	RDB = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Password: cfg.Password,
-		DB:       cfg.DB,
+		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Password:     cfg.Password,
+		DB:           cfg.DB,
+		DialTimeout:  time.Duration(cfg.DialTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(cfg.WriteTimeoutSeconds) * time.Second,
+		PoolTimeout:  time.Duration(cfg.PoolTimeoutSeconds) * time.Second,
+		MaxRetries:   cfg.MaxRetries,
 	})
 
 	if err := RDB.Ping(Ctx).Err(); err != nil {

@@ -1,0 +1,111 @@
+{
+  "scenario": {
+    "executor": "constant-vus",
+    "vus": 20,
+    "duration": "30m",
+    "sleepSeconds": 1,
+    "senderUsers": 20
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 70280,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "passes": 8,
+        "fails": 35262,
+        "rate": 0.00022682166146867025
+      },
+      "thresholds": {}
+    },
+    "http_req_failed{endpoint:send_message}": {
+      "type": "rate",
+      "values": {
+        "fails": 35140,
+        "rate": 0,
+        "passes": 0
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 35270,
+        "rate": 17.25770555190417
+      },
+      "thresholds": {}
+    },
+    "iterations": {
+      "type": "counter",
+      "values": {
+        "count": 35140,
+        "rate": 17.194096203399845
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "p(90)": 33.820340900000005,
+        "p(95)": 42.07873554999997,
+        "p(99)": 56.088461159999945,
+        "max": 122.256527,
+        "avg": 23.647187628040886,
+        "min": 1.8623,
+        "med": 21.806943
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{endpoint:send_message}": {
+      "type": "trend",
+      "values": {
+        "p(95)": 41.91248939999996,
+        "p(99)": 55.27304268,
+        "max": 122.256527,
+        "avg": 23.627961416818486,
+        "min": 11.402682,
+        "med": 21.8188825,
+        "p(90)": 33.73937760000001
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": true
+        },
+        "p(99)<2000": {
+          "ok": true
+        }
+      }
+    },
+    "data_received": {
+      "type": "counter",
+      "values": {
+        "count": 13174016,
+        "rate": 6446.081345735026
+      },
+      "thresholds": {}
+    },
+    "data_sent": {
+      "type": "counter",
+      "values": {
+        "count": 21307527,
+        "rate": 10425.830082371647
+      },
+      "thresholds": {}
+    }
+  }
+}

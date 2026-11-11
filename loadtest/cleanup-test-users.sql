@@ -24,7 +24,9 @@ WHERE username LIKE 'load_http_%'
    OR username LIKE 'block_a_%'
    OR username LIKE 'block_b_%'
    OR username LIKE 'reason_a_%'
-   OR username LIKE 'reason_b_%';
+   OR username LIKE 'reason_b_%'
+   OR username LIKE 'fault_a_%'
+   OR username LIKE 'fault_b_%';
 
 CREATE TABLE relayim_cleanup_conversations (
     id BIGINT UNSIGNED PRIMARY KEY

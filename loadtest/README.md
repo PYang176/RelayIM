@@ -63,6 +63,7 @@ Get-Content -Raw loadtest\cleanup-test-users.sql |
 
 ## 已有报告
 
+- [30 分钟长稳、容量与故障注入：2026-11-12](./reports/soak-fault-2026-11-12.md)
 - [代码审查与压测：2026-11-11](./reports/audit-2026-11-11.md)
 - [HTTP 消息基线：10 VU / 30 秒](./reports/http-baseline.md)
 - [WebSocket 投递基线：20 个在线连接 / 30 秒](./reports/websocket-baseline.md)
@@ -99,3 +100,44 @@ docker run --rm `
 ```
 
 Ticket 请求遇到 `429 Too Many Requests` 时，脚本会读取 `Retry-After` 并加入随机抖动后重试。`TICKET_RETRY_ATTEMPTS` 默认 120，用于验证限流后的流量恢复，而不是绕过限流。
+
+## 30 分钟长稳
+
+以下命令使用 20 个独立发送账号、20 个 VU，每个账号约每秒发送一条消息：
+
+```powershell
+docker run --rm `
+  --add-host=host.docker.internal:host-gateway `
+  -e BASE_URL=http://host.docker.internal:8081 `
+  -e VUS=20 `
+  -e DURATION=30m `
+  -e SLEEP_SECONDS=1 `
+  -e SUMMARY_FILE=soak-http-2026-11-12.json `
+  -v "${PWD}:/work" `
+  -w /work `
+  grafana/k6:0.57.0 run loadtest/k6/http-message.js
+```
+
+另开终端采集应用和容器资源：
+
+```powershell
+.\loadtest\monitor-soak.ps1 `
+  -DurationSeconds 2280 `
+  -IntervalSeconds 5
+```
+
+脚本输出 CSV、资源峰值和首尾消息/消费计数差值。
+
+## 基础设施故障注入
+
+以下脚本会短暂停止并自动恢复 RabbitMQ、Redis 和 MySQL：
+
+```powershell
+python scripts\infrastructure-fault-e2e.py
+```
+
+执行前确认没有其他压测或人工操作依赖这些容器。测试覆盖：
+
+- RabbitMQ 中断期间消息写入 Outbox，恢复后队列排空且 DLQ 不新增。
+- Redis 中断时认证和写请求快速返回 `503`，恢复后重新登录和发送成功。
+- MySQL 中断时写请求失败、就绪检查返回 `503`，恢复后继续发送。

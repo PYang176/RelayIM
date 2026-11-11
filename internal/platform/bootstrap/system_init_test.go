@@ -323,6 +323,36 @@ func TestLoadWSTicketRateLimitConfigFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadRedisConfigFromEnvironment 覆盖 Redis 超时和重试配置
+func TestLoadRedisConfigFromEnvironment(t *testing.T) {
+	t.Setenv("RELAYIM_REDIS_HOST", "127.0.0.1")
+	t.Setenv("RELAYIM_REDIS_PORT", "6380")
+	t.Setenv("RELAYIM_REDIS_PASSWORD", "test-password")
+	t.Setenv("RELAYIM_REDIS_DB", "2")
+	t.Setenv("RELAYIM_REDIS_DIAL_TIMEOUT_SECONDS", "4")
+	t.Setenv("RELAYIM_REDIS_READ_TIMEOUT_SECONDS", "2")
+	t.Setenv("RELAYIM_REDIS_WRITE_TIMEOUT_SECONDS", "3")
+	t.Setenv("RELAYIM_REDIS_POOL_TIMEOUT_SECONDS", "5")
+	t.Setenv("RELAYIM_REDIS_MAX_RETRIES", "2")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+	cfg := loadRedisConfig(v)
+	if cfg.Host != "127.0.0.1" ||
+		cfg.Port != 6380 ||
+		cfg.Password != "test-password" ||
+		cfg.DB != 2 ||
+		cfg.DialTimeoutSeconds != 4 ||
+		cfg.ReadTimeoutSeconds != 2 ||
+		cfg.WriteTimeoutSeconds != 3 ||
+		cfg.PoolTimeoutSeconds != 5 ||
+		cfg.MaxRetries != 2 {
+		t.Fatalf("loadRedisConfig() = %+v", cfg)
+	}
+}
+
 // TestLoadMySQLConfigFromEnvironment 覆盖 MySQL 配置的环境变量覆盖
 func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
 	t.Setenv("RELAYIM_MYSQL_HOST", "127.0.0.1")

@@ -27,6 +27,11 @@ redis:
   # 本地密码通过 RELAYIM_REDIS_PASSWORD 注入。
   password: ""
   db: 0
+  dial_timeout_seconds: 3
+  read_timeout_seconds: 2
+  write_timeout_seconds: 2
+  pool_timeout_seconds: 3
+  max_retries: 1
 
 rabbitmq:
   # 完整 AMQP 地址通过 RELAYIM_RABBITMQ_URL 注入；为空时禁用 RabbitMQ 后台任务。

@@ -46,6 +46,41 @@ type RedisConfig struct {
 	Port     int    `mapstructure:"port"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+
+	// DialTimeoutSeconds 是建立 Redis 连接的最长等待秒数。
+	DialTimeoutSeconds int `mapstructure:"dial_timeout_seconds"`
+
+	// ReadTimeoutSeconds 是单次 Redis 读取的最长等待秒数。
+	ReadTimeoutSeconds int `mapstructure:"read_timeout_seconds"`
+
+	// WriteTimeoutSeconds 是单次 Redis 写入的最长等待秒数。
+	WriteTimeoutSeconds int `mapstructure:"write_timeout_seconds"`
+
+	// PoolTimeoutSeconds 是连接池耗尽时等待空闲连接的最长秒数。
+	PoolTimeoutSeconds int `mapstructure:"pool_timeout_seconds"`
+
+	// MaxRetries 是单条 Redis 命令的最大重试次数。
+	MaxRetries int `mapstructure:"max_retries"`
+}
+
+// WithDefaults 返回带有界超时和重试策略的 Redis 配置。
+func (c RedisConfig) WithDefaults() RedisConfig {
+	if c.DialTimeoutSeconds <= 0 {
+		c.DialTimeoutSeconds = 3
+	}
+	if c.ReadTimeoutSeconds <= 0 {
+		c.ReadTimeoutSeconds = 2
+	}
+	if c.WriteTimeoutSeconds <= 0 {
+		c.WriteTimeoutSeconds = 2
+	}
+	if c.PoolTimeoutSeconds <= 0 {
+		c.PoolTimeoutSeconds = 3
+	}
+	if c.MaxRetries <= 0 {
+		c.MaxRetries = 1
+	}
+	return c
 }
 
 // RabbitMQConfig 控制 Outbox 发布器和消息消费者的连接与重试行为。
