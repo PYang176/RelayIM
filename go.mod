@@ -5,7 +5,7 @@ go 1.26.11
 require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/gin-gonic/gin v1.12.0
-	github.com/go-sql-driver/mysql v1.8.1
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/minio/minio-go/v7 v7.0.95
@@ -24,7 +24,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.1 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
