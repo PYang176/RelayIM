@@ -57,6 +57,9 @@ func bindConfigEnv(v *viper.Viper) error {
 		"mysql.config.charset":                   "RELAYIM_MYSQL_CHARSET",
 		"mysql.config.parseTime":                 "RELAYIM_MYSQL_PARSE_TIME",
 		"mysql.config.loc":                       "RELAYIM_MYSQL_LOCATION",
+		"mysql.pool.max_open":                    "RELAYIM_MYSQL_MAX_OPEN",
+		"mysql.pool.max_idle":                    "RELAYIM_MYSQL_MAX_IDLE",
+		"mysql.pool.conn_max_lifetime_minutes":   "RELAYIM_MYSQL_CONN_MAX_LIFETIME_MINUTES",
 		"jwt.secret":                             "RELAYIM_JWT_SECRET",
 		"jwt.expire_hours":                       "RELAYIM_JWT_EXPIRE_HOURS",
 		"jwt.refresh_expire_days":                "RELAYIM_JWT_REFRESH_EXPIRE_DAYS",
@@ -262,7 +265,7 @@ func LoadMySQLConfig() config.MySQLConfig {
 
 // loadMySQLConfig 加载MySQL配置所需数据
 func loadMySQLConfig(v *viper.Viper) config.MySQLConfig {
-	return config.MySQLConfig{
+	cfg := config.MySQLConfig{
 		Host:     v.GetString("mysql.host"),
 		Port:     v.GetInt("mysql.port"),
 		User:     v.GetString("mysql.user"),
@@ -273,7 +276,31 @@ func loadMySQLConfig(v *viper.Viper) config.MySQLConfig {
 			ParseTime: v.GetBool("mysql.config.parseTime"),
 			Loc:       v.GetString("mysql.config.loc"),
 		},
+		Pool: config.MySQLPoolConfig{
+			MaxOpen:                v.GetInt("mysql.pool.max_open"),
+			MaxIdle:                v.GetInt("mysql.pool.max_idle"),
+			ConnMaxLifetimeMinutes: v.GetInt("mysql.pool.conn_max_lifetime_minutes"),
+		},
 	}
+	cfg.Pool = normalizeMySQLPoolConfig(cfg.Pool)
+	return cfg
+}
+
+// normalizeMySQLPoolConfig 补齐连接池默认值并约束空闲连接不超过上限。
+func normalizeMySQLPoolConfig(pool config.MySQLPoolConfig) config.MySQLPoolConfig {
+	if pool.MaxOpen <= 0 {
+		pool.MaxOpen = 50
+	}
+	if pool.MaxIdle <= 0 {
+		pool.MaxIdle = 10
+	}
+	if pool.MaxIdle > pool.MaxOpen {
+		pool.MaxIdle = pool.MaxOpen
+	}
+	if pool.ConnMaxLifetimeMinutes <= 0 {
+		pool.ConnMaxLifetimeMinutes = 30
+	}
+	return pool
 }
 
 // InitMySQL 初始化Mysql数据库连接对象
@@ -303,26 +330,34 @@ func InitMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	sqlDB.SetMaxOpenConns(200)          // 最大连接数（至少是压测并发数）
-	sqlDB.SetMaxIdleConns(50)           // 空闲连接数
-	sqlDB.SetConnMaxLifetime(time.Hour) // 连接复用时间
+	pool := normalizeMySQLPoolConfig(cfg.Pool)
+	sqlDB.SetMaxOpenConns(pool.MaxOpen)
+	sqlDB.SetMaxIdleConns(pool.MaxIdle)
+	sqlDB.SetConnMaxLifetime(
+		time.Duration(pool.ConnMaxLifetimeMinutes) * time.Minute,
+	)
 	return db, nil
 }
 
 // InitJWT 从配置文件初始化密钥和过期时间
 func InitJWT() error {
 	v := viper.GetViper()
-	jwt.JwtCfg.Secret = v.GetString("jwt.secret")
-	jwt.JwtCfg.ExpireHours = v.GetInt("jwt.expire_hours")
-	jwt.JwtCfg.RefreshExpireDays = v.GetInt("jwt.refresh_expire_days")
-	if strings.TrimSpace(jwt.JwtCfg.Secret) == "" {
-		return fmt.Errorf("JWT 密钥不能为空")
+	secret := strings.TrimSpace(v.GetString("jwt.secret"))
+	expireHours := v.GetInt("jwt.expire_hours")
+	refreshExpireDays := v.GetInt("jwt.refresh_expire_days")
+	if len([]byte(secret)) < 32 {
+		return fmt.Errorf("JWT 密钥至少需要 32 字节")
 	}
-	if jwt.JwtCfg.ExpireHours <= 0 {
+	if expireHours <= 0 {
 		return fmt.Errorf("JWT 过期时间必须大于 0")
 	}
-	if jwt.JwtCfg.RefreshExpireDays <= 0 {
-		jwt.JwtCfg.RefreshExpireDays = 30
+	if refreshExpireDays <= 0 {
+		refreshExpireDays = 30
+	}
+	jwt.JwtCfg = config.JWTConfig{
+		Secret:            secret,
+		ExpireHours:       expireHours,
+		RefreshExpireDays: refreshExpireDays,
 	}
 	return nil
 }

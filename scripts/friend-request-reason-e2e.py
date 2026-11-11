@@ -122,18 +122,27 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             page.get_by_label("密码").fill(PASSWORD)
             page.get_by_role("button", name="进入 RelayIM").click()
             page.wait_for_url("**/")
-            page.get_by_role("button", name="好友", exact=True).click()
+            page.get_by_role("button", name="联系人", exact=True).click()
 
-            dialog = page.locator(".friends-dialog")
-            dialog.get_by_label("搜索用户").fill(recipient_name)
-            dialog.get_by_role("button", name="搜索", exact=True).click()
-            result_row = dialog.locator(".request-row").filter(
+            contacts = page.locator(".contacts-panel")
+            contacts.get_by_role(
+                "button",
+                name="添加好友",
+                exact=True,
+            ).click()
+            contacts.get_by_label("搜索用户名或昵称").fill(recipient_name)
+            contacts.get_by_role("button", name="搜索", exact=True).click()
+            result_row = contacts.locator(".search-result-row").filter(
                 has_text=recipient_nickname
             )
             expect(result_row).to_be_visible()
-            result_row.get_by_role("button", name="添加", exact=True).click()
-            result_row.get_by_label("好友申请理由").fill(reason)
             result_row.get_by_role(
+                "button",
+                name="添加好友",
+                exact=True,
+            ).click()
+            contacts.get_by_label("好友申请理由").fill(reason)
+            contacts.get_by_role(
                 "button",
                 name="发送申请",
                 exact=True,
@@ -158,11 +167,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     f"申请理由不一致: {application['remark']!r}"
                 )
 
-            dialog.locator(".friends-tabs button").filter(
+            contacts.get_by_role("button", name="返回", exact=True).click()
+            contacts.locator(".friends-tabs button").filter(
                 has_text="申请"
             ).click()
-            dialog.get_by_role("button", name="发出", exact=True).click()
-            expect(dialog.get_by_text(reason, exact=True)).to_be_visible()
+            contacts.get_by_role("button", name="发出", exact=True).click()
+            expect(contacts.get_by_text(reason, exact=True)).to_be_visible()
 
             screenshot = report_dir / "friend-request-reason.png"
             page.screenshot(path=str(screenshot), full_page=True)

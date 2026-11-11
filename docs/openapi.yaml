@@ -584,8 +584,12 @@ paths:
             schema:
               $ref: "#/components/schemas/RemarkRequest"
       responses:
-        "204":
+        "200":
           description: 备注已更新；空字符串表示删除备注
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -620,8 +624,12 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UserID"
       responses:
-        "204":
+        "200":
           description: 好友关系已软删除
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":

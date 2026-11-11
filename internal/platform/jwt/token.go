@@ -14,7 +14,6 @@ import (
 
 var (
 	JwtCfg = config.JWTConfig{}
-	//jwtSecret = []byte("your-secret-key") //  放配置文件
 )
 
 type Claims struct {
@@ -68,11 +67,11 @@ func ParseToken(tokenStr string) (*Claims, error) {
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return nil, errors.New("invalid token")
+		return nil, errors.New("JWT 声明无效")
 	}
 	if claims.UserID == 0 ||
 		claims.Subject != strconv.FormatUint(claims.UserID, 10) {
-		return nil, errors.New("invalid token subject")
+		return nil, errors.New("JWT 用户主体无效")
 	}
 
 	return claims, nil

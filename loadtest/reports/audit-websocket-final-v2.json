@@ -1,0 +1,133 @@
+{
+  "scenario": {
+    "receiverVUs": 4,
+    "durationSeconds": 20,
+    "senderStartSeconds": 3,
+    "senderDurationSeconds": 14,
+    "sendIntervalSeconds": 0.6
+  },
+  "metrics": {
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 58,
+        "rate": 2.7819045818723227
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "values": {
+        "p(95)": 67.12978105,
+        "p(99)": 72.13174398,
+        "max": 75.115401,
+        "avg": 22.851246051724132,
+        "min": 3.421158,
+        "med": 14.162332,
+        "p(90)": 61.4807707
+      },
+      "thresholds": {}
+    },
+    "http_req_failed{endpoint:send_ws_message}": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 23
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "max": 75.115401,
+        "avg": 22.851246051724132,
+        "min": 3.421158,
+        "med": 14.162332,
+        "p(90)": 61.4807707,
+        "p(95)": 67.12978105,
+        "p(99)": 72.13174398
+      },
+      "thresholds": {}
+    },
+    "ws_delivery_latency": {
+      "type": "trend",
+      "values": {
+        "avg": 290.79347826086956,
+        "min": 58,
+        "med": 267,
+        "p(90)": 488,
+        "p(95)": 500,
+        "p(99)": 545,
+        "max": 545
+      },
+      "thresholds": {
+        "p(95)<500": {
+          "ok": false
+        },
+        "p(99)<1000": {
+          "ok": true
+        }
+      }
+    },
+    "ws_sessions": {
+      "type": "counter",
+      "values": {
+        "count": 4,
+        "rate": 0.19185548840498776
+      },
+      "thresholds": {}
+    },
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 27,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 58
+      },
+      "thresholds": {}
+    },
+    "ws_connection_success": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 4,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_messages_received": {
+      "type": "counter",
+      "values": {
+        "rate": 4.412676233314718,
+        "count": 92
+      },
+      "thresholds": {
+        "count>0": {
+          "ok": true
+        }
+      }
+    }
+  }
+}

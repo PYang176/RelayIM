@@ -1,6 +1,6 @@
 module github.com/PYang176/RelayIM
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/bwmarrin/snowflake v0.3.0

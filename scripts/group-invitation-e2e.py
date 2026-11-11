@@ -246,9 +246,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             page.get_by_label("密码").fill(PASSWORD)
             page.get_by_role("button", name="进入 RelayIM").click()
             page.wait_for_url("**/")
-            invitation_button = page.locator(
-                ".current-user .ghost-button"
-            ).filter(has_text="群邀请")
+            invitation_button = page.get_by_role(
+                "button",
+                name="群邀请",
+                exact=True,
+            )
             expect(invitation_button).to_contain_text("群邀请", timeout=10_000)
 
             accepted_group_name = f"邀请同意群 {suffix}"
@@ -268,7 +270,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             accepted_remark = f"邀请加入 {accepted_group_name}"
             if accepted_invitation["invite_remark"] != accepted_remark:
                 raise AssertionError("群邀请备注与提交内容不一致")
-            expect(invitation_button).to_contain_text("群邀请 1", timeout=5000)
+            expect(
+                invitation_button.locator(".rail-badge")
+            ).to_have_text("1", timeout=5000)
             accepted_notification_ms = round(
                 (time.monotonic() - accepted_notification_started) * 1000
             )
@@ -334,7 +338,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 invitee,
                 rejected_group_name,
             )
-            expect(invitation_button).to_contain_text("群邀请 1", timeout=5000)
+            expect(
+                invitation_button.locator(".rail-badge")
+            ).to_have_text("1", timeout=5000)
             invitation_button.click()
             dialog = page.locator(".friends-dialog").filter(
                 has_text="群邀请"
@@ -382,7 +388,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 invitee,
                 canceled_group_name,
             )
-            expect(invitation_button).to_contain_text("群邀请 1", timeout=5000)
+            expect(
+                invitation_button.locator(".rail-badge")
+            ).to_have_text("1", timeout=5000)
             canceled_invitation = next(
                 item
                 for item in list_received(api, invitee)
@@ -398,7 +406,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 token=owner["token"],
             )
             expect(invitation_button).to_contain_text("群邀请", timeout=5000)
-            expect(invitation_button).not_to_contain_text("群邀请 1")
+            expect(invitation_button.locator(".rail-badge")).to_have_count(0)
             cancellation_notification_ms = round(
                 (time.monotonic() - cancellation_notification_started) * 1000
             )
@@ -426,7 +434,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ).click()
             owner_page.get_by_role(
                 "button",
-                name="管理成员",
+                name="群成员列表",
                 exact=True,
             ).click()
             member_dialog = owner_page.locator(".group-members-dialog")

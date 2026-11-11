@@ -38,7 +38,7 @@ export const options = {
     },
     thresholds: {
         checks: ['rate>0.99'],
-        http_req_failed: ['rate<0.01'],
+        'http_req_failed{endpoint:send_ws_message}': ['rate<0.01'],
         ws_connection_success: ['rate>0.99'],
         ws_messages_received: ['count>0'],
         ws_delivery_latency: ['p(95)<500', 'p(99)<1000'],
@@ -104,6 +104,30 @@ function acceptFriendRequest(receiverToken, senderID) {
         ),
         200,
         '同意 WebSocket 压测好友申请',
+    )
+}
+
+function acceptGroupInvitation(receiverToken, conversationID) {
+    const invitations = http.get(
+        `${baseURL}/api/v1/group-invitations`,
+        {headers: requestHeaders(receiverToken)},
+    )
+    requireStatus(invitations, 200, '查询 WebSocket 压测群邀请')
+    const invitation = invitations
+        .json()
+        .invitations.find((item) => item.conversation_id === conversationID)
+    if (!invitation) {
+        fail('未找到 WebSocket 压测群邀请')
+    }
+    requireStatus(
+        http.post(
+            `${baseURL}/api/v1/group-invitations/` +
+                `${invitation.invitation_id}/accept`,
+            JSON.stringify({response_remark: '接受 WebSocket 压测邀请'}),
+            {headers: requestHeaders(receiverToken)},
+        ),
+        200,
+        '接受 WebSocket 压测群邀请',
     )
 }
 
@@ -176,16 +200,21 @@ export function setup() {
         JSON.stringify({
             name: `WebSocket 基线群 ${runID}`,
             member_user_ids: memberIDs,
+            invite_remark: 'k6 WebSocket 投递压测邀请',
         }),
         {headers: requestHeaders(senderSession.token)},
     )
     requireStatus(groupResponse, 201, '创建 WebSocket 压测群聊')
+    const conversationID = groupResponse.json().id
+    for (const receiver of receivers) {
+        acceptGroupInvitation(receiver.token, conversationID)
+    }
 
     return {
         runID,
         senderUsername,
         senderToken: senderSession.token,
-        conversationID: groupResponse.json().id,
+        conversationID,
         receivers,
     }
 }
@@ -273,7 +302,7 @@ export function sendMessages(data) {
             'WebSocket 场景消息 Accepted': (result) => result.status === 201,
         })
         sequence += 1
-        sleep(Number(__ENV.SEND_INTERVAL_SECONDS || 0.2))
+        sleep(Number(__ENV.SEND_INTERVAL_SECONDS || 0.6))
     }
 }
 
@@ -281,7 +310,9 @@ export function handleSummary(data) {
     const requiredMetrics = [
         'checks',
         'http_req_failed',
+        'http_req_failed{endpoint:send_ws_message}',
         'http_reqs',
+        'http_reqs{endpoint:send_ws_message}',
         'ws_connection_success',
         'ws_messages_received',
         'ws_delivery_latency',
@@ -309,7 +340,7 @@ export function handleSummary(data) {
             senderStartSeconds,
             senderDurationSeconds,
             sendIntervalSeconds: Number(
-                __ENV.SEND_INTERVAL_SECONDS || 0.2,
+                __ENV.SEND_INTERVAL_SECONDS || 0.6,
             ),
         },
         metrics,

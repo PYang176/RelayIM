@@ -184,41 +184,41 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             page.get_by_label("密码").fill(PASSWORD)
             page.get_by_role("button", name="进入 RelayIM").click()
             page.wait_for_url("**/")
-            page.get_by_role("button", name="好友", exact=True).click()
+            page.get_by_role("button", name="联系人", exact=True).click()
 
-            dialog = page.locator(".friends-dialog")
-            expect(dialog.locator(".friend-row")).to_have_count(PAGE_SIZE)
+            contacts = page.locator(".contacts-panel")
+            expect(contacts.locator(".friend-row")).to_have_count(PAGE_SIZE)
             expect(
-                dialog.locator(".friends-tabs button").filter(has_text="好友")
+                contacts.locator(".friends-tabs button").filter(has_text="好友")
             ).to_contain_text("20+")
-            dialog.get_by_role(
+            contacts.get_by_role(
                 "button",
                 name="加载更多好友",
                 exact=True,
             ).click()
-            expect(dialog.locator(".friend-row")).to_have_count(TOTAL_SIZE)
+            expect(contacts.locator(".friend-row")).to_have_count(TOTAL_SIZE)
 
-            dialog.locator(".friends-tabs button").filter(
+            contacts.locator(".friends-tabs button").filter(
                 has_text="申请"
             ).click()
-            expect(dialog.locator(".request-row")).to_have_count(PAGE_SIZE)
-            dialog.get_by_role(
+            expect(contacts.locator(".request-row")).to_have_count(PAGE_SIZE)
+            contacts.get_by_role(
                 "button",
                 name="加载更多申请",
                 exact=True,
             ).click()
-            expect(dialog.locator(".request-row")).to_have_count(TOTAL_SIZE)
+            expect(contacts.locator(".request-row")).to_have_count(TOTAL_SIZE)
 
-            dialog.locator(".friends-tabs button").filter(
+            contacts.locator(".friends-tabs button").filter(
                 has_text="拉黑"
             ).click()
-            expect(dialog.locator(".request-row")).to_have_count(PAGE_SIZE)
-            dialog.get_by_role(
+            expect(contacts.locator(".request-row")).to_have_count(PAGE_SIZE)
+            contacts.get_by_role(
                 "button",
                 name="加载更多拉黑用户",
                 exact=True,
             ).click()
-            expect(dialog.locator(".request-row")).to_have_count(TOTAL_SIZE)
+            expect(contacts.locator(".request-row")).to_have_count(TOTAL_SIZE)
 
             screenshot = report_dir / "friendship-pagination.png"
             page.screenshot(path=str(screenshot), full_page=True)

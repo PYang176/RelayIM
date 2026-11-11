@@ -9,6 +9,11 @@ mysql:
     charset: utf8mb4
     parseTime: true
     loc: UTC
+  pool:
+    # 单实例连接上限；多实例部署时需保证总和低于 MySQL max_connections
+    max_open: 50
+    max_idle: 10
+    conn_max_lifetime_minutes: 30
 
 jwt:
   # 本地密钥通过 RELAYIM_JWT_SECRET 注入。

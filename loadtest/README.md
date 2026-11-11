@@ -41,7 +41,7 @@ docker run --rm `
 | `BASE_URL` | `http://127.0.0.1:8081` | Go 服务地址 |
 | `VUS` | `10` | 并发虚拟用户数 |
 | `DURATION` | `30s` | 压测持续时间 |
-| `SLEEP_SECONDS` | `0.1` | 每轮请求后的等待时间 |
+| `SLEEP_SECONDS` | `0.8` | 每轮请求后的等待时间；每个 VU 使用独立发送账号，避免单用户限流影响吞吐结果 |
 | `SUMMARY_FILE` | `http-baseline.json` | 安全摘要文件名；不包含 Token 和业务 ID |
 
 ## 结果解释
@@ -51,10 +51,19 @@ docker run --rm `
 - `relayim_message_accepted_total`：服务端成功持久化的消息数。
 - `relayim_outbox_events`：压测过程中 Outbox 是否积压。
 
-压测账号使用 `load_http_*` 前缀，测试结束必须清理，不能把测试消息和 Outbox 事件留在开发库。
+压测账号使用 `load_http_*` 等固定前缀，动态 E2E 也使用独立测试前缀。测试结束必须清理，不能把测试消息和 Outbox 事件留在开发库。
+
+确认没有压测正在运行后，可执行：
+
+```powershell
+Get-Content -Raw loadtest\cleanup-test-users.sql |
+  docker exec -i relayim-mysql sh -c `
+    'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot relayim'
+```
 
 ## 已有报告
 
+- [代码审查与压测：2026-11-11](./reports/audit-2026-11-11.md)
 - [HTTP 消息基线：10 VU / 30 秒](./reports/http-baseline.md)
 - [WebSocket 投递基线：20 个在线连接 / 30 秒](./reports/websocket-baseline.md)
 - [WebSocket 空闲连接阶梯：100 / 500 / 1,000 / 2,000 / 5,000](./reports/websocket-connections.md)

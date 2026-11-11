@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/PYang176/RelayIM/internal/config"
+	"github.com/PYang176/RelayIM/internal/platform/jwt"
 	"github.com/PYang176/RelayIM/internal/platform/snowflake"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
@@ -331,6 +333,9 @@ func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
 	t.Setenv("RELAYIM_MYSQL_CHARSET", "utf8mb4")
 	t.Setenv("RELAYIM_MYSQL_PARSE_TIME", "true")
 	t.Setenv("RELAYIM_MYSQL_LOCATION", "UTC")
+	t.Setenv("RELAYIM_MYSQL_MAX_OPEN", "80")
+	t.Setenv("RELAYIM_MYSQL_MAX_IDLE", "20")
+	t.Setenv("RELAYIM_MYSQL_CONN_MAX_LIFETIME_MINUTES", "45")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -345,7 +350,82 @@ func TestLoadMySQLConfigFromEnvironment(t *testing.T) {
 		cfg.DBName != "relayim" ||
 		cfg.Config.Charset != "utf8mb4" ||
 		!cfg.Config.ParseTime ||
-		cfg.Config.Loc != "UTC" {
+		cfg.Config.Loc != "UTC" ||
+		cfg.Pool.MaxOpen != 80 ||
+		cfg.Pool.MaxIdle != 20 ||
+		cfg.Pool.ConnMaxLifetimeMinutes != 45 {
 		t.Fatalf("LoadMySQLConfig() = %+v，环境变量没有正确覆盖 YAML 默认值", cfg)
+	}
+}
+
+// TestNormalizeMySQLPoolConfig 覆盖连接池缺失值和空闲连接超限处理
+func TestNormalizeMySQLPoolConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		pool config.MySQLPoolConfig
+		want config.MySQLPoolConfig
+	}{
+		{
+			name: "使用默认值",
+			want: config.MySQLPoolConfig{
+				MaxOpen:                50,
+				MaxIdle:                10,
+				ConnMaxLifetimeMinutes: 30,
+			},
+		},
+		{
+			name: "空闲连接不超过打开上限",
+			pool: config.MySQLPoolConfig{
+				MaxOpen:                8,
+				MaxIdle:                20,
+				ConnMaxLifetimeMinutes: 15,
+			},
+			want: config.MySQLPoolConfig{
+				MaxOpen:                8,
+				MaxIdle:                8,
+				ConnMaxLifetimeMinutes: 15,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := normalizeMySQLPoolConfig(test.pool); got != test.want {
+				t.Fatalf("normalizeMySQLPoolConfig() = %+v，期望 %+v", got, test.want)
+			}
+		})
+	}
+}
+
+// TestInitJWTSecretBoundary 覆盖 JWT 密钥长度边界
+func TestInitJWTSecretBoundary(t *testing.T) {
+	oldConfig := jwt.JwtCfg
+	t.Cleanup(func() {
+		jwt.JwtCfg = oldConfig
+	})
+
+	tests := []struct {
+		name    string
+		secret  string
+		wantErr bool
+	}{
+		{name: "低于 32 字节", secret: strings.Repeat("a", 31), wantErr: true},
+		{name: "恰好 32 字节", secret: strings.Repeat("a", 32)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			viper.Set("jwt.secret", test.secret)
+			viper.Set("jwt.expire_hours", 1)
+			viper.Set("jwt.refresh_expire_days", 30)
+
+			err := InitJWT()
+			if test.wantErr && err == nil {
+				t.Fatal("期望 JWT 密钥校验失败")
+			}
+			if !test.wantErr && err != nil {
+				t.Fatalf("InitJWT() 错误 = %v", err)
+			}
+		})
 	}
 }

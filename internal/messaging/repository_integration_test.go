@@ -44,6 +44,10 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 	conversationID := uint64(snowflake.Generate())
 	directConversationID := uint64(snowflake.Generate())
 	directFriendshipID := uint64(snowflake.Generate())
+	parallelConversationIDs := make([]uint64, 5)
+	for index := range parallelConversationIDs {
+		parallelConversationIDs[index] = uint64(snowflake.Generate())
+	}
 	memberDeviceID := uint64(snowflake.Generate())
 	attachmentID := uint64(snowflake.Generate())
 	oldOrphanID := uint64(snowflake.Generate())
@@ -78,8 +82,47 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 					"OR blocked_id IN (?, ?, ?)",
 				[]any{ownerID, memberID, outsiderID, ownerID, memberID, outsiderID},
 			},
-			{"DELETE FROM users WHERE id IN (?, ?, ?)", []any{ownerID, memberID, outsiderID}},
 		}
+		for _, parallelConversationID := range parallelConversationIDs {
+			cleanupStatements = append(
+				cleanupStatements,
+				struct {
+					query string
+					args  []any
+				}{
+					query: "DELETE FROM outbox_events WHERE aggregate_id = ?",
+					args:  []any{parallelConversationID},
+				},
+				struct {
+					query string
+					args  []any
+				}{
+					query: "DELETE FROM messages WHERE conversation_id = ?",
+					args:  []any{parallelConversationID},
+				},
+				struct {
+					query string
+					args  []any
+				}{
+					query: "DELETE FROM conversation_members WHERE conversation_id = ?",
+					args:  []any{parallelConversationID},
+				},
+				struct {
+					query string
+					args  []any
+				}{
+					query: "DELETE FROM conversations WHERE id = ?",
+					args:  []any{parallelConversationID},
+				},
+			)
+		}
+		cleanupStatements = append(cleanupStatements, struct {
+			query string
+			args  []any
+		}{
+			query: "DELETE FROM users WHERE id IN (?, ?, ?)",
+			args:  []any{ownerID, memberID, outsiderID},
+		})
 		for _, statement := range cleanupStatements {
 			if err := db.Exec(statement.query, statement.args...).Error; err != nil {
 				t.Errorf("清理测试数据失败: %v", err)
@@ -219,6 +262,29 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		highID,
 	).Error; err != nil {
 		t.Fatalf("创建私聊好友关系失败: %v", err)
+	}
+	for _, parallelConversationID := range parallelConversationIDs {
+		if err := db.Exec(
+			`INSERT INTO conversations
+				(id, conversation_type, owner_id, name, status, last_seq)
+			 VALUES (?, 2, ?, ?, 1, 0)`,
+			parallelConversationID,
+			ownerID,
+			fmt.Sprintf("并行发送测试群 %d", parallelConversationID),
+		).Error; err != nil {
+			t.Fatalf("创建并行发送测试会话失败: %v", err)
+		}
+		if err := db.Exec(
+			`INSERT INTO conversation_members
+				(conversation_id, user_id, role)
+			 VALUES (?, ?, 3), (?, ?, 1)`,
+			parallelConversationID,
+			ownerID,
+			parallelConversationID,
+			memberID,
+		).Error; err != nil {
+			t.Fatalf("创建并行发送测试成员失败: %v", err)
+		}
 	}
 
 	repository := NewRepository(db)
@@ -366,6 +432,36 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		if seq != want {
 			t.Fatalf("并发消息序号 = %v，期望从 2 连续递增", sequences)
 		}
+	}
+
+	// 场景 4b：同一发送者并发写入不同会话。唯一索引查询不能使用
+	// FOR UPDATE，否则相邻 gap lock 会让互不相关的会话互相死锁。
+	parallelErrs := make(chan error, len(parallelConversationIDs))
+	startParallel := make(chan struct{})
+	for index, parallelConversationID := range parallelConversationIDs {
+		wg.Add(1)
+		go func(index int, parallelConversationID uint64) {
+			defer wg.Done()
+			<-startParallel
+			_, sendErr := service.SendText(
+				context.Background(),
+				SendTextCommand{
+					ConversationID:  parallelConversationID,
+					SenderID:        memberID,
+					ClientMessageID: fmt.Sprintf("client-parallel-%d", index),
+					Content:         fmt.Sprintf("跨会话并发消息 %d", index),
+				},
+			)
+			if sendErr != nil {
+				parallelErrs <- sendErr
+			}
+		}(index, parallelConversationID)
+	}
+	close(startParallel)
+	wg.Wait()
+	close(parallelErrs)
+	for sendErr := range parallelErrs {
+		t.Errorf("跨会话并发发送失败: %v", sendErr)
 	}
 
 	latestPage, err := service.ListMessages(context.Background(), ListMessagesCommand{

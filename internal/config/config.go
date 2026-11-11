@@ -8,6 +8,7 @@ type MySQLConfig struct {
 	Password string           `yaml:"password" json:"password" mapstructure:"password"`
 	DBName   string           `yaml:"dbname" json:"dbname" mapstructure:"dbname"`
 	Config   MySQLExtraConfig `yaml:"config" json:"config" mapstructure:"config"`
+	Pool     MySQLPoolConfig  `yaml:"pool" json:"pool" mapstructure:"pool"`
 }
 
 // MySQLExtraConfig 额外配置
@@ -15,6 +16,18 @@ type MySQLExtraConfig struct {
 	Charset   string `yaml:"charset" json:"charset" mapstructure:"charset"`
 	ParseTime bool   `yaml:"parseTime" json:"parseTime" mapstructure:"parseTime"`
 	Loc       string `yaml:"loc" json:"loc" mapstructure:"loc"`
+}
+
+// MySQLPoolConfig 控制单个应用实例持有的数据库连接数量。
+type MySQLPoolConfig struct {
+	// MaxOpen 是连接池允许打开的最大连接数。
+	MaxOpen int `yaml:"max_open" json:"max_open" mapstructure:"max_open"`
+
+	// MaxIdle 是连接池保留的最大空闲连接数。
+	MaxIdle int `yaml:"max_idle" json:"max_idle" mapstructure:"max_idle"`
+
+	// ConnMaxLifetimeMinutes 是单个数据库连接的最长复用分钟数。
+	ConnMaxLifetimeMinutes int `yaml:"conn_max_lifetime_minutes" json:"conn_max_lifetime_minutes" mapstructure:"conn_max_lifetime_minutes"`
 }
 
 // JWTConfig JWT令牌

@@ -191,11 +191,15 @@ func (r *Repository) sendMessage(
 			}
 		}
 
-		// 拿到会话锁后再检查一次幂等键。并发重试可能同时穿过事务外的
-		// 快速路径，这里是同一会话内的最终判重点。
+		// 会话行锁已串行化同一会话的发送者，因此这里使用普通一致性读即可。
+		// 若对唯一索引加 FOR UPDATE，不同会话会因相邻 gap lock 互相等待；
+		// 跨会话重复客户端 ID 仍由唯一索引和事务后的 1062 分支兜底。
 		var duplicate message
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("sender_id = ? AND client_msg_id = ?", input.SenderID, input.ClientMessageID).
+		err := tx.Where(
+			"sender_id = ? AND client_msg_id = ?",
+			input.SenderID,
+			input.ClientMessageID,
+		).
 			First(&duplicate).Error
 		if err == nil {
 			if duplicate.ConversationID != input.ConversationID {

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.26.10-alpine AS builder
+FROM golang:1.26.11-alpine AS builder
 
 WORKDIR /src
 
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/relayim \
     ./cmd/server
 
-FROM golang:1.26.10-alpine AS goose-builder
+FROM golang:1.26.11-alpine AS goose-builder
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

@@ -76,7 +76,7 @@ HTTP 发送
 
 | 层级 | 技术 |
 | --- | --- |
-| 后端 | Go 1.26.10、Gin、GORM |
+| 后端 | Go 1.26.11、Gin、GORM |
 | 数据库 | MySQL 8.0 |
 | 缓存与限流 | Redis 7.4、Lua + ZSET 滑动窗口 |
 | 消息队列 | RabbitMQ 4.3、amqp091-go |
@@ -173,7 +173,7 @@ npm run test:unit
 npm run build
 ```
 
-项目在 `go.mod` 中固定使用 Go `1.26.10`。如果本机还安装了旧版 Go，请保持
+项目在 `go.mod` 中固定使用 Go `1.26.11`。如果本机还安装了旧版 Go，请保持
 `GOTOOLCHAIN=auto`，让 Go 自动选择项目声明的安全工具链。
 
 前后端和基础设施启动后，可执行真实浏览器验收：
@@ -255,6 +255,14 @@ python scripts\group-invitation-e2e.py
 
 该脚本同时验证在线用户无需等待轮询即可实时看到邀请和取消通知。
 
+HTTP 异常和边界行为可统一验证：
+
+```powershell
+python scripts\http-boundary-e2e.py
+```
+
+脚本覆盖认证失败、非法 ID、文本与业务字段长度上下界、重复申请、消息幂等、分页上限、拉黑和单向删除后重新申请。
+
 启用真实依赖的 Go 集成测试需要：
 
 ```text
@@ -287,6 +295,7 @@ GitHub Actions 会在 PR 和主分支提交上执行后端静态检查、真实�
 - [WebSocket 连接阶梯](loadtest/reports/websocket-connections.md)
 - [Ticket 限流验证](loadtest/reports/ticket-rate-limit.md)
 - [两实例实时投递验证](loadtest/reports/two-instance-e2e.md)
+- [代码审查与异常压测报告](loadtest/reports/audit-2026-11-11.md)
 
 ## 目录
 
