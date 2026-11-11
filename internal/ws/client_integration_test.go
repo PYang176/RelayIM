@@ -1,7 +1,9 @@
 package ws
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -38,7 +40,12 @@ func TestClientConcurrentProducersUseSingleWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("建立测试 WebSocket 失败: %v", err)
 	}
-	defer connection.Close()
+	t.Cleanup(func() {
+		if closeErr := connection.Close(); closeErr != nil &&
+			!errors.Is(closeErr, net.ErrClosed) {
+			t.Errorf("关闭测试 WebSocket 失败: %v", closeErr)
+		}
+	})
 	if err := connection.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		t.Fatalf("设置读取超时失败: %v", err)
 	}

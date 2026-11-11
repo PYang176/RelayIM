@@ -6,6 +6,7 @@ import (
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"github.com/PYang176/RelayIM/internal/platform/authn"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -109,12 +110,10 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Register(c.Request.Context(), RegisterCommand{
-		Username:        request.Username,
-		Password:        request.Password,
-		ConfirmPassword: request.ConfirmPassword,
-		Nickname:        request.Nickname,
-	})
+	result, err := h.service.Register(
+		c.Request.Context(),
+		RegisterCommand(request),
+	)
 	if err != nil {
 		writeIdentityError(c, err)
 		return
@@ -170,7 +169,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 	}
 	result, err := h.service.Refresh(
 		c.Request.Context(),
-		RefreshCommand{RefreshToken: request.RefreshToken},
+		RefreshCommand(request),
 	)
 	if err != nil {
 		writeIdentityError(c, err)
@@ -311,7 +310,11 @@ func (h *Handler) UploadAvatar(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "读取头像图片失败"})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			slog.Warn("关闭头像上传文件失败", "error", closeErr)
+		}
+	}()
 
 	detectBuffer := make([]byte, 512)
 	n, readErr := io.ReadFull(file, detectBuffer)
@@ -377,7 +380,11 @@ func (h *Handler) OpenAvatar(c *gin.Context) {
 		writeIdentityError(c, err)
 		return
 	}
-	defer result.Reader.Close()
+	defer func() {
+		if closeErr := result.Reader.Close(); closeErr != nil {
+			slog.Warn("关闭头像对象流失败", "error", closeErr)
+		}
+	}()
 	c.Header("Cache-Control", "public, max-age=300")
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.DataFromReader(

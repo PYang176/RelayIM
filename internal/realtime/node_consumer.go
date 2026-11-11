@@ -113,9 +113,8 @@ func (c *NodeConsumer) processDelivery(
 	delivery amqp.Delivery,
 ) error {
 	traceParent, _ := delivery.Headers["traceparent"].(string)
-	deliveryCtx := observability.ContextWithTraceParent(ctx, traceParent)
-	deliveryCtx, span := observability.Tracer().Start(
-		deliveryCtx,
+	_, span := observability.Tracer().Start(
+		observability.ContextWithTraceParent(ctx, traceParent),
 		"rabbitmq.consume ws.delivery",
 		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(

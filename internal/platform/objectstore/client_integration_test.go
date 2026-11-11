@@ -55,7 +55,11 @@ func TestObjectStorageIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取测试对象失败: %v", err)
 	}
-	defer reader.Close()
+	t.Cleanup(func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Errorf("关闭测试对象流失败: %v", closeErr)
+		}
+	})
 	content, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("读取测试对象内容失败: %v", err)

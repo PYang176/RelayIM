@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strconv"
@@ -608,7 +609,11 @@ func (h *Handler) UploadAttachment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "读取上传文件失败"})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			slog.Warn("关闭附件上传文件失败", "error", closeErr)
+		}
+	}()
 
 	detectBuffer := make([]byte, 512)
 	n, readErr := io.ReadFull(file, detectBuffer)
@@ -684,7 +689,11 @@ func (h *Handler) DownloadAttachment(c *gin.Context) {
 		writeMessagingError(c, err)
 		return
 	}
-	defer result.Reader.Close()
+	defer func() {
+		if closeErr := result.Reader.Close(); closeErr != nil {
+			slog.Warn("关闭附件对象流失败", "error", closeErr)
+		}
+	}()
 
 	disposition := "attachment"
 	if len(result.MIMEType) >= 6 && result.MIMEType[:6] == "image/" {

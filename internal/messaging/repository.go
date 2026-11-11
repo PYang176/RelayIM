@@ -737,10 +737,7 @@ func (r *Repository) listReadStates(
 
 	results := make([]ReadStateResult, 0, len(records))
 	for _, record := range records {
-		results = append(results, ReadStateResult{
-			UserID:      record.UserID,
-			LastReadSeq: record.LastReadSeq,
-		})
+		results = append(results, ReadStateResult(record))
 	}
 	return results, nil
 }
@@ -796,10 +793,7 @@ func (r *Repository) getDeliverySummary(
 		Scan(&summary).Error; err != nil {
 		return DeliverySummary{}, fmt.Errorf("统计消息送达状态: %w", err)
 	}
-	return DeliverySummary{
-		DeliveredDevices: summary.DeliveredDevices,
-		DeliveredUsers:   summary.DeliveredUsers,
-	}, nil
+	return DeliverySummary(summary), nil
 }
 
 // isDuplicateKey 判断重复键条件

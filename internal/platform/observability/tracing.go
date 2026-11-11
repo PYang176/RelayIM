@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const tracerName = "relayim"
@@ -29,7 +30,7 @@ func InitTracing(
 		propagation.Baggage{},
 	))
 	if !cfg.Enabled {
-		otel.SetTracerProvider(trace.NewNoopTracerProvider())
+		otel.SetTracerProvider(noop.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil
 	}
 

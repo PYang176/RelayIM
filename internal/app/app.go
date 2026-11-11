@@ -66,7 +66,11 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("获取 MySQL 连接池失败: %w", err)
 	}
-	defer sqlDB.Close()
+	defer func() {
+		if closeErr := sqlDB.Close(); closeErr != nil {
+			slog.Warn("关闭 MySQL 连接池失败", "error", closeErr)
+		}
+	}()
 	if err := bootstrap.InitSnowFlake(ctx, db); err != nil {
 		return err
 	}

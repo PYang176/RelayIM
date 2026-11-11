@@ -23,7 +23,7 @@ var (
 	ErrClientMessageConflict = errors.New("客户端消息 ID 已被其他会话使用")
 
 	// ErrOutboxLeaseLost 表示发布实例已失去事件处理租约。
-	ErrOutboxLeaseLost = errors.New("Outbox 事件租约已失效")
+	ErrOutboxLeaseLost = errors.New("outbox 事件租约已失效")
 
 	// ErrInvalidEvent 表示 RabbitMQ 事件信封或业务载荷不合法。
 	ErrInvalidEvent = errors.New("消息事件不合法")

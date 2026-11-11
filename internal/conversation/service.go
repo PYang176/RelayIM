@@ -693,14 +693,7 @@ func (s *Service) ListMembers(
 	}
 	results := make([]MemberResult, 0, len(records))
 	for _, record := range records {
-		results = append(results, MemberResult{
-			UserID:    record.UserID,
-			Username:  record.Username,
-			Nickname:  record.Nickname,
-			AvatarURL: record.AvatarURL,
-			Role:      record.Role,
-			JoinedAt:  record.JoinedAt,
-		})
+		results = append(results, MemberResult(record))
 	}
 	return results, nil
 }

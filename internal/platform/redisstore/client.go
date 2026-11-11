@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/redis/go-redis/v9"
+	"log/slog"
 )
 
 var (
@@ -35,7 +36,11 @@ func Publish(ctx context.Context, channel string, msg string) error {
 // Subscribe 订阅redis消息
 func Subscribe(ctx context.Context, channel string) (string, error) {
 	sub := RDB.PSubscribe(ctx, channel)
-	defer sub.Close()
+	defer func() {
+		if closeErr := sub.Close(); closeErr != nil {
+			slog.Warn("关闭 Redis 订阅失败", "channel", channel, "error", closeErr)
+		}
+	}()
 	msg, err := sub.ReceiveMessage(ctx)
 	if err != nil {
 		return "", err

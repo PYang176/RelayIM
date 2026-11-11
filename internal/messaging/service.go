@@ -319,13 +319,10 @@ func (s *Service) ListMessages(
 		return MessagePage{}, ErrInvalidMessage
 	}
 
-	records, hasMore, err := s.repo.listMessages(ctx, listMessagesInput{
-		ConversationID: command.ConversationID,
-		UserID:         command.UserID,
-		AfterSeq:       command.AfterSeq,
-		BeforeSeq:      command.BeforeSeq,
-		Limit:          command.Limit,
-	})
+	records, hasMore, err := s.repo.listMessages(
+		ctx,
+		listMessagesInput(command),
+	)
 	if err != nil {
 		return MessagePage{}, err
 	}
@@ -400,13 +397,7 @@ func (s *Service) SearchMessages(
 
 	records, hasMore, err := s.repo.searchMessages(
 		ctx,
-		searchMessagesInput{
-			ConversationID: command.ConversationID,
-			UserID:         command.UserID,
-			Query:          command.Query,
-			BeforeSeq:      command.BeforeSeq,
-			Limit:          command.Limit,
-		},
+		searchMessagesInput(command),
 	)
 	if err != nil {
 		return MessageSearchPage{}, err

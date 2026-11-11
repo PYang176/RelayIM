@@ -20,10 +20,10 @@ import (
 
 var (
 	// ErrInvalidToken 表示 Token 格式、签名、主体或白名单内容不合法。
-	ErrInvalidToken = errors.New("Token 无效")
+	ErrInvalidToken = errors.New("token 无效")
 
 	// ErrTokenRevoked 表示 Token 已退出登录或不在白名单中。
-	ErrTokenRevoked = errors.New("Token 已失效")
+	ErrTokenRevoked = errors.New("token 已失效")
 
 	// ErrAuthUnavailable 表示 Redis 等认证依赖暂时不可用。
 	ErrAuthUnavailable = errors.New("认证服务暂不可用")

@@ -301,7 +301,10 @@ func waitForReconnect(
 		return false
 	case <-timer.C:
 		return true
-	case <-publisher.WaitClosed():
+	case closeErr := <-publisher.WaitClosed():
+		if closeErr != nil {
+			slog.Warn("RabbitMQ Publisher 在重试等待期间关闭", "error", closeErr)
+		}
 		return false
 	}
 }
