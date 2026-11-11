@@ -108,6 +108,8 @@ Get-Content -Raw loadtest\cleanup-test-users.sql |
 
 ## 已有报告
 
+所有核心报告、原始 JSON 和结果口径统一收录在 [压测报告索引](./reports/README.md)。
+
 - [30 分钟长稳、容量与故障注入：2026-11-12](./reports/soak-fault-2026-11-12.md)
 - [300 人同群瞬时容量：2026-11-12](./reports/group-capacity-2026-11-12.md)
 - [代码审查与压测：2026-11-11](./reports/audit-2026-11-11.md)
