@@ -191,6 +191,7 @@ python scripts\latest-first-e2e.py
 | HTTP 消息容量 | 40 个独立发送账号、2 分钟发送 4,680 条，约 39 条/秒，P95 46.80 ms |
 | WebSocket 群投递 | 4 个在线接收端，23 条消息产生 92 次投递，P95 500 ms，P99 545 ms |
 | WebSocket 空闲连接 | 5,000 个连接完整重叠，建连成功率 99.90% |
+| 300 人同群突发 | 300 条同秒发送全部 Accepted，300 个在线连接完整收到 90,000 次投递，端到端 P99 6.66 秒 |
 | Ticket 限流 | 同一用户 20 并发时按配额返回 `429`，窗口恢复后重新放行 |
 | 基础设施恢复 | RabbitMQ、Redis、MySQL 恢复后均重新可用，恢复约 11–13 秒 |
 
@@ -200,6 +201,7 @@ WebSocket 投递的 P95 当前正好落在 500 ms，与 Outbox 默认 500 ms 轮
 
 - [代码审查与异常压测](loadtest/reports/audit-2026-11-11.md)
 - [30 分钟长稳、容量与故障注入](loadtest/reports/soak-fault-2026-11-12.md)
+- [300 人同群瞬时容量](loadtest/reports/group-capacity-2026-11-12.md)
 - [HTTP 消息基线](loadtest/reports/http-baseline.md)
 - [WebSocket 投递基线](loadtest/reports/websocket-baseline.md)
 - [WebSocket 连接阶梯](loadtest/reports/websocket-connections.md)
@@ -237,4 +239,4 @@ scripts/           演示数据与浏览器验收脚本
 - 支持两实例实时投递，但 CI 尚未自动启动两实例执行故障切换。
 - 还没有举报审核和后台管理系统。
 - 媒体链路支持图片和文件，没有缩略图、断点续传、病毒扫描和内容审核。
-- 已完成 5,000 空闲连接、30 分钟消息长稳、40 并发发送和基础设施故障注入；长稳场景尚未同时保持 5,000 个活跃 WebSocket 收发。
+- 已完成 5,000 空闲连接、30 分钟消息长稳、300 人同群瞬时发送和基础设施故障注入；长稳场景尚未同时保持 5,000 个活跃 WebSocket 收发。

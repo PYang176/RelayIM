@@ -1,0 +1,188 @@
+{
+  "scenario": {
+    "groupMembers": 200,
+    "simultaneousSends": 200,
+    "onlineWebSockets": 200,
+    "sendStartSeconds": 10,
+    "deliveryWaitSeconds": 45
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 600,
+        "fails": 0
+      },
+      "thresholds": {}
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 400
+      },
+      "thresholds": {}
+    },
+    "http_req_failed{endpoint:group_send}": {
+      "type": "rate",
+      "values": {
+        "fails": 200,
+        "rate": 0,
+        "passes": 0
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 400,
+        "rate": 7.25929111007385
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "avg": 619.540500965,
+        "min": 59.294513,
+        "med": 179.807717,
+        "p(90)": 1724.2183201000012,
+        "p(95)": 2082.2437599999985,
+        "p(99)": 2351.4777990499997,
+        "max": 2415.477843
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{endpoint:group_send}": {
+      "type": "trend",
+      "values": {
+        "p(95)": 2247.3696147,
+        "p(99)": 2371.6032029,
+        "max": 2415.477843,
+        "avg": 1101.6378315400002,
+        "min": 59.414419,
+        "med": 1004.8912535,
+        "p(90)": 2083.6058279999997
+      },
+      "thresholds": {
+        "p(95)<2000": {
+          "ok": false
+        },
+        "p(99)<5000": {
+          "ok": true
+        }
+      }
+    },
+    "group_send_accepted": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 200,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "group_send_rate_limited": {
+      "type": "rate",
+      "values": {
+        "passes": 0,
+        "fails": 200,
+        "rate": 0
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "ws_connection_success": {
+      "type": "rate",
+      "values": {
+        "fails": 0,
+        "rate": 1,
+        "passes": 200
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_delivery_complete": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 200,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_delivery_coverage": {
+      "type": "trend",
+      "values": {
+        "max": 1,
+        "avg": 1,
+        "min": 1,
+        "med": 1,
+        "p(90)": 1,
+        "p(95)": 1,
+        "p(99)": 1
+      },
+      "thresholds": {
+        "p(99)>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "ws_messages_received": {
+      "type": "counter",
+      "values": {
+        "count": 40000,
+        "rate": 725.929111007385
+      },
+      "thresholds": {}
+    },
+    "ws_own_message_latency": {
+      "type": "trend",
+      "values": {
+        "p(99)": 4879.9,
+        "max": 4920,
+        "avg": 3357.90404040404,
+        "min": 1527,
+        "med": 3346.5,
+        "p(90)": 4611.900000000001,
+        "p(95)": 4735
+      },
+      "thresholds": {
+        "p(95)<5000": {
+          "ok": true
+        },
+        "p(99)<10000": {
+          "ok": true
+        }
+      }
+    },
+    "ws_sessions": {
+      "type": "counter",
+      "values": {
+        "count": 200,
+        "rate": 3.629645555036925
+      },
+      "thresholds": {}
+    }
+  }
+}

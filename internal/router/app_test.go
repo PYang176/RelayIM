@@ -3,6 +3,7 @@ package router
 import (
 	"testing"
 
+	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 )
@@ -20,6 +21,7 @@ func TestRouterOnlyExposesVersionedApplicationAPI(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		config.MessageRateLimitConfig{},
 	)
 	if engine.ForwardedByClientIP {
 		t.Fatal("默认配置不应信任客户端伪造的代理 IP 请求头")

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/PYang176/RelayIM/internal/config"
 	"github.com/PYang176/RelayIM/internal/platform/observability"
 	"github.com/gin-gonic/gin"
 	"go.yaml.in/yaml/v3"
@@ -241,5 +242,6 @@ func NewTestRouter() *gin.Engine {
 		nil,
 		nil,
 		nil,
+		config.MessageRateLimitConfig{},
 	)
 }

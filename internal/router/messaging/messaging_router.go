@@ -1,23 +1,18 @@
 package messaging
 
 import (
+	"time"
+
+	"github.com/PYang176/RelayIM/internal/config"
 	messagingapp "github.com/PYang176/RelayIM/internal/messaging"
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"github.com/PYang176/RelayIM/internal/platform/observability"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 var (
-	messageRateLimitPolicy = middleware.RateLimitPolicy{
-		Namespace:    "message_send",
-		Subject:      middleware.RateLimitByUser,
-		SubjectLimit: 20,
-		GlobalLimit:  500,
-		Window:       10 * time.Second,
-	}
 	attachmentRateLimitPolicy = middleware.RateLimitPolicy{
 		Namespace:    "attachment_upload",
 		Subject:      middleware.RateLimitByUser,
@@ -48,6 +43,7 @@ func Register(
 	storage messagingapp.AttachmentStorage,
 	requestLimiter middleware.RateLimitChecker,
 	metrics *observability.Metrics,
+	rateLimitConfig config.MessageRateLimitConfig,
 ) {
 	repository := messagingapp.NewRepository(db)
 	service := messagingapp.NewServiceWithStorage(repository, storage)
@@ -77,7 +73,11 @@ func Register(
 	)
 	group.POST(
 		"/:conversation_id/messages",
-		middleware.RateLimit(requestLimiter, messageRateLimitPolicy, metrics),
+		middleware.RateLimit(
+			requestLimiter,
+			messageSendRateLimitPolicy(rateLimitConfig),
+			metrics,
+		),
 		handler.SendMessage,
 	)
 	group.DELETE(
@@ -95,4 +95,26 @@ func Register(
 	)
 	attachments.GET("/:id", handler.GetAttachmentInfo)
 	attachments.GET("/:id/content", handler.DownloadAttachment)
+}
+
+// messageSendRateLimitPolicy 把部署配置转换为消息发送限流策略
+func messageSendRateLimitPolicy(
+	cfg config.MessageRateLimitConfig,
+) middleware.RateLimitPolicy {
+	if cfg.SubjectLimit <= 0 {
+		cfg.SubjectLimit = 20
+	}
+	if cfg.GlobalLimit <= 0 {
+		cfg.GlobalLimit = 1000
+	}
+	if cfg.WindowMilliseconds <= 0 {
+		cfg.WindowMilliseconds = 10000
+	}
+	return middleware.RateLimitPolicy{
+		Namespace:    "message_send",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: cfg.SubjectLimit,
+		GlobalLimit:  cfg.GlobalLimit,
+		Window:       time.Duration(cfg.WindowMilliseconds) * time.Millisecond,
+	}
 }

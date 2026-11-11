@@ -94,6 +94,7 @@ func Run() error {
 		},
 	)
 	rateLimitConfig := bootstrap.LoadWSTicketRateLimitConfig()
+	messageRateLimitConfig := bootstrap.LoadMessageRateLimitConfig()
 	slidingWindowLimiter := ratelimit.NewSlidingWindowLimiter(
 		redisstore.RDB,
 		"relayim",
@@ -144,13 +145,14 @@ func Run() error {
 	// 启动阶段 2：启动具备明确取消语义的 RabbitMQ 后台任务。
 	var backgroundWorkers sync.WaitGroup
 	var deliveryRouter *realtime.DeliveryRouter
+	var deliveryRouters []*realtime.DeliveryRouter
 	messagingRepository := messaging.NewRepository(db)
 	defer func() {
 		// Run 退出时先取消后台任务，再等待连接和轮询协程释放资源。
 		stop()
 		backgroundWorkers.Wait()
-		if deliveryRouter != nil {
-			if err := deliveryRouter.Close(); err != nil {
+		for _, router := range deliveryRouters {
+			if err := router.Close(); err != nil {
 				slog.Warn("关闭跨实例实时投递发布器失败", "error", err)
 			}
 		}
@@ -201,17 +203,36 @@ func Run() error {
 			rabbitCfg,
 			serviceInstanceID,
 		)
-		eventConsumer := messaging.NewEventConsumer(
-			messaging.NewEventProcessor(db, deliveryRouter),
-			rabbitCfg,
-			serviceInstanceID+"-message-events",
-			metrics,
-		)
-		backgroundWorkers.Add(1)
-		go func() {
-			defer backgroundWorkers.Done()
-			eventConsumer.Run(ctx)
-		}()
+		deliveryRouters = append(deliveryRouters, deliveryRouter)
+		// 每个事件 Consumer 使用独立发布器，避免单个 Publisher Confirm
+		// 通道的互斥锁把并行消费重新串行化
+		for workerIndex := 0; workerIndex < rabbitCfg.ConsumerWorkers; workerIndex++ {
+			eventDeliveryRouter := realtime.NewDeliveryRouter(
+				realtimeRegistry,
+				rabbitCfg,
+				serviceInstanceID,
+			)
+			deliveryRouters = append(deliveryRouters, eventDeliveryRouter)
+			eventProcessor := messaging.NewEventProcessor(
+				db,
+				eventDeliveryRouter,
+			)
+			eventConsumer := messaging.NewEventConsumer(
+				eventProcessor,
+				rabbitCfg,
+				fmt.Sprintf(
+					"%s-message-events-%d",
+					serviceInstanceID,
+					workerIndex+1,
+				),
+				metrics,
+			)
+			backgroundWorkers.Add(1)
+			go func() {
+				defer backgroundWorkers.Done()
+				eventConsumer.Run(ctx)
+			}()
+		}
 
 		nodeConsumer := realtime.NewNodeConsumer(
 			rabbitCfg,
@@ -241,6 +262,7 @@ func Run() error {
 			presenceService,
 			realtimeRegistry,
 			deliveryRouter,
+			messageRateLimitConfig,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

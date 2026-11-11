@@ -80,6 +80,7 @@ func bindConfigEnv(v *viper.Viper) error {
 		"rabbitmq.retry_base_seconds":            "RELAYIM_RABBITMQ_RETRY_BASE_SECONDS",
 		"rabbitmq.claim_lease_seconds":           "RELAYIM_RABBITMQ_CLAIM_LEASE_SECONDS",
 		"rabbitmq.prefetch":                      "RELAYIM_RABBITMQ_PREFETCH",
+		"rabbitmq.consumer_workers":              "RELAYIM_RABBITMQ_CONSUMER_WORKERS",
 		"s3.endpoint":                            "RELAYIM_S3_ENDPOINT",
 		"s3.public_endpoint":                     "RELAYIM_S3_PUBLIC_ENDPOINT",
 		"s3.access_key":                          "RELAYIM_S3_ACCESS_KEY",
@@ -90,6 +91,9 @@ func bindConfigEnv(v *viper.Viper) error {
 		"rate_limit.ws_ticket_global":            "RELAYIM_WS_TICKET_RATE_LIMIT_GLOBAL",
 		"rate_limit.ws_ticket_user":              "RELAYIM_WS_TICKET_RATE_LIMIT_USER",
 		"rate_limit.ws_ticket_window_ms":         "RELAYIM_WS_TICKET_RATE_LIMIT_WINDOW_MS",
+		"rate_limit.message_send_user":           "RELAYIM_MESSAGE_RATE_LIMIT_USER",
+		"rate_limit.message_send_global":         "RELAYIM_MESSAGE_RATE_LIMIT_GLOBAL",
+		"rate_limit.message_send_window_ms":      "RELAYIM_MESSAGE_RATE_LIMIT_WINDOW_MS",
 		"snowflake.workID":                       "RELAYIM_SNOWFLAKE_WORK_ID",
 		"tracing.enabled":                        "RELAYIM_TRACING_ENABLED",
 		"tracing.service_name":                   "RELAYIM_TRACING_SERVICE_NAME",
@@ -182,13 +186,39 @@ func loadWSTicketRateLimitConfig(
 		WindowMilliseconds: v.GetInt("rate_limit.ws_ticket_window_ms"),
 	}
 	if cfg.GlobalLimit <= 0 {
-		cfg.GlobalLimit = 250
+		cfg.GlobalLimit = 500
 	}
 	if cfg.UserLimit <= 0 {
 		cfg.UserLimit = 10
 	}
 	if cfg.WindowMilliseconds <= 0 {
 		cfg.WindowMilliseconds = 1000
+	}
+	return cfg
+}
+
+// LoadMessageRateLimitConfig 从 Viper 读取消息发送限流配置。
+func LoadMessageRateLimitConfig() config.MessageRateLimitConfig {
+	return loadMessageRateLimitConfig(viper.GetViper())
+}
+
+// loadMessageRateLimitConfig 加载消息发送限流配置所需数据
+func loadMessageRateLimitConfig(
+	v *viper.Viper,
+) config.MessageRateLimitConfig {
+	cfg := config.MessageRateLimitConfig{
+		SubjectLimit:       v.GetInt("rate_limit.message_send_user"),
+		GlobalLimit:        v.GetInt("rate_limit.message_send_global"),
+		WindowMilliseconds: v.GetInt("rate_limit.message_send_window_ms"),
+	}
+	if cfg.SubjectLimit <= 0 {
+		cfg.SubjectLimit = 20
+	}
+	if cfg.GlobalLimit <= 0 {
+		cfg.GlobalLimit = 1000
+	}
+	if cfg.WindowMilliseconds <= 0 {
+		cfg.WindowMilliseconds = 10000
 	}
 	return cfg
 }
@@ -209,6 +239,7 @@ func loadRabbitMQConfig(v *viper.Viper) config.RabbitMQConfig {
 		RetryBaseSeconds:         v.GetInt("rabbitmq.retry_base_seconds"),
 		ClaimLeaseSeconds:        v.GetInt("rabbitmq.claim_lease_seconds"),
 		Prefetch:                 v.GetInt("rabbitmq.prefetch"),
+		ConsumerWorkers:          v.GetInt("rabbitmq.consumer_workers"),
 	}
 	if cfg.PublishTimeoutSeconds <= 0 {
 		cfg.PublishTimeoutSeconds = 5
@@ -230,6 +261,12 @@ func loadRabbitMQConfig(v *viper.Viper) config.RabbitMQConfig {
 	}
 	if cfg.Prefetch <= 0 {
 		cfg.Prefetch = 20
+	}
+	if cfg.ConsumerWorkers <= 0 {
+		cfg.ConsumerWorkers = 4
+	}
+	if cfg.ConsumerWorkers > 32 {
+		cfg.ConsumerWorkers = 32
 	}
 	return cfg
 }

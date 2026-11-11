@@ -205,6 +205,7 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 	t.Setenv("RELAYIM_RABBITMQ_RETRY_BASE_SECONDS", "3")
 	t.Setenv("RELAYIM_RABBITMQ_CLAIM_LEASE_SECONDS", "45")
 	t.Setenv("RELAYIM_RABBITMQ_PREFETCH", "30")
+	t.Setenv("RELAYIM_RABBITMQ_CONSUMER_WORKERS", "6")
 
 	v := viper.New()
 	if err := bindConfigEnv(v); err != nil {
@@ -219,8 +220,31 @@ func TestLoadRabbitMQConfigFromEnvironment(t *testing.T) {
 		cfg.MaxPublishAttempts != 8 ||
 		cfg.RetryBaseSeconds != 3 ||
 		cfg.ClaimLeaseSeconds != 45 ||
-		cfg.Prefetch != 30 {
+		cfg.Prefetch != 30 ||
+		cfg.ConsumerWorkers != 6 {
 		t.Fatalf("LoadRabbitMQConfig() = %+v，环境变量没有正确覆盖默认值", cfg)
+	}
+}
+
+// TestLoadMessageRateLimitConfigFromEnvironment 覆盖消息发送限流的环境变量覆盖
+func TestLoadMessageRateLimitConfigFromEnvironment(t *testing.T) {
+	t.Setenv("RELAYIM_MESSAGE_RATE_LIMIT_USER", "30")
+	t.Setenv("RELAYIM_MESSAGE_RATE_LIMIT_GLOBAL", "1200")
+	t.Setenv("RELAYIM_MESSAGE_RATE_LIMIT_WINDOW_MS", "5000")
+
+	v := viper.New()
+	if err := bindConfigEnv(v); err != nil {
+		t.Fatalf("绑定环境变量失败: %v", err)
+	}
+
+	cfg := loadMessageRateLimitConfig(v)
+	expected := (config.MessageRateLimitConfig{
+		SubjectLimit:       30,
+		GlobalLimit:        1200,
+		WindowMilliseconds: 5000,
+	})
+	if cfg != expected {
+		t.Fatalf("LoadMessageRateLimitConfig() = %+v，期望 %+v", cfg, expected)
 	}
 }
 

@@ -64,8 +64,11 @@ POST 消息
 - 三次重试后重新投递回主队列时进入 DLQ。
 - JSON、字段、版本或消息事实错误属于不可重试错误，直接 NACK 进入 DLQ。
 - `processed_events(event_id, consumer_name)` 保证同一消费者重复处理时不会重复执行业务状态。
+- 领域事件 Consumer 默认使用 4 个独立连接并行消费，可通过 `RELAYIM_RABBITMQ_CONSUMER_WORKERS` 调整。
 
 Consumers 根据事件类型查询消息接收者或被邀请人，再通过 Redis 实例路由把投递命令发布到目标实例队列。实例自己的 Node Consumer 将事件放入本地 WebSocket 有界队列。WebSocket 每个连接只有一个写协程，慢连接队列满时只关闭该连接。
+
+同一队列的多个 Consumer 只分摊事件，不会扩大接收者集合。实例投递队列仍由单 Consumer 保持简单消费，因为 WebSocket 管理器本身对每个目标连接执行非阻塞入队；多连接消费不能绕过本机连接写入上限。
 
 节点队列不追求持久化重放。实例退出或队列不可路由时，客户端通过 HTTP 最新页、群邀请列表等接口从 MySQL 恢复事实。完整链路见 [多实例实时投递](./多实例实时投递.md)。
 
@@ -75,6 +78,7 @@ Consumers 根据事件类型查询消息接收者或被邀请人，再通过 Red
 
 ```text
 RELAYIM_RABBITMQ_URL=amqp://用户名:密码@127.0.0.1:5672/relayim
+RELAYIM_RABBITMQ_CONSUMER_WORKERS=4
 ```
 
 URL 必须与应用使用的 RabbitMQ VHost 一致。`deploy/.env` 只用于 Compose 容器，不会被 Go 应用自动加载。

@@ -13,6 +13,7 @@ INSERT INTO relayim_cleanup_users (id)
 SELECT id
 FROM users
 WHERE username LIKE 'load_http_%'
+   OR username LIKE 'load_gc_%'
    OR username LIKE 'loadwss_%'
    OR username LIKE 'loadwsr_%'
    OR username LIKE 'boundary_a_%'

@@ -21,6 +21,8 @@ import (
 
 const maxDeliveryPayloadBytes = 1 << 20
 
+var deliverySequence atomic.Uint64
+
 // NodeDelivery 是一条发往指定 Go 实例的 WebSocket 投递命令。
 type NodeDelivery struct {
 	// DeliveryID 是节点投递命令的唯一标识。
@@ -65,7 +67,6 @@ type DeliveryRouter struct {
 	config       config.RabbitMQConfig
 	instanceID   string
 	newPublisher publisherFactory
-	sequence     atomic.Uint64
 
 	mu        sync.Mutex
 	publisher rawPublisher
@@ -192,7 +193,7 @@ func (r *DeliveryRouter) publishToInstance(
 	deliveryID := fmt.Sprintf(
 		"%s-%d",
 		r.instanceID,
-		r.sequence.Add(1),
+		deliverySequence.Add(1),
 	)
 	body, err := json.Marshal(NodeDelivery{
 		DeliveryID: deliveryID,

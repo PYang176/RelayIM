@@ -108,6 +108,9 @@ type RabbitMQConfig struct {
 
 	// Prefetch 限制单个消费者尚未 ACK 的消息数量。
 	Prefetch int `mapstructure:"prefetch"`
+
+	// ConsumerWorkers 是并行消费领域事件的连接数
+	ConsumerWorkers int `mapstructure:"consumer_workers"`
 }
 
 // ObjectStorageConfig 控制 SeaweedFS 的 S3 兼容对象存储。
@@ -143,6 +146,18 @@ type WSTicketRateLimitConfig struct {
 	UserLimit int `mapstructure:"user_limit"`
 
 	// WindowMilliseconds 是滑动限流窗口长度。
+	WindowMilliseconds int `mapstructure:"window_ms"`
+}
+
+// MessageRateLimitConfig 控制消息发送接口的滑动窗口配额
+type MessageRateLimitConfig struct {
+	// SubjectLimit 是单个用户在窗口内允许发送的消息数
+	SubjectLimit int `mapstructure:"subject_limit"`
+
+	// GlobalLimit 是所有用户共享的窗口消息发送上限
+	GlobalLimit int `mapstructure:"global_limit"`
+
+	// WindowMilliseconds 是滑动限流窗口长度
 	WindowMilliseconds int `mapstructure:"window_ms"`
 }
 

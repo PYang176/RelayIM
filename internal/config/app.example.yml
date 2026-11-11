@@ -43,6 +43,8 @@ rabbitmq:
   retry_base_seconds: 2
   claim_lease_seconds: 30
   prefetch: 20
+  # 本机实测 4 个连接可并行处理领域事件并缩短大群扇出排队
+  consumer_workers: 4
 
 s3:
   endpoint: 127.0.0.1:8333
@@ -55,9 +57,14 @@ s3:
   use_ssl: false
 
 rate_limit:
-  ws_ticket_global: 250
+  # 与单群 500 人上限对齐，避免集中重连时产生无意义重试
+  ws_ticket_global: 500
   ws_ticket_user: 10
   ws_ticket_window_ms: 1000
+  # 500 条消息的安全基线；高配部署可结合压测结果继续调高
+  message_send_user: 20
+  message_send_global: 1000
+  message_send_window_ms: 10000
 
 snowflake:
   # 多实例部署时，每个实例必须使用不同且唯一的 worker ID。

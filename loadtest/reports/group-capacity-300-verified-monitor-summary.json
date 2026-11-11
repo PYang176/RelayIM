@@ -1,0 +1,20 @@
+{
+  "started_at_utc": "2026-11-11T18:19:50.8975205Z",
+  "duration_seconds": 130,
+  "interval_seconds": 2,
+  "sample_count": 40,
+  "collection_errors": 0,
+  "max_goroutines": 1331.0,
+  "max_heap_mib": 44.45,
+  "max_rss_mib": 0.0,
+  "max_db_open": 33.0,
+  "max_db_in_use": 27.0,
+  "max_websocket_connections": 301.0,
+  "max_outbox_pending": 178.0,
+  "max_outbox_processing": 64.0,
+  "max_outbox_dead": 0.0,
+  "max_container_cpu_percent": 120.1,
+  "max_container_memory_mib": 89.62,
+  "accepted_delta": 300.0,
+  "consumer_success_delta": 300.0
+}

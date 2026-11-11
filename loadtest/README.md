@@ -4,6 +4,7 @@
 
 ```text
 loadtest/k6/http-message.js
+loadtest/k6/group-capacity.js
 ```
 
 ## 场景
@@ -17,6 +18,50 @@ loadtest/k6/http-message.js
 5. 校验消息返回 `201` 且具有服务端 `seq`。
 
 该场景只测消息 Accepted 链路，不包含 WebSocket 空闲连接和端到端在线投递延迟。
+
+## 同群容量场景
+
+`group-capacity.js` 用于验证 200 至 500 人同群瞬时发送：
+
+1. 所有成员先建立 WebSocket。
+2. 所有成员在统一时刻分别通过真实 HTTP 接口发送一条消息。
+3. 每个在线连接统计是否完整收到全部群消息。
+4. 记录 Accepted、`429`、P95/P99、在线扇出覆盖和本人消息端到端延迟。
+
+夹具由 `loadtest/cmd/groupfixture` 直接创建本地压测账号、设备和群成员。夹具进程必须读取与正在运行应用相同的 JWT、MySQL 和 Redis 配置。先确认目标账号前缀 `load_gc_` 没有被业务数据使用。
+
+生成 300 人夹具：
+
+```powershell
+go run .\loadtest\cmd\groupfixture `
+  -members 300 `
+  -output .tmp\group-capacity-300.json
+```
+
+执行测试：
+
+```powershell
+docker run --rm `
+  --add-host=host.docker.internal:host-gateway `
+  -e BASE_URL=http://host.docker.internal:8081 `
+  -e FIXTURE_FILE=../../.tmp/group-capacity-300.json `
+  -e SEND_START_SECONDS=12 `
+  -e DELIVERY_WAIT_SECONDS=60 `
+  -e SUMMARY_FILE=group-capacity-300-final.json `
+  -v "${PWD}:/work" `
+  -w /work `
+  grafana/k6:0.57.0 run loadtest/k6/group-capacity.js
+```
+
+同步采集应用和容器资源：
+
+```powershell
+.\loadtest\monitor-soak.ps1 `
+  -DurationSeconds 130 `
+  -IntervalSeconds 2 `
+  -OutputPath loadtest\reports\group-capacity-monitor.csv `
+  -SummaryPath loadtest\reports\group-capacity-monitor-summary.json
+```
 
 ## 本地运行
 
@@ -64,6 +109,7 @@ Get-Content -Raw loadtest\cleanup-test-users.sql |
 ## 已有报告
 
 - [30 分钟长稳、容量与故障注入：2026-11-12](./reports/soak-fault-2026-11-12.md)
+- [300 人同群瞬时容量：2026-11-12](./reports/group-capacity-2026-11-12.md)
 - [代码审查与压测：2026-11-11](./reports/audit-2026-11-11.md)
 - [HTTP 消息基线：10 VU / 30 秒](./reports/http-baseline.md)
 - [WebSocket 投递基线：20 个在线连接 / 30 秒](./reports/websocket-baseline.md)

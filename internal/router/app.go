@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/PYang176/RelayIM/internal/config"
 	messagingapp "github.com/PYang176/RelayIM/internal/messaging"
 	"github.com/PYang176/RelayIM/internal/middleware"
 	"github.com/PYang176/RelayIM/internal/platform/observability"
@@ -28,6 +29,7 @@ func Router(
 	presenceService *presenceapp.Service,
 	realtimeRoutes *realtimeapp.Registry,
 	realtimeDelivery *realtimeapp.DeliveryRouter,
+	messageRateLimitConfig config.MessageRateLimitConfig,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -77,7 +79,14 @@ func Router(
 	)
 
 	// 消息路由
-	messagingrouter.Register(r, db, storage, requestLimiter, metrics)
+	messagingrouter.Register(
+		r,
+		db,
+		storage,
+		requestLimiter,
+		metrics,
+		messageRateLimitConfig,
+	)
 
 	// websocket
 	ws.Register(r, db, presenceService, realtimeRoutes)

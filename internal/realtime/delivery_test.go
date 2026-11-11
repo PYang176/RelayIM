@@ -27,6 +27,7 @@ func (s stubRouteResolver) QueryInstances(
 type publishedCommand struct {
 	exchange   string
 	routingKey string
+	messageID  string
 	body       []byte
 }
 
@@ -40,7 +41,7 @@ func (s *stubRawPublisher) PublishRaw(
 	_ context.Context,
 	exchange string,
 	routingKey string,
-	_ string,
+	messageID string,
 	_ string,
 	_ time.Time,
 	body []byte,
@@ -48,9 +49,51 @@ func (s *stubRawPublisher) PublishRaw(
 	s.commands = append(s.commands, publishedCommand{
 		exchange:   exchange,
 		routingKey: routingKey,
+		messageID:  messageID,
 		body:       append([]byte(nil), body...),
 	})
 	return s.err
+}
+
+// TestDeliveryRouterMessageIDsUniqueAcrossRouters 覆盖并行消费者共享发布目标时的消息 ID 唯一性
+func TestDeliveryRouterMessageIDsUniqueAcrossRouters(t *testing.T) {
+	resolver := stubRouteResolver{
+		routes: map[uint64][]string{2: {"instance-a"}},
+	}
+	publisherA := &stubRawPublisher{}
+	publisherB := &stubRawPublisher{}
+	routerA := NewDeliveryRouter(
+		resolver,
+		config.RabbitMQConfig{PublishTimeoutSeconds: 1},
+		"router-instance",
+	)
+	routerB := NewDeliveryRouter(
+		resolver,
+		config.RabbitMQConfig{PublishTimeoutSeconds: 1},
+		"router-instance",
+	)
+	routerA.newPublisher = func() (rawPublisher, error) {
+		return publisherA, nil
+	}
+	routerB.newPublisher = func() (rawPublisher, error) {
+		return publisherB, nil
+	}
+	payload := []byte(`{"action":"message","message_id":"10"}`)
+	if err := routerA.Route(context.Background(), []uint64{2}, payload); err != nil {
+		t.Fatalf("第一个路由器发布失败: %v", err)
+	}
+	if err := routerB.Route(context.Background(), []uint64{2}, payload); err != nil {
+		t.Fatalf("第二个路由器发布失败: %v", err)
+	}
+	if len(publisherA.commands) != 1 || len(publisherB.commands) != 1 {
+		t.Fatal("每个路由器都应发布一条节点投递命令")
+	}
+	if publisherA.commands[0].messageID == publisherB.commands[0].messageID {
+		t.Fatalf(
+			"不同路由器生成了重复消息 ID: %s",
+			publisherA.commands[0].messageID,
+		)
+	}
 }
 
 // Close 关闭并释放底层资源

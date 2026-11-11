@@ -69,7 +69,7 @@ func NewConsumer(url string, prefetch int) (*Consumer, error) {
 	}, nil
 }
 
-// DeclareNodeQueue 声明当前应用实例独占的临时 WebSocket 投递队列。
+// DeclareNodeQueue 声明当前应用实例独占的临时 WebSocket 投递队列
 func (c *Consumer) DeclareNodeQueue(instanceID string) error {
 	instanceID = strings.TrimSpace(instanceID)
 	if instanceID == "" {
