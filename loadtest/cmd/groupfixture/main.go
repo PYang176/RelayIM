@@ -100,8 +100,8 @@ func main() {
 	memberCount := flag.Int("members", 200, "待创建的群成员数量")
 	appEnvFile := flag.String("app-env", "internal/config/app.env", "应用环境变量文件")
 	configFile := flag.String("config", "internal/config/app.yml", "应用 YAML 配置文件")
-	mysqlAddr := flag.String("mysql-addr", "127.0.0.1:3307", "MySQL 地址")
-	redisAddr := flag.String("redis-addr", "127.0.0.1:6379", "Redis 地址")
+	mysqlAddr := flag.String("mysql-addr", "127.0.0.1:3306", "MySQL 地址")
+	redisAddr := flag.String("redis-addr", "127.0.0.1:6380", "Redis 地址")
 	outputFile := flag.String(
 		"output",
 		".tmp/group-capacity-fixture.json",

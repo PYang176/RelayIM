@@ -19,14 +19,24 @@ RelayIM 是一个可以在浏览器中使用的即时通讯项目。后端使用
 
 ## 快速启动
 
-推荐直接启动完整容器。需要先安装 Docker Desktop，并确保 Docker Engine 正常运行。
+推荐由本机 MySQL 保存业务数据，Docker 负责运行 Go 后端、Vue 前端、Redis、RabbitMQ 和 SeaweedFS。需要先安装并启动 MySQL 8 与 Docker Desktop。
+
+先在本地 MySQL 创建数据库：
+
+```sql
+CREATE DATABASE relayim
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+```
 
 ```powershell
 Copy-Item deploy\.env.example deploy\.env
 Copy-Item deploy\app.env.example deploy\app.env
 ```
 
-打开两个文件，替换其中的数据库密码、JWT 密钥、RabbitMQ 密码和对象存储凭据。JWT 密钥至少需要 32 字节。
+打开两个文件，填写本机 MySQL 地址和密码、JWT 密钥、RabbitMQ 密码及对象存储凭据。JWT 密钥至少需要 32 字节。
+
+MySQL 密码变量使用 `RELAYIM_MYSQL_PASSWORD`。如果本地文件仍保留旧的 `RELAYIM_MYSQL_ROOT_PASSWORD`，请改名并确认密码来自本机 MySQL。
 
 ```powershell
 docker compose `
@@ -34,7 +44,7 @@ docker compose `
   --env-file deploy\app.env `
   -f deploy\docker-compose.yml `
   -f deploy\docker-compose.app.yml `
-  up -d --build
+  up -d --build --remove-orphans
 ```
 
 启动完成后访问：
@@ -43,10 +53,11 @@ docker compose `
 | --- | --- |
 | Web 客户端 | http://localhost:8080 |
 | Go API | http://localhost:8081 |
+| 本机 MySQL | `127.0.0.1:3306` |
 | RabbitMQ 管理界面 | http://localhost:15672 |
 | Grafana | http://localhost:3000 |
 
-第一次启动会构建前后端镜像并执行数据库迁移。需要演示数据时运行：
+第一次启动会构建前后端镜像，并由一次性迁移容器连接本机 MySQL 执行数据库迁移。需要演示数据时运行：
 
 ```powershell
 .\scripts\seed-demo.ps1
@@ -56,7 +67,7 @@ docker compose `
 
 ## 本地开发
 
-Go 和 Vue 也可以在本机运行，只把基础设施放进 Docker：
+Go 和 Vue 也可以在本机运行，Docker 只承载 Redis、RabbitMQ、SeaweedFS 和可观测性组件。本机 MySQL 先按上面的 SQL 创建数据库，并在 `internal/config/app.env` 中配置连接信息。Redis 默认映射到宿主机 `6380`，因此本地 Go 配置应使用 `RELAYIM_REDIS_PORT=6380`。
 
 ```powershell
 docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d

@@ -1,4 +1,4 @@
-"""验证 RabbitMQ、Redis 和 MySQL 短暂故障后的服务恢复行为。"""
+"""验证 Docker 中 RabbitMQ 和 Redis 短暂故障后的服务恢复行为。"""
 
 from __future__ import annotations
 
@@ -437,53 +437,6 @@ def redis_fault(
     }
 
 
-def mysql_fault(
-    api: APIRequestContext,
-    sender: dict[str, Any],
-    conversation_id: str,
-    base_url: str,
-    container: str,
-) -> dict[str, Any]:
-    """验证 MySQL 中断时的明确失败和恢复后的消息写入。"""
-    docker_container(container, "stop")
-    wait_until(lambda: container_health(container) == "exited", 30)
-    time.sleep(1)
-    send_status, _ = send_message(
-        api,
-        sender["token"],
-        conversation_id,
-        f"mysql-down-{time.time_ns()}",
-        "MySQL 中断期间消息",
-    )
-    ready_status = http_status(f"{base_url}/health/ready")
-    if send_status < 500 or ready_status != 503:
-        raise AssertionError(
-            f"MySQL 中断状态不符合预期: send={send_status} ready={ready_status}"
-        )
-
-    recovery_started = time.monotonic()
-    docker_container(container, "start")
-    wait_container_healthy(container, 120)
-    wait_until(lambda: http_status(f"{base_url}/health/ready") == 200, 90, 1)
-    wait_until(
-        lambda: send_message(
-            api,
-            sender["token"],
-            conversation_id,
-            f"mysql-recovered-{time.time_ns()}",
-            "MySQL 恢复后消息",
-        )[0] == 201,
-        60,
-        1,
-    )
-    return {
-        "send_status_during_outage": send_status,
-        "ready_status_during_outage": ready_status,
-        "recovery_ms": round((time.monotonic() - recovery_started) * 1000, 2),
-        "message_after_recovery": 201,
-    }
-
-
 def restore_containers(containers: list[str]) -> None:
     """确保故障注入结束后所有容器均已启动。"""
     for container in containers:
@@ -509,7 +462,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     containers = [
         f"{args.container_prefix}rabbitmq",
         f"{args.container_prefix}redis",
-        f"{args.container_prefix}mysql",
     ]
 
     with sync_playwright() as playwright:
@@ -551,13 +503,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     args.api_url,
                     containers[1],
                 ),
-                "mysql": mysql_fault(
-                    api,
-                    sender,
-                    conversation_id,
-                    args.api_url,
-                    containers[2],
-                ),
+                "mysql": {
+                    "status": "skipped",
+                    "reason": "MySQL 使用宿主机服务，不在 Docker 故障脚本中自动停止",
+                },
                 "conversation_id": conversation_id,
             }
             (report_dir / "result.json").write_text(

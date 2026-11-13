@@ -1,26 +1,4 @@
 services:
-  mysql:
-    image: mysql:8.0.34
-    container_name: relayim-mysql
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:3307:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: ${RELAYIM_MYSQL_ROOT_PASSWORD:?请设置 RELAYIM_MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: relayim
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_0900_ai_ci
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 24
-    networks:
-      - backend
-
   migrate:
     build:
       context: ..
@@ -28,17 +6,16 @@ services:
       target: migration
     image: relayim-migrate:local
     environment:
-      RELAYIM_MYSQL_DSN: "root:${RELAYIM_MYSQL_ROOT_PASSWORD:?}@tcp(mysql:3306)/relayim?charset=utf8mb4&parseTime=true&loc=UTC"
+      RELAYIM_MYSQL_DSN: "${RELAYIM_MYSQL_USER:-root}:${RELAYIM_MYSQL_PASSWORD:-${RELAYIM_MYSQL_ROOT_PASSWORD:?}}@tcp(${RELAYIM_MYSQL_HOST:-host.docker.internal}:${RELAYIM_MYSQL_PORT:-3306})/${RELAYIM_MYSQL_DBNAME:-relayim}?charset=utf8mb4&parseTime=true&loc=UTC"
     command:
       [
         "sh",
         "-c",
-        "exec goose -dir /migrations mysql \"$$RELAYIM_MYSQL_DSN\" up",
+        "attempt=0; until goose -dir /migrations mysql \"$$RELAYIM_MYSQL_DSN\" status >/dev/null 2>&1; do attempt=$$((attempt + 1)); if [ \"$$attempt\" -ge 30 ]; then echo '无法连接本机 MySQL，请检查 host.docker.internal、端口和账号权限' >&2; exit 1; fi; sleep 2; done; exec goose -dir /migrations mysql \"$$RELAYIM_MYSQL_DSN\" up",
       ]
-    depends_on:
-      mysql:
-        condition: service_healthy
     restart: "no"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - backend
 
@@ -55,11 +32,11 @@ services:
     environment:
       RELAYIM_CONFIG_FILE: /app/internal/config/app.yml
       RELAYIM_SERVER_ADDR: ":8081"
-      RELAYIM_MYSQL_HOST: mysql
-      RELAYIM_MYSQL_PORT: 3306
-      RELAYIM_MYSQL_USER: root
-      RELAYIM_MYSQL_PASSWORD: ${RELAYIM_MYSQL_ROOT_PASSWORD:?}
-      RELAYIM_MYSQL_DBNAME: relayim
+      RELAYIM_MYSQL_HOST: ${RELAYIM_MYSQL_HOST:-host.docker.internal}
+      RELAYIM_MYSQL_PORT: ${RELAYIM_MYSQL_PORT:-3306}
+      RELAYIM_MYSQL_USER: ${RELAYIM_MYSQL_USER:-root}
+      RELAYIM_MYSQL_PASSWORD: ${RELAYIM_MYSQL_PASSWORD:-${RELAYIM_MYSQL_ROOT_PASSWORD:?}}
+      RELAYIM_MYSQL_DBNAME: ${RELAYIM_MYSQL_DBNAME:-relayim}
       RELAYIM_JWT_SECRET: ${RELAYIM_JWT_SECRET:?请设置 RELAYIM_JWT_SECRET}
       RELAYIM_REDIS_HOST: redis
       RELAYIM_REDIS_PORT: 6379
@@ -91,6 +68,8 @@ services:
         condition: service_started
       tempo:
         condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         [
@@ -126,6 +105,3 @@ services:
       retries: 12
     networks:
       - backend
-
-volumes:
-  mysql_data:

@@ -3,7 +3,7 @@
 Compose 支持两种启动方式：
 
 - 只启动基础设施，Go 和 Vue 继续使用本机开发服务器。
-- 启动完整环境，由 Docker 构建 MySQL、Go 后端和 Nginx 前端。
+- 启动容器化应用，由 Docker 构建 Go 后端和 Nginx 前端，MySQL 始终使用宿主机服务。
 
 基础设施包括：
 
@@ -14,7 +14,7 @@ Compose 支持两种启动方式：
 - Prometheus，负责采集指标。
 - Grafana，负责展示指标面板。
 
-基础 Compose 不包含 MySQL。全容器方式会额外启动 MySQL 8.0.34，不要求本机安装数据库。
+两套 Compose 都不包含 MySQL。业务数据由宿主机 MySQL 8 保存，应用和迁移容器通过 `host.docker.internal:3306` 访问。
 
 `deploy/.env` 保存 Compose 基础设施变量，不会自动注入 Windows 上直接运行的 Go 应用。
 应用配置及其 `RELAYIM_*` 环境变量说明见
@@ -38,7 +38,15 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 
 默认会启动 RabbitMQ、Redis、SeaweedFS、Prometheus 和 Grafana。
 
-## 全容器启动
+## 容器化应用启动
+
+启动前确认本机 MySQL 已运行，并创建数据库：
+
+```sql
+CREATE DATABASE relayim
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+```
 
 首次运行时创建应用容器变量文件：
 
@@ -46,7 +54,19 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d
 Copy-Item deploy\app.env.example deploy\app.env
 ```
 
-填写 `deploy\.env` 和 `deploy\app.env` 中的密码、JWT 密钥，然后在项目根目录执行：
+填写 `deploy\.env` 和 `deploy\app.env` 中的本地 MySQL 地址、密码、JWT 密钥。默认配置是：
+
+```text
+RELAYIM_MYSQL_HOST=host.docker.internal
+RELAYIM_MYSQL_PORT=3306
+RELAYIM_MYSQL_USER=root
+RELAYIM_MYSQL_PASSWORD=<本机 MySQL 密码>
+RELAYIM_MYSQL_DBNAME=relayim
+```
+
+已有 `deploy\.env` 如果仍使用 `RELAYIM_MYSQL_ROOT_PASSWORD`，应改为 `RELAYIM_MYSQL_PASSWORD`，并确认值来自本机 MySQL，而不是旧容器 MySQL。
+
+然后在项目根目录执行：
 
 ```powershell
 docker compose `
@@ -54,13 +74,15 @@ docker compose `
   --env-file deploy\app.env `
   -f deploy\docker-compose.yml `
   -f deploy\docker-compose.app.yml `
-  up -d --build
+  up -d --build --remove-orphans
 ```
+
+`--remove-orphans` 会清掉旧 Compose 文件创建的 `relayim-mysql` 容器。旧 `mysql_data` 数据卷不会被自动删除，确认不再需要旧容器数据后再手动清理。
 
 启动顺序如下：
 
-1. MySQL、Redis、RabbitMQ 通过健康检查。
-2. 一次性 `migrate` 容器执行 `goose up`。
+1. 本机 MySQL 已启动，Redis、RabbitMQ 通过容器健康检查。
+2. 一次性 `migrate` 容器连接本机 MySQL 并执行 `goose up`。
 3. Go 后端启动并通过健康检查。
 4. Nginx 提供前端静态文件、API 和 WebSocket 反向代理。
 
@@ -70,7 +92,7 @@ docker compose `
 | --- | --- |
 | RelayIM Web | http://localhost:8080 |
 | Go API | http://localhost:8081 |
-| 容器 MySQL | `127.0.0.1:3307` |
+| 本机 MySQL | `127.0.0.1:3306` |
 
 构建产物使用多阶段镜像：
 
@@ -98,7 +120,7 @@ docker compose `
   logs -f app web
 ```
 
-停止完整栈并保留 MySQL、RabbitMQ、Redis 等数据卷：
+停止容器化应用并保留 RabbitMQ、Redis 等数据卷，本机 MySQL 不受影响：
 
 ```powershell
 docker compose `
@@ -109,7 +131,7 @@ docker compose `
   down
 ```
 
-只有明确接受全部业务数据丢失时，才追加 `-v` 删除数据卷。
+只有明确接受 RabbitMQ、对象存储和监控数据丢失时，才追加 `-v` 删除数据卷。本机 MySQL 数据目录不受 Compose 卷管理。
 
 查看状态和日志：
 
@@ -138,7 +160,7 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml down -v
 | --- | --- |
 | RabbitMQ AMQP | `localhost:5672` |
 | RabbitMQ 管理界面 | http://localhost:15672 |
-| Redis | `localhost:6379` |
+| Redis | `localhost:6380` |
 | SeaweedFS S3 | http://localhost:8333 |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 |

@@ -101,9 +101,10 @@ docker run --rm `
 确认没有压测正在运行后，可执行：
 
 ```powershell
+$env:MYSQL_PWD = "<本机 MySQL 密码>"
 Get-Content -Raw loadtest\cleanup-test-users.sql |
-  docker exec -i relayim-mysql sh -c `
-    'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot relayim'
+  mysql -h 127.0.0.1 -P 3306 -u root relayim
+Remove-Item Env:MYSQL_PWD
 ```
 
 ## 已有报告
@@ -178,7 +179,7 @@ docker run --rm `
 
 ## 基础设施故障注入
 
-以下脚本会短暂停止并自动恢复 RabbitMQ、Redis 和 MySQL：
+以下脚本会短暂停止并自动恢复 Docker 中的 RabbitMQ 和 Redis：
 
 ```powershell
 python scripts\infrastructure-fault-e2e.py
@@ -188,4 +189,4 @@ python scripts\infrastructure-fault-e2e.py
 
 - RabbitMQ 中断期间消息写入 Outbox，恢复后队列排空且 DLQ 不新增。
 - Redis 中断时认证和写请求快速返回 `503`，恢复后重新登录和发送成功。
-- MySQL 中断时写请求失败、就绪检查返回 `503`，恢复后继续发送。
+- MySQL 已使用宿主机服务，不在 Docker 故障脚本中自动停止。需要验证时请手动停止本机 MySQL 服务。
