@@ -164,31 +164,32 @@ watch(
                     />
                 </label>
 
-                <label class="auth-field">
-                    <span>密码</span>
-                    <span class="auth-password-field">
-                        <input
-                                v-model="form.password"
-                                :autocomplete="
-                                    mode === 'login'
-                                        ? 'current-password'
-                                        : 'new-password'
-                                "
-                                :type="showPassword ? 'text' : 'password'"
-                                minlength="8"
-                                placeholder="至少 8 个字符"
-                                required
-                        />
-                        <button
-                                :aria-label="showPassword ? '隐藏密码' : '显示密码'"
-                                :aria-pressed="showPassword"
-                                type="button"
-                                @click="showPassword = !showPassword"
-                        >
-                            {{ showPassword ? '隐藏' : '显示' }}
-                        </button>
-                    </span>
-                </label>
+                    <div class="auth-field">
+                        <label for="auth-password">密码</label>
+                        <span class="auth-password-field">
+                            <input
+                                    id="auth-password"
+                                    v-model="form.password"
+                                    :autocomplete="
+                                        mode === 'login'
+                                            ? 'current-password'
+                                            : 'new-password'
+                                    "
+                                    :type="showPassword ? 'text' : 'password'"
+                                    minlength="8"
+                                    placeholder="至少 8 个字符"
+                                    required
+                            />
+                            <button
+                                    :aria-label="showPassword ? '隐藏内容' : '显示内容'"
+                                    :aria-pressed="showPassword"
+                                    type="button"
+                                    @click="showPassword = !showPassword"
+                            >
+                                {{ showPassword ? '隐藏' : '显示' }}
+                            </button>
+                        </span>
+                    </div>
 
                 <label v-if="mode === 'register'" class="auth-field">
                     <span>确认密码</span>
