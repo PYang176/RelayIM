@@ -66,7 +66,7 @@ jobs:
       RELAYIM_TEST_S3_ACCESS_KEY: "admin"
       RELAYIM_TEST_S3_SECRET_KEY: "integration-password"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
@@ -117,7 +117,7 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -148,7 +148,7 @@ jobs:
       - backend
       - frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 构建后端镜像
         run: docker build --target runtime -t relayim-app:ci .
