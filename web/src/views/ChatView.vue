@@ -42,6 +42,8 @@ const memberProfileOpen = shallowRef(false)
 const selectedGroupMember = shallowRef<ConversationMember | null>(null)
 const managingMembers = shallowRef(false)
 const memberActionError = shallowRef('')
+const groupAvatarBusy = shallowRef(false)
+const groupAvatarError = shallowRef('')
 const profileDialogOpen = shallowRef(false)
 const savingProfile = shallowRef(false)
 const profileError = shallowRef('')
@@ -147,6 +149,7 @@ async function selectConversation(conversationId: string) {
 // openGroupMembers 打开群成员管理窗口
 function openGroupMembers() {
     memberActionError.value = ''
+    groupAvatarError.value = ''
     groupMembersOpen.value = true
     const conversationId = chat.activeConversationId
     if (conversationId) {
@@ -243,15 +246,40 @@ async function dissolveGroup() {
     }
 }
 
-// updateGroupProfile 保存群名称和群头像
-async function updateGroupProfile(payload: {
-    name: string
-    avatarUrl: string
-}) {
+// updateGroupProfile 保存群名称
+async function updateGroupProfile(payload: {name: string}) {
     await runMemberAction(
-        () => chat.updateGroupProfile(payload.name, payload.avatarUrl),
+        () => chat.updateGroupProfile(payload.name),
         '更新群资料失败',
     )
+}
+
+// uploadGroupAvatar 上传群头像并刷新当前群资料
+async function uploadGroupAvatar(file: File) {
+    groupAvatarBusy.value = true
+    groupAvatarError.value = ''
+    try {
+        await chat.uploadGroupAvatar(file)
+    } catch (cause) {
+        groupAvatarError.value =
+            cause instanceof Error ? cause.message : '上传群头像失败'
+    } finally {
+        groupAvatarBusy.value = false
+    }
+}
+
+// removeGroupAvatar 移除当前群头像
+async function removeGroupAvatar() {
+    groupAvatarBusy.value = true
+    groupAvatarError.value = ''
+    try {
+        await chat.removeGroupAvatar()
+    } catch (cause) {
+        groupAvatarError.value =
+            cause instanceof Error ? cause.message : '移除群头像失败'
+    } finally {
+        groupAvatarBusy.value = false
+    }
 }
 
 // runMemberAction 统一执行成员管理操作并处理错误
@@ -641,41 +669,69 @@ onBeforeUnmount(() => {
                 <section class="conversation-main">
                     <template v-if="chat.activeConversation">
                         <header class="conversation-header">
-                            <div>
-                                <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
-                                <p>
-                                    {{
-                                        chat.activeConversation.conversation_type === 1
-                                            ? '私聊'
-                                            : '群聊'
-                                    }}
-                                    <span
-                                            v-if="
-                                                chat.activeConversation.conversation_type === 2
-                                            "
-                                    >
-                                        · {{ chat.activeConversation.member_count }} 位成员
-                                    </span>
-                                    <span
-                                            v-if="
-                                                chat.activeConversation.conversation_type === 2 &&
-                                                chat.activeConversation.last_seq > 0
-                                            "
-                                    >
-                                        · {{ groupReadLabel }}
-                                    </span>
-                                    <span
-                                            v-else-if="
-                                                chat.activeConversation.conversation_type === 1 &&
-                                                directReadLabel
-                                            "
-                                    >
-                                        · {{ directReadLabel }}
-                                    </span>
-                                    <span v-if="activePresenceLabel">
-                                        · {{ activePresenceLabel }}
-                                    </span>
-                                </p>
+                            <div class="conversation-heading-copy">
+                                <span class="conversation-header-avatar">
+                                    <img
+                                            v-if="chat.activeConversation.avatar_url"
+                                            :alt="`${activeConversationTitle}的头像`"
+                                            :src="chat.activeConversation.avatar_url"
+                                    />
+                                    <template v-else>
+                                        {{ activeConversationTitle.slice(0, 1) }}
+                                    </template>
+                                </span>
+                                <div>
+                                    <h1>
+                                        {{
+                                            chat.conversationTitle(
+                                                chat.activeConversation,
+                                            )
+                                        }}
+                                    </h1>
+                                    <p>
+                                        {{
+                                            chat.activeConversation
+                                                .conversation_type === 1
+                                                ? '私聊'
+                                                : '群聊'
+                                        }}
+                                        <span
+                                                v-if="
+                                                    chat.activeConversation
+                                                        .conversation_type === 2
+                                                "
+                                        >
+                                            ·
+                                            {{
+                                                chat.activeConversation
+                                                    .member_count
+                                            }}
+                                            位成员
+                                        </span>
+                                        <span
+                                                v-if="
+                                                    chat.activeConversation
+                                                        .conversation_type === 2 &&
+                                                    chat.activeConversation
+                                                        .last_seq > 0
+                                                "
+                                        >
+                                            · {{ groupReadLabel }}
+                                        </span>
+                                        <span
+                                                v-else-if="
+                                                    chat.activeConversation
+                                                        .conversation_type === 1 &&
+                                                    directReadLabel
+                                                "
+                                        >
+                                            · {{ directReadLabel }}
+                                        </span>
+                                        <span v-if="activePresenceLabel">
+                                            · {{ activePresenceLabel }}
+                                        </span>
+                                    </p>
+                                </div>
                             </div>
                             <button
                                     class="ghost-button"
@@ -735,13 +791,19 @@ onBeforeUnmount(() => {
 
                         <MessageList
                                 ref="messageList"
+                                :conversation-avatar-url="
+                                    chat.activeConversation?.avatar_url ?? ''
+                                "
+                                :conversation-title="activeConversationTitle"
                                 :conversation-type="
                                     chat.activeConversation?.conversation_type ?? 1
                                 "
+                                :current-user="auth.user"
                                 :current-user-id="auth.user?.id ?? ''"
                                 :current-user-role="currentMemberRole"
                                 :has-more="Boolean(chat.hasMoreByConversation[chat.activeConversationId])"
                                 :loading="chat.loadingMessages"
+                                :members="chat.activeMembers"
                                 :messages="chat.activeMessages"
                                 @load-older="chat.loadOlderMessages"
                                 @recall="recallMessage"
@@ -807,6 +869,8 @@ onBeforeUnmount(() => {
                 :error="memberActionError"
                 :friends="friendships.friends"
                 :friends-has-more="friendships.friendHasMore"
+                :group-avatar-busy="groupAvatarBusy"
+                :group-avatar-error="groupAvatarError"
                 :group-avatar-url="chat.activeConversation?.avatar_url ?? ''"
                 :group-name="activeConversationTitle"
                 :loading="chat.loadingMembers"
@@ -827,9 +891,11 @@ onBeforeUnmount(() => {
                 @load-more-invitations="loadMoreGroupInvitations"
                 @cancel-invitation="cancelGroupInvitation"
                 @remove="removeMember"
+                @remove-group-avatar="removeGroupAvatar"
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"
                 @update-profile="updateGroupProfile"
+                @upload-group-avatar="uploadGroupAvatar"
                 @view-profile="openMemberProfile"
         />
 

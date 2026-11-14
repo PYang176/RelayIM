@@ -92,6 +92,127 @@ type setPinnedRequest struct {
 	Pinned *bool `json:"pinned"`
 }
 
+// UploadGroupAvatar 处理 POST /api/v1/conversations/:conversation_id/avatar。
+func (h *Handler) UploadGroupAvatar(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(
+		c.Writer,
+		c.Request.Body,
+		maxGroupAvatarImageBytes+(1<<20),
+	)
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择群头像图片"})
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取群头像图片失败"})
+		return
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			slog.Warn("关闭群头像上传文件失败", "error", closeErr)
+		}
+	}()
+
+	detectBuffer := make([]byte, 512)
+	n, readErr := io.ReadFull(file, detectBuffer)
+	if readErr != nil &&
+		!errors.Is(readErr, io.ErrUnexpectedEOF) &&
+		!errors.Is(readErr, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取群头像图片失败"})
+		return
+	}
+	contentType := http.DetectContentType(detectBuffer[:n])
+	if _, supported := groupAvatarExtensions[contentType]; !supported {
+		c.JSON(
+			http.StatusBadRequest,
+			gin.H{"error": "群头像仅支持 JPEG、PNG、WebP 或 GIF"},
+		)
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "处理群头像图片失败"})
+		return
+	}
+
+	result, err := h.service.UploadGroupAvatar(
+		c.Request.Context(),
+		UploadGroupAvatarCommand{
+			ActorID:        userID,
+			ConversationID: conversationID,
+			ContentType:    contentType,
+			Size:           fileHeader.Size,
+			Reader:         file,
+		},
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"avatar_url": result.AvatarURL})
+}
+
+// RemoveGroupAvatar 处理 DELETE /api/v1/conversations/:conversation_id/avatar。
+func (h *Handler) RemoveGroupAvatar(c *gin.Context) {
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.RemoveGroupAvatar(
+		c.Request.Context(),
+		userID,
+		conversationID,
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"avatar_url": result.AvatarURL})
+}
+
+// OpenGroupAvatar 处理公开群头像读取 GET /api/v1/conversations/:conversation_id/avatar。
+func (h *Handler) OpenGroupAvatar(c *gin.Context) {
+	conversationID, ok := parseConversationID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.OpenGroupAvatar(
+		c.Request.Context(),
+		conversationID,
+	)
+	if err != nil {
+		writeConversationError(c, err)
+		return
+	}
+	defer func() {
+		if closeErr := result.Reader.Close(); closeErr != nil {
+			slog.Warn("关闭群头像对象流失败", "error", closeErr)
+		}
+	}()
+	c.Header("Cache-Control", "public, max-age=300")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.DataFromReader(
+		http.StatusOK,
+		result.SizeBytes,
+		result.ContentType,
+		result.Reader,
+		nil,
+	)
+}
+
 // CreateDirect 处理 POST /api/v1/conversations/private。
 func (h *Handler) CreateDirect(c *gin.Context) {
 	userID, ok := currentUserID(c)
@@ -917,6 +1038,15 @@ func writeConversationError(c *gin.Context, err error) {
 		errors.Is(err, ErrInvitationExpired),
 		errors.Is(err, ErrInvitationUnavailable):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrInvalidGroupAvatar):
+		c.JSON(http.StatusBadRequest, gin.H{"error": ErrInvalidGroupAvatar.Error()})
+	case errors.Is(err, ErrGroupAvatarNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": ErrGroupAvatarNotFound.Error()})
+	case errors.Is(err, ErrGroupAvatarStorageUnavailable):
+		c.JSON(
+			http.StatusServiceUnavailable,
+			gin.H{"error": ErrGroupAvatarStorageUnavailable.Error()},
+		)
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务器内部错误"})
 	}

@@ -23,7 +23,9 @@ const props = defineProps<{
     currentUserId: string
     loading: boolean
     busy: boolean
+    groupAvatarBusy: boolean
     error: string
+    groupAvatarError: string
 }>()
 
 const emit = defineEmits<{
@@ -36,7 +38,9 @@ const emit = defineEmits<{
     setRole: [userId: string, role: 1 | 2]
     transferOwner: [userId: string]
     dissolve: []
-    updateProfile: [payload: {name: string; avatarUrl: string}]
+    updateProfile: [payload: {name: string}]
+    uploadGroupAvatar: [file: File]
+    removeGroupAvatar: []
     viewProfile: [member: ConversationMember]
 }>()
 
@@ -421,9 +425,13 @@ function leave() {
             <GroupProfileForm
                     v-if="isOwner"
                     :avatar-url="groupAvatarUrl"
+                    :avatar-busy="groupAvatarBusy"
+                    :avatar-error="groupAvatarError"
                     :busy="busy"
                     :group-name="groupName"
+                    @remove-avatar="emit('removeGroupAvatar')"
                     @save="emit('updateProfile', $event)"
+                    @upload-avatar="emit('uploadGroupAvatar', $event)"
             />
 
             <GroupGovernancePanel

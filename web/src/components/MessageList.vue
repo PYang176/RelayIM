@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import {nextTick, shallowRef, useTemplateRef, watch} from 'vue'
+import {computed, nextTick, shallowRef, useTemplateRef, watch} from 'vue'
 
 import type {ChatMessage} from '@/stores/chat'
+import type {ConversationMember, UserSummary} from '@/types/api'
 
 const props = defineProps<{
     messages: ChatMessage[]
     currentUserId: string
+    currentUser: UserSummary | null
     currentUserRole: number
     conversationType: number
+    conversationTitle: string
+    conversationAvatarUrl: string
+    members: ConversationMember[]
     loading: boolean
     hasMore: boolean
 }>()
@@ -21,6 +26,15 @@ const scroller = useTemplateRef<HTMLElement>('scroller')
 const pendingRecallId = shallowRef('')
 const senderRecallWindow = 2 * 60 * 1000
 const managerRecallWindow = 24 * 60 * 60 * 1000
+const membersByUserId = computed(
+    () => new Map(props.members.map((member) => [member.user_id, member])),
+)
+
+interface SenderInfo {
+    name: string
+    avatarUrl: string
+    role: number
+}
 
 // formatTime 格式化消息列表中的时间
 function formatTime(value: string) {
@@ -33,6 +47,49 @@ function formatTime(value: string) {
 // isOutgoing 判断消息是否由当前用户发送
 function isOutgoing(message: ChatMessage) {
     return message.outgoing || message.sender_id === props.currentUserId
+}
+
+// senderFor 解析消息发送者的昵称、头像和群内角色
+function senderFor(message: ChatMessage): SenderInfo {
+    const member = membersByUserId.value.get(message.sender_id)
+    if (member) {
+        return {
+            name: member.nickname || member.username,
+            avatarUrl: member.avatar_url,
+            role: member.role,
+        }
+    }
+    if (isOutgoing(message)) {
+        const name =
+            props.currentUser?.nickname ||
+            props.currentUser?.username ||
+            '我'
+        return {
+            name,
+            avatarUrl: props.currentUser?.avatar_url ?? '',
+            role: props.currentUserRole,
+        }
+    }
+    return {
+        name: props.conversationTitle || '会话成员',
+        avatarUrl:
+            props.conversationType === 1
+                ? props.conversationAvatarUrl
+                : '',
+        role: 1,
+    }
+}
+
+// senderInitial 生成头像加载失败时的单字占位
+function senderInitial(sender: SenderInfo) {
+    return sender.name.slice(0, 1)
+}
+
+// groupRoleLabel 把群成员角色转换为消息旁的身份标签
+function groupRoleLabel(role: number) {
+    if (role === 3) return '群主'
+    if (role === 2) return '管理员'
+    return ''
 }
 
 // canRecall 判断当前消息是否满足撤回条件
@@ -121,75 +178,122 @@ defineExpose({scrollToBottom})
                 ]"
         >
             <span class="message-seq sr-only">{{ message.seq }}</span>
-            <div class="message-bubble">
-                <p v-if="message.recalled" class="message-recalled" role="status">
-                    该消息已撤回
-                </p>
+            <span class="message-avatar" aria-hidden="true">
+                <img
+                        v-if="senderFor(message).avatarUrl"
+                        alt=""
+                        :src="senderFor(message).avatarUrl"
+                        loading="lazy"
+                />
                 <template v-else>
-                    <figure
-                            v-if="message.message_type === 2 && message.attachment_url"
-                            class="message-image"
+                    {{ senderInitial(senderFor(message)) }}
+                </template>
+            </span>
+            <div class="message-body">
+                <div class="message-sender">
+                    <span
+                            v-if="
+                                conversationType === 2 &&
+                                groupRoleLabel(senderFor(message).role)
+                            "
+                            :class="[
+                                'message-role',
+                                {
+                                    owner: senderFor(message).role === 3,
+                                    admin: senderFor(message).role === 2,
+                                },
+                            ]"
                     >
+                        {{ groupRoleLabel(senderFor(message).role) }}
+                    </span>
+                    <strong>{{ senderFor(message).name }}</strong>
+                </div>
+                <div class="message-bubble">
+                    <p
+                            v-if="message.recalled"
+                            class="message-recalled"
+                            role="status"
+                    >
+                        该消息已撤回
+                    </p>
+                    <template v-else>
+                        <figure
+                                v-if="
+                                    message.message_type === 2 &&
+                                    message.attachment_url
+                                "
+                                class="message-image"
+                        >
+                            <a
+                                    :href="message.attachment_url"
+                                    rel="noopener noreferrer"
+                                    target="_blank"
+                            >
+                                <img
+                                        :alt="
+                                            message.attachment_name || '聊天图片'
+                                        "
+                                        :src="message.attachment_url"
+                                        loading="lazy"
+                                />
+                            </a>
+                        </figure>
                         <a
+                                v-else-if="
+                                    message.message_type === 3 &&
+                                    message.attachment_url
+                                "
+                                class="message-file"
                                 :href="message.attachment_url"
                                 rel="noopener noreferrer"
                                 target="_blank"
                         >
-                            <img
-                                    :alt="message.attachment_name || '聊天图片'"
-                                    :src="message.attachment_url"
-                                    loading="lazy"
-                            />
+                            <span class="message-file-mark">FILE</span>
+                            <span class="message-file-copy">
+                                <strong>
+                                    {{ message.attachment_name || '聊天附件' }}
+                                </strong>
+                                <small>点击下载文件</small>
+                            </span>
                         </a>
-                    </figure>
-                    <a
-                            v-else-if="message.message_type === 3 && message.attachment_url"
-                            class="message-file"
-                            :href="message.attachment_url"
-                            rel="noopener noreferrer"
-                            target="_blank"
-                    >
-                        <span class="message-file-mark">FILE</span>
-                        <span class="message-file-copy">
-                            <strong>{{ message.attachment_name || '聊天附件' }}</strong>
-                            <small>点击下载文件</small>
+                        <p v-if="message.content">{{ message.content }}</p>
+                        <p
+                                v-else-if="
+                                    message.message_type !== 1 &&
+                                    !message.attachment_url
+                                "
+                                class="attachment-loading"
+                        >
+                            附件地址加载中…
+                        </p>
+                    </template>
+                    <footer>
+                        <time>{{ formatTime(message.created_at) }}</time>
+                        <span
+                                v-if="isOutgoing(message) && !message.recalled"
+                                class="delivery-state"
+                        >
+                            <template v-if="message.delivery">
+                                已送达
+                                {{ message.delivery.delivered_devices }}
+                                台设备
+                            </template>
+                            <template v-else>已发送</template>
                         </span>
-                    </a>
-                    <p v-if="message.content">{{ message.content }}</p>
-                    <p
-                            v-else-if="
-                                message.message_type !== 1 &&
-                                !message.attachment_url
-                            "
-                            class="attachment-loading"
-                    >
-                        附件地址加载中…
-                    </p>
-                </template>
-                <footer>
-                    <time>{{ formatTime(message.created_at) }}</time>
-                    <span
-                            v-if="isOutgoing(message) && !message.recalled"
-                            class="delivery-state"
-                    >
-            <template v-if="message.delivery">
-              已送达 {{ message.delivery.delivered_devices }} 台设备
-            </template>
-            <template v-else>已发送</template>
-          </span>
-                    <button
-                            v-if="canRecall(message)"
-                            class="text-button message-recall-button"
-                            type="button"
-                            @click="recall(message)"
-                    >
-                        {{
-                            pendingRecallId === message.message_id
-                                ? '确认撤回'
-                                : '撤回'
-                        }}
-                    </button>
-                </footer>
+                        <button
+                                v-if="canRecall(message)"
+                                class="text-button message-recall-button"
+                                type="button"
+                                @click="recall(message)"
+                        >
+                            {{
+                                pendingRecallId === message.message_id
+                                    ? '确认撤回'
+                                    : '撤回'
+                            }}
+                        </button>
+                    </footer>
+                </div>
             </div>
         </article>
     </div>

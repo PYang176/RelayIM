@@ -5,6 +5,10 @@ import type {
     ConversationPage,
 } from '@/types/api'
 
+export interface GroupAvatarResponse {
+    avatar_url: string
+}
+
 // listConversations 分页查询当前用户的会话列表
 export function listConversations(
     token: string,
@@ -184,6 +188,58 @@ export function updateGroupProfile(
                 avatar_url: avatarUrl,
             }),
         },
+        token,
+    )
+}
+
+// uploadGroupAvatar 以 multipart 方式上传群头像
+export function uploadGroupAvatar(
+    token: string,
+    conversationId: string,
+    file: File,
+): Promise<GroupAvatarResponse> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open(
+            'POST',
+            `/api/v1/conversations/${conversationId}/avatar`,
+        )
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        xhr.onerror = () => reject(new Error('上传群头像失败'))
+        xhr.onload = () => {
+            let body: unknown
+            try {
+                body = JSON.parse(xhr.responseText)
+            } catch {
+                body = null
+            }
+            if (xhr.status < 200 || xhr.status >= 300) {
+                const message =
+                    body &&
+                    typeof body === 'object' &&
+                    'error' in body &&
+                    typeof body.error === 'string'
+                        ? body.error
+                        : `上传群头像失败（${xhr.status}）`
+                reject(new Error(message))
+                return
+            }
+            resolve(body as GroupAvatarResponse)
+        }
+        const data = new FormData()
+        data.append('file', file)
+        xhr.send(data)
+    })
+}
+
+// removeGroupAvatar 移除群头像并返回空头像地址
+export function removeGroupAvatar(
+    token: string,
+    conversationId: string,
+): Promise<GroupAvatarResponse> {
+    return request(
+        `/conversations/${conversationId}/avatar`,
+        {method: 'DELETE'},
         token,
     )
 }

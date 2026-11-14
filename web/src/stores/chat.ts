@@ -740,10 +740,7 @@ export const useChatStore = defineStore('chat', () => {
             (item) => item.id === conversationId,
         )
         const tasks: Promise<void>[] = []
-        if (
-            conversation?.conversation_type === 2 &&
-            !membersByConversation.value[conversationId]
-        ) {
+        if (!membersByConversation.value[conversationId]) {
             tasks.push(loadMembers(conversationId))
         }
         await Promise.all(tasks)
@@ -771,7 +768,7 @@ export const useChatStore = defineStore('chat', () => {
             }
             await refreshPresence()
         } catch (cause) {
-            setError(cause instanceof Error ? cause.message : '加载群成员失败')
+            setError(cause instanceof Error ? cause.message : '加载会话成员失败')
         } finally {
             loadingMembers.value = false
         }
@@ -874,8 +871,8 @@ export const useChatStore = defineStore('chat', () => {
         await removeConversationFromState(conversationId)
     }
 
-    // updateGroupProfile 更新当前群资料
-    async function updateGroupProfile(name: string, avatarUrl: string) {
+    // updateGroupProfile 更新当前群名称并保留现有头像
+    async function updateGroupProfile(name: string) {
         const conversationId = activeConversationId.value
         const conversation = activeConversation.value
         if (!conversationId || conversation?.conversation_type !== 2) return
@@ -884,10 +881,37 @@ export const useChatStore = defineStore('chat', () => {
             auth.token,
             conversationId,
             name,
-            avatarUrl,
+            conversation.avatar_url,
         )
         conversation.name = response.name
         conversation.title = response.name
+        conversation.avatar_url = response.avatar_url
+    }
+
+    // uploadGroupAvatar 上传群头像并同步当前会话
+    async function uploadGroupAvatar(file: File) {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        const response = await conversationApi.uploadGroupAvatar(
+            auth.token,
+            conversationId,
+            file,
+        )
+        conversation.avatar_url = response.avatar_url
+    }
+
+    // removeGroupAvatar 清除群头像并恢复名称首字占位
+    async function removeGroupAvatar() {
+        const conversationId = activeConversationId.value
+        const conversation = activeConversation.value
+        if (!conversationId || conversation?.conversation_type !== 2) return
+        clearError()
+        const response = await conversationApi.removeGroupAvatar(
+            auth.token,
+            conversationId,
+        )
         conversation.avatar_url = response.avatar_url
     }
 
@@ -1494,6 +1518,8 @@ export const useChatStore = defineStore('chat', () => {
         transferGroupOwner,
         dissolveActiveGroup,
         updateGroupProfile,
+        uploadGroupAvatar,
+        removeGroupAvatar,
         loadOlderMessages,
         sendMessage,
         sendAttachment,

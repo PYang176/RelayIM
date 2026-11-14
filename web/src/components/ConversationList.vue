@@ -155,7 +155,15 @@ onBeforeUnmount(() => {
                         @click="emit('select', conversation.id)"
                 >
                     <span class="conversation-avatar">
-                        {{ title(conversation).slice(0, 1) }}
+                        <img
+                                v-if="conversation.avatar_url"
+                                :alt="`${title(conversation)}的头像`"
+                                :src="conversation.avatar_url"
+                                loading="lazy"
+                        />
+                        <template v-else>
+                            {{ title(conversation).slice(0, 1) }}
+                        </template>
                     </span>
                     <span class="conversation-copy">
                         <strong>{{ title(conversation) }}</strong>

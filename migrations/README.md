@@ -28,6 +28,7 @@
 | `00015_outbox_trace_context.sql` | Outbox 持久化 W3C traceparent |
 | `00016_attachment_cleanup_state.sql` | 附件清理租约状态 |
 | `00017_unilateral_friend_deletion.sql` | 双方独立删除时间与好友列表活动索引 |
+| `00018_conversation_avatar_object.sql` | 群头像对象键与稳定读取接口支持 |
 
 ## 执行迁移
 

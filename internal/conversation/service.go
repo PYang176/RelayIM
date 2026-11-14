@@ -11,7 +11,7 @@ import (
 const (
 	maxGroupNameRunes          = 64
 	maxGroupMemberCount        = 500
-	maxGroupAvatarBytes        = 512
+	maxGroupAvatarURLLength    = 512
 	maxInvitationRemarkRunes   = 200
 	maxInvitationResponseRunes = 200
 	maxConversationSearchRunes = 64
@@ -22,12 +22,21 @@ const (
 
 // Service 提供会话创建与列表查询。
 type Service struct {
-	repo *Repository
+	repo    *Repository
+	avatars GroupAvatarStorage
 }
 
 // NewService 创建会话服务。
 func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
+}
+
+// NewServiceWithGroupAvatarStorage 创建支持群头像上传的会话服务。
+func NewServiceWithGroupAvatarStorage(
+	repo *Repository,
+	avatars GroupAvatarStorage,
+) *Service {
+	return &Service{repo: repo, avatars: avatars}
 }
 
 // CreateDirectCommand 是创建私聊会话的参数。
@@ -871,7 +880,7 @@ func validGroupAvatarURL(value string) bool {
 	if value == "" {
 		return true
 	}
-	if len(value) > maxGroupAvatarBytes {
+	if len(value) > maxGroupAvatarURLLength {
 		return false
 	}
 	parsed, err := url.ParseRequestURI(value)

@@ -56,4 +56,13 @@ var (
 
 	// ErrInvitationRemarkRequired 表示邀请人没有填写入群备注。
 	ErrInvitationRemarkRequired = errors.New("群邀请备注不能为空")
+
+	// ErrInvalidGroupAvatar 表示群头像格式、大小或参数不合法。
+	ErrInvalidGroupAvatar = errors.New("群头像图片不合法")
+
+	// ErrGroupAvatarNotFound 表示群聊尚未上传头像。
+	ErrGroupAvatarNotFound = errors.New("群头像不存在")
+
+	// ErrGroupAvatarStorageUnavailable 表示群头像对象存储未配置或暂不可用。
+	ErrGroupAvatarStorageUnavailable = errors.New("群头像存储服务暂不可用")
 )

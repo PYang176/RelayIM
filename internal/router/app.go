@@ -64,6 +64,7 @@ func Router(
 	conversationrouter.Register(
 		r,
 		db,
+		storage,
 		requestLimiter,
 		metrics,
 		realtimeDelivery,

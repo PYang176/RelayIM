@@ -42,6 +42,9 @@ type conversation struct {
 	// AvatarURL 是群头像地址。
 	AvatarURL *string `gorm:"column:avatar_url"`
 
+	// AvatarObjectKey 是群头像在对象存储中的内部对象键。
+	AvatarObjectKey *string `gorm:"column:avatar_object_key"`
+
 	// Status 表示会话状态，1 为正常。
 	Status int `gorm:"column:status"`
 
