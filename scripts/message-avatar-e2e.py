@@ -46,7 +46,12 @@ def api_request(
         timeout=15_000,
     )
     body = response.text()
-    return response.status, json.loads(body) if body else None
+    if not body:
+        return response.status, None
+    try:
+        return response.status, json.loads(body)
+    except json.JSONDecodeError:
+        return response.status, body
 
 
 def api_ok(
@@ -296,12 +301,19 @@ def assert_message_alignment(page: Page, text: str, outgoing: bool) -> None:
     expect(row).to_be_visible()
     avatar_box = row.locator(".message-avatar").bounding_box()
     bubble_box = row.locator(".message-bubble").bounding_box()
-    if not avatar_box or not bubble_box:
+    scroller_box = page.locator(".message-scroller").bounding_box()
+    if not avatar_box or not bubble_box or not scroller_box:
         raise AssertionError(f"消息 {text} 缺少头像或气泡布局")
     if outgoing and bubble_box["x"] >= avatar_box["x"]:
         raise AssertionError("自己的消息头像没有位于气泡右侧")
     if not outgoing and avatar_box["x"] >= bubble_box["x"]:
         raise AssertionError("对方消息头像没有位于气泡左侧")
+    avatar_right = avatar_box["x"] + avatar_box["width"]
+    scroller_right = scroller_box["x"] + scroller_box["width"]
+    if outgoing and avatar_right < scroller_right - 80:
+        raise AssertionError("自己的消息没有贴近聊天区最右侧")
+    if not outgoing and avatar_box["x"] > scroller_box["x"] + 80:
+        raise AssertionError("对方消息没有贴近聊天区最左侧")
 
 
 def assert_no_horizontal_overflow(page: Page, width: int) -> None:

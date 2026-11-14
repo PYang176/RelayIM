@@ -1408,7 +1408,7 @@ a:focus-visible {
 
 .message-row.outgoing {
     flex-direction: row-reverse;
-    justify-content: flex-end;
+    justify-content: flex-start;
 }
 
 .message-seq {
