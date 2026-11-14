@@ -385,12 +385,7 @@ func (s *Service) ListFiles(
 		return ConversationFilePage{}, ErrInvalidMessage
 	}
 
-	records, hasMore, err := s.repo.listFiles(ctx, listFilesInput{
-		ConversationID: command.ConversationID,
-		UserID:         command.UserID,
-		BeforeSeq:      command.BeforeSeq,
-		Limit:          command.Limit,
-	})
+	records, hasMore, err := s.repo.listFiles(ctx, listFilesInput(command))
 	if err != nil {
 		return ConversationFilePage{}, err
 	}
