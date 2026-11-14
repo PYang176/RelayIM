@@ -408,7 +408,7 @@ async function logout() {
     friendships.reset()
     groupInvitations.reset()
     await auth.logout()
-    await router.replace('/login')
+    await router.replace({name: 'home', query: {auth: 'login'}})
 }
 
 // openFriendDirect 从好友列表打开或创建私聊
@@ -497,7 +497,7 @@ onMounted(async () => {
         await auth.restoreUser()
     } catch {
         await auth.logout()
-        await router.replace('/login')
+        await router.replace({name: 'home', query: {auth: 'login'}})
         return
     }
     await chat.connectWebSocket()
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
         <a class="skip-link" href="#message-log">跳到消息内容</a>
         <aside class="app-rail" aria-label="主导航">
             <div class="rail-brand" title="RelayIM">
-                <span class="brand-dot">G</span>
+                <span class="brand-dot">R</span>
             </div>
             <button
                     class="rail-avatar"
@@ -746,7 +746,7 @@ onBeforeUnmount(() => {
                     </template>
 
                     <div v-else class="empty-workspace">
-                        <span class="empty-logo">G</span>
+                        <span class="empty-logo">R</span>
                         <h1>选择一个会话</h1>
                         <p>使用左侧“+”创建私聊，或点击“群”邀请好友创建群聊。</p>
                     </div>
