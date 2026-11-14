@@ -190,7 +190,7 @@ Invoke-Api `
     -Token $alice.token `
     -Body @{
         name = "RelayIM 演示群 $Suffix"
-        avatar_url = "https://example.com/relayim-group.png"
+        avatar_url = ""
     } | Out-Null
 
 $groupWelcome = Send-DemoMessage `

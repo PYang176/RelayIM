@@ -4,6 +4,33 @@ RelayIM 是一个可以在浏览器中使用的即时通讯项目。后端使用
 
 目前已经覆盖日常聊天需要的主要流程：注册登录、好友申请、联系人和群成员资料、私聊、群聊、图片文件、历史记录、在线状态和已读回执。项目采用单仓库、模块化单体结构，本地可以通过 Docker Compose 完整启动。
 
+## 界面预览
+
+截图来自当前运行版本，使用统一的演示账号和公开测试数据。
+
+<p align="center">
+  <img src="docs/media/demo/01-home-login.png" width="49%" alt="首页与登录">
+  <img src="docs/media/demo/02-private-chat.png" width="49%" alt="私聊">
+</p>
+<p align="center">
+  <img src="docs/media/demo/03-group-chat.png" width="49%" alt="群聊">
+  <img src="docs/media/demo/04-group-info.png" width="49%" alt="群资料">
+</p>
+
+<details>
+<summary>查看更多界面</summary>
+
+<p align="center">
+  <img src="docs/media/demo/05-group-members.png" width="49%" alt="群成员">
+  <img src="docs/media/demo/06-group-invitations.png" width="49%" alt="群邀请">
+</p>
+<p align="center">
+  <img src="docs/media/demo/07-group-management.png" width="49%" alt="群管理">
+  <img src="docs/media/demo/08-mobile-group-chat.png" width="24%" alt="移动端群聊">
+</p>
+
+</details>
+
 ## 功能
 
 - **账号与设备**：支持注册、登录、Refresh Token 轮换、退出登录、独立设备标识和个人资料编辑。头像会保存到对象存储，WebSocket 使用短时一次性 Ticket 建连。
@@ -36,7 +63,7 @@ Copy-Item deploy\app.env.example deploy\app.env
 
 打开两个文件，填写本机 MySQL 地址和密码、JWT 密钥、RabbitMQ 密码及对象存储凭据。JWT 密钥至少需要 32 字节。
 
-MySQL 密码变量使用 `RELAYIM_MYSQL_PASSWORD`。如果本地文件仍保留旧的 `RELAYIM_MYSQL_ROOT_PASSWORD`，请改名并确认密码来自本机 MySQL。
+MySQL 密码优先使用 `RELAYIM_MYSQL_PASSWORD`。旧配置里的 `RELAYIM_MYSQL_ROOT_PASSWORD` 仍可作为兼容变量，但建议统一改名并确认密码来自本机 MySQL。
 
 ```powershell
 docker compose `
@@ -57,13 +84,15 @@ docker compose `
 | RabbitMQ 管理界面 | http://localhost:15672 |
 | Grafana | http://localhost:3000 |
 
+代码更新后必须重新执行同一条带 `--build` 的命令。只运行 `docker compose up -d` 会复用旧镜像。
+
 第一次启动会构建前后端镜像，并由一次性迁移容器连接本机 MySQL 执行数据库迁移。需要演示数据时运行：
 
 ```powershell
 .\scripts\seed-demo.ps1
 ```
 
-脚本会在终端输出演示账号和密码。账号带有随机后缀，好友、私聊、群聊和撤回消息会一起创建。
+[演示数据脚本](scripts/seed-demo.ps1) 会在终端输出账号和密码。账号带有随机后缀，好友、私聊、群聊和撤回消息会一起创建。
 
 ## 本地开发
 
@@ -248,6 +277,7 @@ scripts/           演示数据与浏览器验收脚本
 - [可观测性](docs/可观测性.md)
 - [性能与容量验收](docs/性能与容量验收.md)
 - [演示指南](docs/演示指南.md)
+- [演示截图说明](docs/media/demo/README.md)
 - [OpenAPI YAML](docs/openapi.yaml)
 
 ## 当前边界

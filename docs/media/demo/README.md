@@ -2,17 +2,17 @@
 
 本目录用于存放可公开的 RelayIM 功能截图。
 
-推荐文件名：
+当前截图：
 
 ```text
-01-login.png
-02-desktop-layout.png
-03-contact-profile.png
-04-private-chat-media.png
-05-group-collaboration.png
-06-history-search-pin.png
-07-reliability-dashboard.png
-08-capacity-summary.png
+01-home-login.png
+02-private-chat.png
+03-group-chat.png
+04-group-info.png
+05-group-members.png
+06-group-invitations.png
+07-group-management.png
+08-mobile-group-chat.png
 ```
 
 素材要求：
