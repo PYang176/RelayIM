@@ -432,15 +432,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             owner_page.locator(".conversation-item").filter(
                 has_text=rejected_group_name
             ).click()
-            owner_page.get_by_role(
+            owner_page.locator(".group-action-bar").get_by_role(
                 "button",
-                name="群成员列表",
+                name="群邀请",
                 exact=True,
             ).click()
-            member_dialog = owner_page.locator(".group-members-dialog")
+            member_dialog = owner_page.get_by_role(
+                "dialog",
+                name="群邀请",
+                exact=True,
+            )
             expect(member_dialog).to_be_visible()
             expect(
-                member_dialog.get_by_text("群邀请记录", exact=True)
+                member_dialog.get_by_text("邀请记录", exact=True)
             ).to_be_visible()
             expect(
                 member_dialog.get_by_text(reject_response, exact=False)

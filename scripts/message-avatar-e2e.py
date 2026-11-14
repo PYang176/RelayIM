@@ -467,12 +467,70 @@ def run(output_dir: Path) -> dict[str, Any]:
         )
 
         open_conversation(owner_page, group_name)
-        owner_page.get_by_role(
+        owner_actions = owner_page.locator(".group-action-bar")
+        for button_name in ("群资料", "群成员", "群邀请", "群管理"):
+            expect(
+                owner_actions.get_by_role(
+                    "button",
+                    name=button_name,
+                    exact=True,
+                )
+            ).to_be_visible()
+
+        owner_actions.get_by_role(
             "button",
-            name="群成员列表",
+            name="群成员",
             exact=True,
         ).click()
-        dialog = owner_page.get_by_role("dialog", name="群成员")
+        members_dialog = owner_page.get_by_role("dialog", name="群成员")
+        expect(members_dialog.locator(".group-member-manage-list")).to_be_visible()
+        expect(members_dialog.locator(".group-profile-form")).to_have_count(0)
+        owner_page.screenshot(
+            path=output_dir / "group-members-dialog.png",
+            full_page=True,
+        )
+        members_dialog.get_by_role("button", name="关闭群成员").click()
+
+        owner_actions.get_by_role(
+            "button",
+            name="群邀请",
+            exact=True,
+        ).click()
+        invitation_dialog = owner_page.get_by_role(
+            "dialog",
+            name="群邀请",
+            exact=True,
+        )
+        expect(invitation_dialog.get_by_text("邀请记录", exact=True)).to_be_visible()
+        owner_page.screenshot(
+            path=output_dir / "group-invitations-dialog.png",
+            full_page=True,
+        )
+        invitation_dialog.get_by_role(
+            "button",
+            name="关闭群邀请管理",
+        ).click()
+
+        owner_actions.get_by_role(
+            "button",
+            name="群管理",
+            exact=True,
+        ).click()
+        management_dialog = owner_page.get_by_role("dialog", name="群管理")
+        expect(management_dialog).to_contain_text("成员权限")
+        expect(management_dialog).to_contain_text("群主治理")
+        owner_page.screenshot(
+            path=output_dir / "group-management-dialog.png",
+            full_page=True,
+        )
+        management_dialog.get_by_role("button", name="关闭群管理").click()
+
+        owner_actions.get_by_role(
+            "button",
+            name="群资料",
+            exact=True,
+        ).click()
+        dialog = owner_page.get_by_role("dialog", name="群资料")
         expect(dialog).to_be_visible()
         file_input = dialog.locator('input[type="file"]')
         file_input.set_input_files(
@@ -507,7 +565,7 @@ def run(output_dir: Path) -> dict[str, Any]:
         expect(dialog.locator(".group-avatar-preview img")).to_be_visible(
             timeout=10_000
         )
-        dialog.get_by_role("button", name="关闭群成员").click()
+        dialog.get_by_role("button", name="关闭群资料").click()
         expect(
             owner_page.locator(".conversation-item").filter(
                 has_text=group_name
@@ -515,15 +573,40 @@ def run(output_dir: Path) -> dict[str, Any]:
         ).to_be_visible()
 
         open_conversation(member_page, group_name)
-        member_page.get_by_role(
+        member_actions = member_page.locator(".group-action-bar")
+        expect(
+            member_actions.get_by_role(
+                "button",
+                name="群邀请",
+                exact=True,
+            )
+        ).to_be_visible()
+        member_actions.get_by_role(
             "button",
-            name="群成员列表",
+            name="群管理",
             exact=True,
         ).click()
-        member_dialog = member_page.get_by_role("dialog", name="群成员")
+        member_management = member_page.get_by_role("dialog", name="群管理")
+        expect(
+            member_management.get_by_role(
+                "button",
+                name="退出群聊",
+                exact=True,
+            )
+        ).to_be_visible()
+        member_management.get_by_role(
+            "button",
+            name="关闭群管理",
+        ).click()
+        member_actions.get_by_role(
+            "button",
+            name="群资料",
+            exact=True,
+        ).click()
+        member_dialog = member_page.get_by_role("dialog", name="群资料")
         expect(member_dialog).to_be_visible()
         expect(member_dialog.locator(".group-profile-form")).to_have_count(0)
-        member_dialog.get_by_role("button", name="关闭群成员").click()
+        member_dialog.get_by_role("button", name="关闭群资料").click()
 
         for width in (390, 320):
             assert_no_horizontal_overflow(member_page, width)
@@ -547,6 +630,9 @@ def run(output_dir: Path) -> dict[str, Any]:
                 str(output_dir / "group-messages.png"),
                 str(output_dir / "direct-messages.png"),
                 str(output_dir / "group-avatar-upload.png"),
+                str(output_dir / "group-members-dialog.png"),
+                str(output_dir / "group-invitations-dialog.png"),
+                str(output_dir / "group-management-dialog.png"),
                 str(output_dir / "group-320.png"),
                 str(output_dir / "group-390.png"),
             ],

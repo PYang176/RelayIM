@@ -1,87 +1,28 @@
 <script setup lang="ts">
-import {computed, nextTick, shallowRef, useTemplateRef, watch} from 'vue'
+import {nextTick, useTemplateRef, watch} from 'vue'
 
-import GroupGovernancePanel from '@/components/GroupGovernancePanel.vue'
-import GroupProfileForm from '@/components/GroupProfileForm.vue'
-import type {
-    ConversationMember,
-    Friend,
-    GroupPendingInvitation,
-} from '@/types/api'
+import type {ConversationMember} from '@/types/api'
 
 const props = defineProps<{
     open: boolean
     groupName: string
-    groupAvatarUrl: string
     members: ConversationMember[]
-    friends: Friend[]
-    friendsHasMore: boolean
-    loadingMoreFriends: boolean
-    invitationHistory: GroupPendingInvitation[]
-    invitationHistoryHasMore: boolean
-    loadingMoreInvitations: boolean
-    currentUserId: string
     loading: boolean
-    busy: boolean
-    groupAvatarBusy: boolean
     error: string
-    groupAvatarError: string
 }>()
 
 const emit = defineEmits<{
     close: []
-    loadMoreFriends: []
-    loadMoreInvitations: []
-    cancelInvitation: [invitationID: string]
-    invite: [userIds: string[], inviteRemark: string]
-    remove: [userId: string]
-    setRole: [userId: string, role: 1 | 2]
-    transferOwner: [userId: string]
-    dissolve: []
-    updateProfile: [payload: {name: string}]
-    uploadGroupAvatar: [file: File]
-    removeGroupAvatar: []
     viewProfile: [member: ConversationMember]
 }>()
 
 const dialog = useTemplateRef<HTMLDialogElement>('dialog')
 const closeButton = useTemplateRef<HTMLButtonElement>('closeButton')
-const selectedInviteUserIds = shallowRef<string[]>([])
-const inviteRemark = shallowRef('')
-const pendingRemovalID = shallowRef('')
-const confirmingLeave = shallowRef(false)
-
-const currentMember = computed(() =>
-    props.members.find((member) => member.user_id === props.currentUserId),
-)
-const canManage = computed(() => (currentMember.value?.role ?? 0) >= 2)
-const isOwner = computed(() => currentMember.value?.role === 3)
-const activeMemberIDs = computed(
-    () => new Set(props.members.map((member) => member.user_id)),
-)
-const pendingInviteeIDs = computed(
-    () => new Set(
-        props.invitationHistory
-            .filter((invitation) => invitation.status === 1)
-            .map((invitation) => invitation.invitee.id),
-    ),
-)
-const availableFriends = computed(() =>
-    props.friends.filter(
-        (friend) =>
-            !activeMemberIDs.value.has(friend.user.id) &&
-            !pendingInviteeIDs.value.has(friend.user.id),
-    ),
-)
 
 watch(
     () => props.open,
     async (open) => {
         if (open) {
-            selectedInviteUserIds.value = []
-            inviteRemark.value = ''
-            pendingRemovalID.value = ''
-            confirmingLeave.value = false
             dialog.value?.showModal()
             await nextTick()
             closeButton.value?.focus()
@@ -92,14 +33,9 @@ watch(
     {immediate: true},
 )
 
-// displayName 计算群成员昵称或用户名的展示名称
-function displayName(member: {nickname: string; username: string}) {
+// memberName 计算群成员昵称或用户名的展示名称
+function memberName(member: {nickname: string; username: string}) {
     return member.nickname || member.username
-}
-
-// friendName 计算可邀请好友的展示名称
-function friendName(friend: Friend) {
-    return friend.remark || friend.user.nickname || friend.user.username
 }
 
 // roleLabel 把成员角色编码转换为中文标签
@@ -109,80 +45,9 @@ function roleLabel(role: number) {
     return '成员'
 }
 
-// invitationStatusLabel 把邀请状态编码转换为中文标签
-function invitationStatusLabel(status: number) {
-    const labels: Record<number, string> = {
-        1: '等待审批',
-        2: '已同意',
-        3: '已拒绝',
-        4: '已过期',
-        5: '已取消',
-    }
-    return labels[status] ?? '未知状态'
-}
-
-// canRemove 判断当前用户是否可以移除目标成员
-function canRemove(member: ConversationMember) {
-    if (!canManage.value || member.user_id === props.currentUserId) return false
-    if (member.role === 3) return false
-    return currentMember.value?.role === 3 || member.role === 1
-}
-
-// canAdjustRole 判断当前用户是否可以调整目标成员角色
-function canAdjustRole(member: ConversationMember) {
-    return isOwner.value &&
-        member.user_id !== props.currentUserId &&
-        member.role !== 3
-}
-
-// toggleRole 切换成员管理员与普通成员角色
-function toggleRole(member: ConversationMember) {
-    if (props.busy) return
-    emit('setRole', member.user_id, member.role === 2 ? 1 : 2)
-}
-
 // close 关闭群成员对话框
 function close() {
-    if (!props.busy) {
-        emit('close')
-    }
-}
-
-// invite 提交群成员邀请
-function invite() {
-    const remark = inviteRemark.value.trim()
-    if (
-        selectedInviteUserIds.value.length === 0 ||
-        !remark ||
-        props.busy
-    ) {
-        return
-    }
-    emit('invite', [...selectedInviteUserIds.value], remark)
-    selectedInviteUserIds.value = []
-    inviteRemark.value = ''
-}
-
-// remove 确认并移除指定群成员
-function remove(member: ConversationMember) {
-    if (props.busy) return
-    if (pendingRemovalID.value !== member.user_id) {
-        pendingRemovalID.value = member.user_id
-        return
-    }
-    pendingRemovalID.value = ''
-    emit('remove', member.user_id)
-}
-
-// leave 提交退出当前群聊操作
-function leave() {
-    if (props.busy) return
-    if (!confirmingLeave.value) {
-        confirmingLeave.value = true
-        return
-    }
-    confirmingLeave.value = false
-    emit('remove', props.currentUserId)
+    emit('close')
 }
 </script>
 
@@ -203,7 +68,6 @@ function leave() {
                 <button
                         ref="closeButton"
                         class="icon-button"
-                        :disabled="busy"
                         aria-label="关闭群成员"
                         type="button"
                         @click="close"
@@ -214,15 +78,18 @@ function leave() {
 
             <p v-if="error" class="form-error" role="alert">{{ error }}</p>
             <p v-if="loading" role="status">加载群成员中…</p>
+            <p v-else-if="members.length === 0" role="status">
+                当前没有可展示的群成员。
+            </p>
 
             <div v-else class="group-member-manage-list">
                 <article
                         v-for="member in members"
                         :key="member.user_id"
-                        class="group-member-manage-row"
+                        class="group-member-manage-row member-roster-row"
                 >
                     <button
-                            :aria-label="`查看${displayName(member)}的资料`"
+                            :aria-label="`查看${memberName(member)}的资料`"
                             class="group-member-profile-button"
                             type="button"
                             @click="emit('viewProfile', member)"
@@ -230,15 +97,15 @@ function leave() {
                         <span class="friend-avatar">
                             <img
                                     v-if="member.avatar_url"
-                                    :alt="displayName(member)"
+                                    :alt="memberName(member)"
                                     :src="member.avatar_url"
                             />
                             <template v-else>
-                                {{ displayName(member).slice(0, 1) }}
+                                {{ memberName(member).slice(0, 1) }}
                             </template>
                         </span>
                         <span class="group-member-copy">
-                            <strong>{{ displayName(member) }}</strong>
+                            <strong>{{ memberName(member) }}</strong>
                             <small>@{{ member.username }}</small>
                         </span>
                     </button>
@@ -253,209 +120,14 @@ function leave() {
                     >
                         {{ roleLabel(member.role) }}
                     </span>
-                    <div
-                            v-if="canAdjustRole(member) || canRemove(member)"
-                            class="member-controls"
-                    >
-                        <button
-                                v-if="canAdjustRole(member)"
-                                :disabled="busy"
-                                class="text-button member-role-action"
-                                type="button"
-                                @click="toggleRole(member)"
-                        >
-                            {{
-                                member.role === 2
-                                    ? '取消管理员'
-                                    : '设为管理员'
-                            }}
-                        </button>
-                        <button
-                                v-if="canRemove(member)"
-                                :disabled="busy"
-                                class="text-button danger-text member-remove"
-                                type="button"
-                                @click="remove(member)"
-                        >
-                            {{
-                                pendingRemovalID === member.user_id
-                                    ? '确认移除'
-                                    : '移除'
-                            }}
-                        </button>
-                    </div>
                 </article>
             </div>
-
-            <section
-                    v-if="canManage && invitationHistory.length > 0"
-                    class="group-member-picker invite-picker"
-                    aria-label="群邀请记录"
-            >
-                <h3>群邀请记录</h3>
-                <div class="group-member-list">
-                    <div
-                            v-for="invitation in invitationHistory"
-                            :key="invitation.invitation_id"
-                            class="group-member-option invitation-history-row"
-                    >
-                        <span class="friend-avatar">
-                            {{
-                                (
-                                    invitation.invitee.nickname ||
-                                    invitation.invitee.username
-                                ).slice(0, 1)
-                            }}
-                        </span>
-                        <span class="group-member-copy">
-                            <strong>
-                                {{
-                                    invitation.invitee.nickname ||
-                                    invitation.invitee.username
-                                }}
-                            </strong>
-                            <small>
-                                @{{ invitation.invitee.username }} ·
-                                {{ invitationStatusLabel(invitation.status) }}
-                            </small>
-                            <p>
-                                邀请备注：{{ invitation.invite_remark }}
-                            </p>
-                            <p v-if="invitation.response_remark">
-                                回复备注：{{ invitation.response_remark }}
-                            </p>
-                        </span>
-                        <button
-                                v-if="invitation.status === 1"
-                                :disabled="busy"
-                                class="text-button danger-text"
-                                type="button"
-                                @click="
-                                    emit(
-                                        'cancelInvitation',
-                                        invitation.invitation_id,
-                                    )
-                                "
-                        >
-                            取消邀请
-                        </button>
-                    </div>
-                </div>
-                <button
-                        v-if="invitationHistoryHasMore"
-                        class="text-button"
-                        :disabled="loadingMoreInvitations"
-                        type="button"
-                        @click="emit('loadMoreInvitations')"
-                >
-                    {{
-                        loadingMoreInvitations
-                            ? '加载中…'
-                            : '加载更多邀请记录'
-                    }}
-                </button>
-            </section>
-
-            <fieldset v-if="canManage" class="group-member-picker invite-picker">
-                <legend>
-                    邀请好友
-                    <span>已选 {{ selectedInviteUserIds.length }} 人</span>
-                </legend>
-                <p v-if="availableFriends.length === 0 && !friendsHasMore">
-                    没有可邀请的好友，群成员和待审批邀请不会重复显示。
-                </p>
-                <div v-else-if="availableFriends.length > 0" class="group-member-list">
-                    <label
-                            v-for="friend in availableFriends"
-                            :key="friend.friendship_id"
-                            class="group-member-option"
-                    >
-                        <input
-                                v-model="selectedInviteUserIds"
-                                :value="friend.user.id"
-                                type="checkbox"
-                        />
-                        <span class="friend-avatar">
-                            {{ friendName(friend).slice(0, 1) }}
-                        </span>
-                        <span class="group-member-copy">
-                            <strong>{{ friendName(friend) }}</strong>
-                            <small>@{{ friend.user.username }}</small>
-                        </span>
-                    </label>
-                </div>
-                <button
-                        v-if="friendsHasMore"
-                        class="text-button"
-                        :disabled="loadingMoreFriends"
-                        type="button"
-                        @click="emit('loadMoreFriends')"
-                >
-                    {{ loadingMoreFriends ? '加载中…' : '加载更多好友' }}
-                </button>
-                <label class="group-field" for="invite-members-remark">
-                    <span>入群邀请备注</span>
-                    <textarea
-                            id="invite-members-remark"
-                            v-model="inviteRemark"
-                            maxlength="200"
-                            placeholder="说明邀请原因，例如：一起参与本周联调"
-                            required
-                            rows="3"
-                    />
-                </label>
-                <button
-                        class="primary-button compact invite-button"
-                        :disabled="
-                            busy ||
-                            selectedInviteUserIds.length === 0 ||
-                            !inviteRemark.trim()
-                        "
-                        type="button"
-                        @click="invite"
-                >
-                    {{
-                        busy
-                            ? '处理中…'
-                            : `发送 ${selectedInviteUserIds.length} 个邀请`
-                    }}
-                </button>
-            </fieldset>
-
-            <GroupProfileForm
-                    v-if="isOwner"
-                    :avatar-url="groupAvatarUrl"
-                    :avatar-busy="groupAvatarBusy"
-                    :avatar-error="groupAvatarError"
-                    :busy="busy"
-                    :group-name="groupName"
-                    @remove-avatar="emit('removeGroupAvatar')"
-                    @save="emit('updateProfile', $event)"
-                    @upload-avatar="emit('uploadGroupAvatar', $event)"
-            />
-
-            <GroupGovernancePanel
-                    v-if="isOwner"
-                    :busy="busy"
-                    :current-user-id="currentUserId"
-                    :members="members"
-                    @dissolve="emit('dissolve')"
-                    @transfer-owner="emit('transferOwner', $event)"
-            />
-
-            <footer class="group-members-footer">
-                <span v-if="isOwner">群主可邀请成员、调整角色或完成群主治理。</span>
-                <span v-else>退出后将从会话列表移除，重新受邀后可再次加入。</span>
-                <button
-                        v-if="!isOwner && currentMember"
-                        :disabled="busy"
-                        class="ghost-button danger-text"
-                        type="button"
-                        @click="leave"
-                >
-                    {{ confirmingLeave ? '确认退出群聊' : '退出群聊' }}
-                </button>
-            </footer>
         </section>
     </dialog>
 </template>
+
+<style scoped>
+.member-roster-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+</style>

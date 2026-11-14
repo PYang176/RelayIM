@@ -356,7 +356,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
             alice_page.get_by_role(
                 "button",
-                name="群成员列表",
+                name="群成员",
                 exact=True,
             ).click()
             group_members = alice_page.locator(".group-members-dialog")
@@ -490,7 +490,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
             alice_page.get_by_role(
                 "button",
-                name="群成员列表",
+                name="群成员",
                 exact=True,
             ).click()
             expect(group_members).to_be_visible()
@@ -594,7 +594,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
             mobile_page.get_by_role(
                 "button",
-                name="群成员列表",
+                name="群成员",
                 exact=True,
             ).click()
             mobile_members = mobile_page.locator(".group-members-dialog")

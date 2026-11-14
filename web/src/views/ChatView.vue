@@ -13,7 +13,10 @@ import ContactDetailPanel from '@/components/ContactDetailPanel.vue'
 import ContactsPanel from '@/components/ContactsPanel.vue'
 import ConversationList from '@/components/ConversationList.vue'
 import CreateGroupDialog from '@/components/CreateGroupDialog.vue'
+import GroupInfoDialog from '@/components/GroupInfoDialog.vue'
+import GroupInvitationManagementDialog from '@/components/GroupInvitationManagementDialog.vue'
 import GroupInvitationsDialog from '@/components/GroupInvitationsDialog.vue'
+import GroupManagementDialog from '@/components/GroupManagementDialog.vue'
 import GroupMembersDialog from '@/components/GroupMembersDialog.vue'
 import MessageComposer from '@/components/MessageComposer.vue'
 import MessageHistoryDialog from '@/components/MessageHistoryDialog.vue'
@@ -37,7 +40,10 @@ const selectedFriendID = shallowRef('')
 const groupInvitationsOpen = shallowRef(false)
 const groupDialogOpen = shallowRef(false)
 const creatingGroup = shallowRef(false)
+const groupInfoOpen = shallowRef(false)
 const groupMembersOpen = shallowRef(false)
+const groupManagementOpen = shallowRef(false)
+const groupInvitationManagementOpen = shallowRef(false)
 const memberProfileOpen = shallowRef(false)
 const selectedGroupMember = shallowRef<ConversationMember | null>(null)
 const managingMembers = shallowRef(false)
@@ -142,18 +148,55 @@ const manageableGroups = computed(() =>
 
 // selectConversation 切换当前会话并同步页面状态
 async function selectConversation(conversationId: string) {
+    closeGroupDialogs()
     await chat.selectConversation(conversationId)
     messageList.value?.scrollToBottom()
 }
 
-// openGroupMembers 打开群成员管理窗口
-function openGroupMembers() {
+// closeGroupDialogs 关闭当前打开的群功能对话框
+function closeGroupDialogs() {
+    groupInfoOpen.value = false
+    groupMembersOpen.value = false
+    groupManagementOpen.value = false
+    groupInvitationManagementOpen.value = false
+}
+
+// prepareGroupDialogs 重置群功能入口并加载最新成员
+function prepareGroupDialogs() {
+    closeGroupDialogs()
     memberActionError.value = ''
     groupAvatarError.value = ''
-    groupMembersOpen.value = true
     const conversationId = chat.activeConversationId
     if (conversationId) {
         void chat.loadMembers(conversationId, true)
+    }
+    return conversationId
+}
+
+// openGroupInfo 打开群资料和成员概览
+function openGroupInfo() {
+    prepareGroupDialogs()
+    groupInfoOpen.value = true
+}
+
+// openGroupMembers 打开完整群成员列表
+function openGroupMembers() {
+    prepareGroupDialogs()
+    groupMembersOpen.value = true
+}
+
+// openGroupManagement 打开成员权限和群主治理
+function openGroupManagement() {
+    prepareGroupDialogs()
+    groupManagementOpen.value = true
+}
+
+// openGroupInvitationManagement 打开群邀请和审批记录
+function openGroupInvitationManagement() {
+    const conversationId = prepareGroupDialogs()
+    groupInvitations.clearError()
+    groupInvitationManagementOpen.value = true
+    if (conversationId) {
         void groupInvitations.loadGroupInvitations(conversationId, true)
     }
     void friendships.loadAll()
@@ -214,7 +257,7 @@ async function removeMember(userID: string) {
     await runMemberAction(async () => {
         await chat.removeGroupMember(userID)
         if (userID === auth.user?.id) {
-            groupMembersOpen.value = false
+            closeGroupDialogs()
         }
     }, '移除群成员失败')
 }
@@ -242,7 +285,7 @@ async function dissolveGroup() {
         '解散群聊失败',
     )
     if (dissolved) {
-        groupMembersOpen.value = false
+        closeGroupDialogs()
     }
 }
 
@@ -756,7 +799,7 @@ onBeforeUnmount(() => {
                         <div
                                 v-if="chat.activeConversation.conversation_type === 2"
                                 class="group-member-strip"
-                                aria-label="群成员"
+                                aria-label="群信息与功能"
                         >
                             <span class="group-member-label">
                                 <span v-if="chat.loadingMembers">成员加载中</span>
@@ -780,13 +823,41 @@ onBeforeUnmount(() => {
                             >
                                 +{{ hiddenGroupMemberCount }}
                             </button>
-                            <button
-                                    class="text-button group-manage-button"
-                                    type="button"
-                                    @click="openGroupMembers"
+                            <div
+                                    class="group-action-bar"
+                                    role="group"
+                                    aria-label="群功能"
                             >
-                                群成员列表
-                            </button>
+                                <button
+                                        class="group-action-button"
+                                        type="button"
+                                        @click="openGroupInfo"
+                                >
+                                    群资料
+                                </button>
+                                <button
+                                        class="group-action-button"
+                                        type="button"
+                                        @click="openGroupMembers"
+                                >
+                                    群成员
+                                </button>
+                                <button
+                                        v-if="currentMemberRole >= 2"
+                                        class="group-action-button"
+                                        type="button"
+                                        @click="openGroupInvitationManagement"
+                                >
+                                    群邀请
+                                </button>
+                                <button
+                                        class="group-action-button"
+                                        type="button"
+                                        @click="openGroupManagement"
+                                >
+                                    群管理
+                                </button>
+                            </div>
                         </div>
 
                         <MessageList
@@ -863,40 +934,74 @@ onBeforeUnmount(() => {
                 @load-more="friendships.loadMoreFriends"
         />
 
-        <GroupMembersDialog
+        <GroupInfoDialog
+                :avatar-busy="groupAvatarBusy"
+                :avatar-error="groupAvatarError"
                 :busy="managingMembers"
                 :current-user-id="auth.user?.id ?? ''"
                 :error="memberActionError"
-                :friends="friendships.friends"
-                :friends-has-more="friendships.friendHasMore"
-                :group-avatar-busy="groupAvatarBusy"
-                :group-avatar-error="groupAvatarError"
                 :group-avatar-url="chat.activeConversation?.avatar_url ?? ''"
                 :group-name="activeConversationTitle"
                 :loading="chat.loadingMembers"
-                :loading-more-friends="friendships.loadingMore"
+                :members="chat.activeMembers"
+                :open="groupInfoOpen"
+                @close="groupInfoOpen = false"
+                @open-invitations="openGroupInvitationManagement"
+                @open-management="openGroupManagement"
+                @open-members="openGroupMembers"
+                @remove-avatar="removeGroupAvatar"
+                @save="updateGroupProfile"
+                @upload-avatar="uploadGroupAvatar"
+                @view-profile="openMemberProfile"
+        />
+
+        <GroupMembersDialog
+                :error="memberActionError"
+                :group-name="activeConversationTitle"
+                :loading="chat.loadingMembers"
                 :members="chat.activeMembers"
                 :open="groupMembersOpen"
+                @close="groupMembersOpen = false"
+                @view-profile="openMemberProfile"
+        />
+
+        <GroupInvitationManagementDialog
+                :busy="managingMembers"
+                :current-user-id="auth.user?.id ?? ''"
+                :error="memberActionError || groupInvitations.error"
+                :friends="friendships.friends"
+                :friends-has-more="friendships.friendHasMore"
+                :group-name="activeConversationTitle"
                 :invitation-history="
                     groupInvitations.groupHistory[chat.activeConversationId] ?? []
                 "
                 :invitation-history-has-more="
                     groupInvitations.groupHasMore[chat.activeConversationId] ?? false
                 "
+                :loading-more-friends="friendships.loadingMore"
                 :loading-more-invitations="groupInvitations.loadingMore"
-                @close="groupMembersOpen = false"
-                @dissolve="dissolveGroup"
+                :members="chat.activeMembers"
+                :open="groupInvitationManagementOpen"
+                @cancel-invitation="cancelGroupInvitation"
+                @close="groupInvitationManagementOpen = false"
                 @invite="inviteMembers"
                 @load-more-friends="friendships.loadMoreFriends"
                 @load-more-invitations="loadMoreGroupInvitations"
-                @cancel-invitation="cancelGroupInvitation"
+        />
+
+        <GroupManagementDialog
+                :busy="managingMembers"
+                :current-user-id="auth.user?.id ?? ''"
+                :error="memberActionError"
+                :group-name="activeConversationTitle"
+                :loading="chat.loadingMembers"
+                :members="chat.activeMembers"
+                :open="groupManagementOpen"
+                @close="groupManagementOpen = false"
+                @dissolve="dissolveGroup"
                 @remove="removeMember"
-                @remove-group-avatar="removeGroupAvatar"
                 @set-role="setMemberRole"
                 @transfer-owner="transferOwner"
-                @update-profile="updateGroupProfile"
-                @upload-group-avatar="uploadGroupAvatar"
-                @view-profile="openMemberProfile"
         />
 
         <MemberProfileDialog
