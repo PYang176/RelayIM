@@ -412,7 +412,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 timeout=10_000,
             )
             expect(bob_page.locator(".conversation-header")).to_contain_text(
-                "最后序号 1",
+                "私聊",
                 timeout=10_000,
             )
             bob_conversations = api_ok(

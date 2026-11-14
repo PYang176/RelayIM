@@ -46,6 +46,13 @@ type listMessagesInput struct {
 	Limit          int
 }
 
+type listFilesInput struct {
+	ConversationID uint64
+	UserID         uint64
+	BeforeSeq      uint64
+	Limit          int
+}
+
 type searchMessagesInput struct {
 	ConversationID uint64
 	UserID         uint64
@@ -362,6 +369,8 @@ func (r *Repository) listMessages(
 		Table("messages AS m").
 		Select(
 			"m.*, a.original_name AS attachment_name, "+
+				"a.size_bytes AS attachment_size, "+
+				"a.mime_type AS attachment_mime_type, "+
 				"a.object_key AS attachment_object_key",
 		).
 		Joins("LEFT JOIN attachments AS a ON a.id = m.attachment_id").
@@ -387,6 +396,53 @@ func (r *Repository) listMessages(
 	if !ascending {
 		// 向前翻页和默认最近消息先倒序查询，再统一转成 seq 升序响应。
 		slices.Reverse(records)
+	}
+	return records, hasMore, nil
+}
+
+// listFiles 校验会话成员权限，并按游标返回图片和文件消息。
+func (r *Repository) listFiles(
+	ctx context.Context,
+	input listFilesInput,
+) ([]message, bool, error) {
+	if err := r.ensureActiveMember(
+		ctx,
+		input.ConversationID,
+		input.UserID,
+	); err != nil {
+		return nil, false, err
+	}
+
+	query := r.db.WithContext(ctx).
+		Table("messages AS m").
+		Select(
+			"m.*, a.original_name AS attachment_name, "+
+				"a.size_bytes AS attachment_size, "+
+				"a.mime_type AS attachment_mime_type, "+
+				"a.object_key AS attachment_object_key",
+		).
+		Joins("JOIN attachments AS a ON a.id = m.attachment_id").
+		Where(
+			"m.conversation_id = ? AND m.recalled_at IS NULL "+
+				"AND m.message_type IN ? AND a.status = ?",
+			input.ConversationID,
+			[]int{messageTypeImage, messageTypeFile},
+			attachmentStatusReady,
+		)
+	if input.BeforeSeq > 0 {
+		query = query.Where("m.seq < ?", input.BeforeSeq)
+	}
+
+	records := make([]message, 0, input.Limit+1)
+	if err := query.
+		Order("m.seq DESC").
+		Limit(input.Limit + 1).
+		Find(&records).Error; err != nil {
+		return nil, false, fmt.Errorf("查询会话附件: %w", err)
+	}
+	hasMore := len(records) > input.Limit
+	if hasMore {
+		records = records[:input.Limit]
 	}
 	return records, hasMore, nil
 }

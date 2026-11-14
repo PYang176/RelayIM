@@ -1111,6 +1111,46 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/conversations/{conversation_id}/files:
+    get:
+      tags: [Message]
+      summary: 查询会话图片和文件
+      operationId: listConversationFiles
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - name: before_seq
+          in: query
+          required: false
+          description: 返回该消息序号之前的一页附件
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 按消息序号倒序返回的会话附件页
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationFilePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /api/v1/conversations/{conversation_id}/messages:
     get:
       tags: [Message]
@@ -2203,6 +2243,12 @@ components:
           description: 短时预签名地址，不能持久化
         attachment_name:
           type: string
+        attachment_size:
+          type: integer
+          format: int64
+          minimum: 1
+        attachment_mime_type:
+          type: string
         recalled:
           type: boolean
         recalled_at:
@@ -2221,6 +2267,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MessageHistory"
+        has_more:
+          type: boolean
+    ConversationFilePage:
+      type: object
+      required: [files, next_before_seq, has_more]
+      properties:
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageHistory"
+        next_before_seq:
+          type: integer
+          format: int64
+          minimum: 0
         has_more:
           type: boolean
     MessageSearchResult:

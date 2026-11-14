@@ -105,6 +105,8 @@ export interface Message {
     attachment_id?: string
     attachment_url?: string
     attachment_name?: string
+    attachment_size?: number
+    attachment_mime_type?: string
     recalled: boolean
     recalled_at?: string
     recalled_by?: string
@@ -113,6 +115,12 @@ export interface Message {
 
 export interface MessagePage {
     messages: Message[]
+    has_more: boolean
+}
+
+export interface ConversationFilePage {
+    files: Message[]
+    next_before_seq: number
     has_more: boolean
 }
 

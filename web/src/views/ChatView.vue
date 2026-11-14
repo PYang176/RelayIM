@@ -76,6 +76,15 @@ const groupReadLabel = computed(() => {
     ).length
     return `${readCount}/${otherMemberCount} 人已读`
 })
+const directReadLabel = computed(() => {
+    const conversation = chat.activeConversation
+    if (!conversation || conversation.conversation_type !== 1) return ''
+    const state = chat.activeReadStates[0]
+    if (!state) return ''
+    return state.last_read_seq >= conversation.last_seq
+        ? '对方已读'
+        : '对方未读'
+})
 const activeConversationTitle = computed(() =>
     chat.activeConversation
         ? chat.conversationTitle(chat.activeConversation)
@@ -635,7 +644,11 @@ onBeforeUnmount(() => {
                             <div>
                                 <h1>{{ chat.conversationTitle(chat.activeConversation) }}</h1>
                                 <p>
-                                    最后序号 {{ chat.activeConversation.last_seq }}
+                                    {{
+                                        chat.activeConversation.conversation_type === 1
+                                            ? '私聊'
+                                            : '群聊'
+                                    }}
                                     <span
                                             v-if="
                                                 chat.activeConversation.conversation_type === 2
@@ -654,10 +667,10 @@ onBeforeUnmount(() => {
                                     <span
                                             v-else-if="
                                                 chat.activeConversation.conversation_type === 1 &&
-                                                chat.activeReadStates.length
+                                                directReadLabel
                                             "
                                     >
-                      · 对方已读 {{ chat.activeReadStates[0].last_read_seq }}
+                                        · {{ directReadLabel }}
                                     </span>
                                     <span v-if="activePresenceLabel">
                                         · {{ activePresenceLabel }}

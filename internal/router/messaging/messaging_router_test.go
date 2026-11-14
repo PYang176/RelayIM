@@ -30,6 +30,7 @@ func TestRegisterRoutesAlongsideConversationRoutes(t *testing.T) {
 		"POST /api/v1/conversations/groups":                                        false,
 		"GET /api/v1/conversations/:conversation_id/read-states":                   false,
 		"GET /api/v1/conversations/:conversation_id/messages":                      false,
+		"GET /api/v1/conversations/:conversation_id/files":                         false,
 		"GET /api/v1/conversations/:conversation_id/messages/:message_id/delivery": false,
 		"POST /api/v1/conversations/:conversation_id/messages":                     false,
 		"POST /api/v1/attachments":                                                 false,

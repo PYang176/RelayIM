@@ -119,6 +119,12 @@ type message struct {
 	// AttachmentName 是查询历史消息时联表得到的附件文件名。
 	AttachmentName *string `gorm:"->;column:attachment_name"`
 
+	// AttachmentSize 是查询历史消息时联表得到的附件字节数。
+	AttachmentSize int64 `gorm:"->;column:attachment_size"`
+
+	// AttachmentMIMEType 是查询历史消息时联表得到的附件 MIME 类型。
+	AttachmentMIMEType *string `gorm:"->;column:attachment_mime_type"`
+
 	// AttachmentObjectKey 是查询历史消息时联表得到的对象键。
 	AttachmentObjectKey *string `gorm:"->;column:attachment_object_key"`
 

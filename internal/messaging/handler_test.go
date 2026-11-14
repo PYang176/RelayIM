@@ -26,13 +26,16 @@ type stubTextMessageSender struct {
 
 type stubMessageReader struct {
 	page          MessagePage
+	filePage      ConversationFilePage
 	searchPage    MessageSearchPage
 	readStates    []ReadStateResult
 	delivery      DeliverySummary
 	err           error
 	calls         int
+	fileCalls     int
 	searchCalls   int
 	command       ListMessagesCommand
+	fileCommand   ListFilesCommand
 	searchCommand SearchMessagesCommand
 }
 
@@ -53,6 +56,16 @@ func (s *stubMessageReader) ListReadStates(
 	_ uint64,
 ) ([]ReadStateResult, error) {
 	return s.readStates, s.err
+}
+
+// ListFiles 查询会话附件并保持权限和分页语义
+func (s *stubMessageReader) ListFiles(
+	_ context.Context,
+	command ListFilesCommand,
+) (ConversationFilePage, error) {
+	s.fileCalls++
+	s.fileCommand = command
+	return s.filePage, s.err
 }
 
 // SearchMessages 按条件搜索消息
@@ -569,6 +582,66 @@ func TestHandlerSearchMessages(t *testing.T) {
 	}
 }
 
+// TestHandlerListFiles 覆盖会话附件列表的分页参数和响应
+func TestHandlerListFiles(t *testing.T) {
+	createdAt := time.Date(2026, time.November, 11, 10, 0, 0, 0, time.UTC)
+	attachmentID := uint64(300)
+	reader := &stubMessageReader{
+		filePage: ConversationFilePage{
+			Files: []MessageResult{
+				{
+					ID:                 100,
+					ConversationID:     200,
+					SenderID:           42,
+					Seq:                18,
+					MessageType:        messageTypeFile,
+					AttachmentID:       &attachmentID,
+					AttachmentName:     "方案.pdf",
+					AttachmentSize:     2048,
+					AttachmentMIMEType: "application/pdf",
+					AttachmentURL:      "https://example.test/file",
+					CreatedAt:          createdAt,
+				},
+			},
+			NextBeforeSeq: 18,
+			HasMore:       true,
+		},
+	}
+	router := newMessagingReaderRouter(reader, 42)
+
+	response := performListFilesRequest(router, "200", "before_seq=20&limit=2")
+	if response.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d，期望 200，响应 = %s",
+			response.Code,
+			response.Body.String(),
+		)
+	}
+	if reader.fileCalls != 1 ||
+		reader.fileCommand.ConversationID != 200 ||
+		reader.fileCommand.UserID != 42 ||
+		reader.fileCommand.BeforeSeq != 20 ||
+		reader.fileCommand.Limit != 2 {
+		t.Fatalf("会话附件命令 = %+v", reader.fileCommand)
+	}
+
+	var body struct {
+		Files         []messageHistoryResponse `json:"files"`
+		NextBeforeSeq uint64                   `json:"next_before_seq"`
+		HasMore       bool                     `json:"has_more"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("解析会话附件响应失败: %v", err)
+	}
+	if len(body.Files) != 1 ||
+		body.Files[0].AttachmentName != "方案.pdf" ||
+		body.Files[0].AttachmentSize != 2048 ||
+		body.Files[0].AttachmentMIMEType != "application/pdf" ||
+		body.NextBeforeSeq != 18 ||
+		!body.HasMore {
+		t.Fatalf("会话附件响应 = %+v", body)
+	}
+}
+
 // TestHandlerListMessagesRejectsInvalidRequest 覆盖历史消息接口的非法参数映射
 func TestHandlerListMessagesRejectsInvalidRequest(t *testing.T) {
 	tests := []struct {
@@ -733,6 +806,10 @@ func newMessagingReaderRouter(
 		handler.ListMessages,
 	)
 	router.GET(
+		"/api/v1/conversations/:conversation_id/files",
+		handler.ListFiles,
+	)
+	router.GET(
 		"/api/v1/conversations/:conversation_id/messages/search",
 		handler.SearchMessages,
 	)
@@ -745,6 +822,22 @@ func newMessagingReaderRouter(
 		handler.GetDeliverySummary,
 	)
 	return router
+}
+
+// performListFilesRequest 构造会话附件查询请求并执行 Handler
+func performListFilesRequest(
+	router http.Handler,
+	conversationID string,
+	query string,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/conversations/"+conversationID+"/files?"+query,
+		nil,
+	)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	return response
 }
 
 // performSendTextRequest 构造发送文本消息请求并执行 Handler

@@ -1,6 +1,7 @@
 import {request} from './http'
 import type {
     AttachmentResponse,
+    ConversationFilePage,
     DeliverySummary,
     MessagePage,
     MessageSearchPage,
@@ -19,6 +20,22 @@ export function listMessages(
     if (query.beforeSeq) params.set('before_seq', String(query.beforeSeq))
     params.set('limit', String(query.limit ?? 30))
     return request(`/conversations/${conversationId}/messages?${params}`, {}, token)
+}
+
+// listFiles 按游标查询会话中的图片和文件消息
+export function listFiles(
+    token: string,
+    conversationId: string,
+    beforeSeq = 0,
+    limit = 20,
+): Promise<ConversationFilePage> {
+    const params = new URLSearchParams({limit: String(limit)})
+    if (beforeSeq) params.set('before_seq', String(beforeSeq))
+    return request(
+        `/conversations/${conversationId}/files?${params}`,
+        {},
+        token,
+    )
 }
 
 // searchMessages 在当前会话内搜索消息正文

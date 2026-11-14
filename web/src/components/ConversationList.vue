@@ -162,7 +162,6 @@ onBeforeUnmount(() => {
                         <small>
                             <span v-if="conversation.pinned">置顶 · </span>
                             {{ summary(conversation) }}
-                            · 序号 {{ conversation.last_seq }}
                         </small>
                     </span>
                     <span

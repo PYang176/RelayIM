@@ -715,6 +715,20 @@ func TestRepositorySendTextIntegration(t *testing.T) {
 		mediaHistory.Messages[0].AttachmentName != "image.png" {
 		t.Fatalf("图片消息历史 = %+v, err=%v", mediaHistory, err)
 	}
+	filePage, err := service.ListFiles(
+		context.Background(),
+		ListFilesCommand{
+			ConversationID: conversationID,
+			UserID:         memberID,
+			Limit:          10,
+		},
+	)
+	if err != nil ||
+		len(filePage.Files) != 1 ||
+		filePage.Files[0].AttachmentName != "image.png" ||
+		filePage.Files[0].AttachmentSize <= 0 {
+		t.Fatalf("会话附件列表 = %+v, err=%v", filePage, err)
+	}
 
 	_, err = service.SendAttachment(
 		context.Background(),

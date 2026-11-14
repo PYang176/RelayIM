@@ -34,6 +34,13 @@ var (
 		GlobalLimit:  300,
 		Window:       time.Minute,
 	}
+	messageFileRateLimitPolicy = middleware.RateLimitPolicy{
+		Namespace:    "message_files",
+		Subject:      middleware.RateLimitByUser,
+		SubjectLimit: 30,
+		GlobalLimit:  300,
+		Window:       time.Minute,
+	}
 )
 
 // Register 注册消息路由。
@@ -62,6 +69,15 @@ func Register(
 	)
 	group.GET("/:conversation_id/read-states", handler.ListReadStates)
 	group.GET("/:conversation_id/messages", handler.ListMessages)
+	group.GET(
+		"/:conversation_id/files",
+		middleware.RateLimit(
+			requestLimiter,
+			messageFileRateLimitPolicy,
+			metrics,
+		),
+		handler.ListFiles,
+	)
 	group.GET(
 		"/:conversation_id/messages/search",
 		middleware.RateLimit(

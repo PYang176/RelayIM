@@ -115,6 +115,12 @@ type MessageResult struct {
 	// AttachmentName 是可选附件原始文件名。
 	AttachmentName string
 
+	// AttachmentSize 是附件字节数。
+	AttachmentSize int64
+
+	// AttachmentMIMEType 是服务端识别的附件 MIME 类型。
+	AttachmentMIMEType string
+
 	// AttachmentURL 是短时附件下载地址。
 	AttachmentURL string
 
@@ -137,6 +143,33 @@ type MessagePage struct {
 	Messages []MessageResult
 
 	// HasMore 表示当前查询方向仍存在更多消息。
+	HasMore bool
+}
+
+// ListFilesCommand 是会话附件列表的分页参数。
+type ListFilesCommand struct {
+	// ConversationID 是待查询会话 Snowflake ID。
+	ConversationID uint64
+
+	// UserID 是当前登录用户 Snowflake ID。
+	UserID uint64
+
+	// BeforeSeq 大于零时返回该序号之前的一页附件。
+	BeforeSeq uint64
+
+	// Limit 是分页数量，默认 20，最大 100。
+	Limit int
+}
+
+// ConversationFilePage 是一页会话附件消息。
+type ConversationFilePage struct {
+	// Files 按会话序号倒序返回。
+	Files []MessageResult
+
+	// NextBeforeSeq 是下一页游标，没有更多附件时为零。
+	NextBeforeSeq uint64
+
+	// HasMore 表示仍有更早的附件。
 	HasMore bool
 }
 
@@ -329,49 +362,96 @@ func (s *Service) ListMessages(
 
 	results := make([]MessageResult, 0, len(records))
 	for _, record := range records {
-		if record.RecalledAt != nil {
-			results = append(results, MessageResult{
-				ID:             record.ID,
-				ConversationID: record.ConversationID,
-				SenderID:       record.SenderID,
-				Seq:            record.Seq,
-				MessageType:    record.MessageType,
-				Recalled:       true,
-				RecalledAt:     record.RecalledAt,
-				RecalledBy:     record.RecalledBy,
-				CreatedAt:      record.CreatedAt,
-			})
-			continue
-		}
-
-		attachmentURL := ""
-		if record.AttachmentObjectKey != nil && s.storage != nil {
-			attachmentURL, _ = s.storage.PresignedGetURL(
-				ctx,
-				*record.AttachmentObjectKey,
-				15*time.Minute,
-			)
-		}
-		results = append(results, MessageResult{
-			ID:               record.ID,
-			ConversationID:   record.ConversationID,
-			SenderID:         record.SenderID,
-			Seq:              record.Seq,
-			MessageType:      record.MessageType,
-			Content:          record.Content,
-			ReplyToMessageID: record.ReplyToMessageID,
-			AttachmentID:     record.AttachmentID,
-			AttachmentName:   stringValue(record.AttachmentName),
-			AttachmentURL:    attachmentURL,
-			RecalledAt:       record.RecalledAt,
-			RecalledBy:       record.RecalledBy,
-			CreatedAt:        record.CreatedAt,
-		})
+		results = append(results, s.messageResult(ctx, record))
 	}
 	return MessagePage{
 		Messages: results,
 		HasMore:  hasMore,
 	}, nil
+}
+
+// ListFiles 返回当前会话成员可见的一页图片和文件消息。
+func (s *Service) ListFiles(
+	ctx context.Context,
+	command ListFilesCommand,
+) (ConversationFilePage, error) {
+	if command.ConversationID == 0 || command.UserID == 0 {
+		return ConversationFilePage{}, ErrInvalidMessage
+	}
+	if command.Limit == 0 {
+		command.Limit = defaultHistoryLimit
+	}
+	if command.Limit < 0 || command.Limit > maxHistoryLimit {
+		return ConversationFilePage{}, ErrInvalidMessage
+	}
+
+	records, hasMore, err := s.repo.listFiles(ctx, listFilesInput{
+		ConversationID: command.ConversationID,
+		UserID:         command.UserID,
+		BeforeSeq:      command.BeforeSeq,
+		Limit:          command.Limit,
+	})
+	if err != nil {
+		return ConversationFilePage{}, err
+	}
+	files := make([]MessageResult, 0, len(records))
+	for _, record := range records {
+		files = append(files, s.messageResult(ctx, record))
+	}
+	page := ConversationFilePage{
+		Files:   files,
+		HasMore: hasMore,
+	}
+	if hasMore && len(files) > 0 {
+		page.NextBeforeSeq = files[len(files)-1].Seq
+	}
+	return page, nil
+}
+
+// messageResult 把数据库消息转换为接口结果并按需生成附件地址
+func (s *Service) messageResult(
+	ctx context.Context,
+	record message,
+) MessageResult {
+	if record.RecalledAt != nil {
+		return MessageResult{
+			ID:             record.ID,
+			ConversationID: record.ConversationID,
+			SenderID:       record.SenderID,
+			Seq:            record.Seq,
+			MessageType:    record.MessageType,
+			Recalled:       true,
+			RecalledAt:     record.RecalledAt,
+			RecalledBy:     record.RecalledBy,
+			CreatedAt:      record.CreatedAt,
+		}
+	}
+
+	attachmentURL := ""
+	if record.AttachmentObjectKey != nil && s.storage != nil {
+		attachmentURL, _ = s.storage.PresignedGetURL(
+			ctx,
+			*record.AttachmentObjectKey,
+			15*time.Minute,
+		)
+	}
+	return MessageResult{
+		ID:                 record.ID,
+		ConversationID:     record.ConversationID,
+		SenderID:           record.SenderID,
+		Seq:                record.Seq,
+		MessageType:        record.MessageType,
+		Content:            record.Content,
+		ReplyToMessageID:   record.ReplyToMessageID,
+		AttachmentID:       record.AttachmentID,
+		AttachmentName:     stringValue(record.AttachmentName),
+		AttachmentSize:     record.AttachmentSize,
+		AttachmentMIMEType: stringValue(record.AttachmentMIMEType),
+		AttachmentURL:      attachmentURL,
+		RecalledAt:         record.RecalledAt,
+		RecalledBy:         record.RecalledBy,
+		CreatedAt:          record.CreatedAt,
+	}
 }
 
 // SearchMessages 返回当前会话成员可见的正文搜索结果。

@@ -30,6 +30,10 @@ type MessageSender interface {
 // MessageReader 是 Handler 查询历史消息所需的最小业务能力。
 type MessageReader interface {
 	ListMessages(ctx context.Context, command ListMessagesCommand) (MessagePage, error)
+	ListFiles(
+		ctx context.Context,
+		command ListFilesCommand,
+	) (ConversationFilePage, error)
 	SearchMessages(
 		ctx context.Context,
 		command SearchMessagesCommand,
@@ -167,6 +171,12 @@ type messageHistoryResponse struct {
 
 	// AttachmentName 是附件原始文件名。
 	AttachmentName string `json:"attachment_name,omitempty"`
+
+	// AttachmentSize 是附件字节数。
+	AttachmentSize int64 `json:"attachment_size,omitempty"`
+
+	// AttachmentMIMEType 是服务端识别的附件 MIME 类型。
+	AttachmentMIMEType string `json:"attachment_mime_type,omitempty"`
 
 	// Recalled 表示正文和附件已从普通历史响应中隐藏。
 	Recalled bool `json:"recalled"`
@@ -354,42 +364,95 @@ func (h *Handler) ListMessages(c *gin.Context) {
 
 	response := make([]messageHistoryResponse, 0, len(page.Messages))
 	for _, message := range page.Messages {
-		var replyTo *string
-		if message.ReplyToMessageID != nil {
-			value := strconv.FormatUint(*message.ReplyToMessageID, 10)
-			replyTo = &value
-		}
-		attachmentID := ""
-		attachmentURL := ""
-		if message.AttachmentID != nil {
-			attachmentID = strconv.FormatUint(*message.AttachmentID, 10)
-			attachmentURL = message.AttachmentURL
-		}
-		recalledBy := ""
-		if message.RecalledBy != nil {
-			recalledBy = strconv.FormatUint(*message.RecalledBy, 10)
-		}
-		response = append(response, messageHistoryResponse{
-			MessageID:        strconv.FormatUint(message.ID, 10),
-			ConversationID:   strconv.FormatUint(message.ConversationID, 10),
-			SenderID:         strconv.FormatUint(message.SenderID, 10),
-			Seq:              message.Seq,
-			MessageType:      message.MessageType,
-			Content:          message.Content,
-			ReplyToMessageID: replyTo,
-			AttachmentID:     attachmentID,
-			AttachmentURL:    attachmentURL,
-			AttachmentName:   message.AttachmentName,
-			Recalled:         message.Recalled,
-			RecalledAt:       message.RecalledAt,
-			RecalledBy:       recalledBy,
-			CreatedAt:        message.CreatedAt,
-		})
+		response = append(response, messageHistoryResponseValue(message))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"messages": response,
 		"has_more": page.HasMore,
 	})
+}
+
+// ListFiles 处理 GET /api/v1/conversations/:conversation_id/files。
+func (h *Handler) ListFiles(c *gin.Context) {
+	userID, ok := middleware.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录用户信息无效"})
+		return
+	}
+	conversationID, err := strconv.ParseUint(
+		c.Param("conversation_id"),
+		10,
+		64,
+	)
+	if err != nil || conversationID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "conversation_id 格式错误"})
+		return
+	}
+	beforeSeq, ok := parseOptionalUint64Query(c, "before_seq")
+	if !ok {
+		return
+	}
+	limit, ok := parseOptionalIntQuery(c, "limit")
+	if !ok {
+		return
+	}
+
+	page, err := h.reader.ListFiles(c.Request.Context(), ListFilesCommand{
+		ConversationID: conversationID,
+		UserID:         userID,
+		BeforeSeq:      beforeSeq,
+		Limit:          limit,
+	})
+	if err != nil {
+		writeMessagingError(c, err)
+		return
+	}
+	files := make([]messageHistoryResponse, 0, len(page.Files))
+	for _, file := range page.Files {
+		files = append(files, messageHistoryResponseValue(file))
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"files":           files,
+		"next_before_seq": page.NextBeforeSeq,
+		"has_more":        page.HasMore,
+	})
+}
+
+// messageHistoryResponseValue 把业务消息转换为协议响应
+func messageHistoryResponseValue(
+	message MessageResult,
+) messageHistoryResponse {
+	var replyTo *string
+	if message.ReplyToMessageID != nil {
+		value := strconv.FormatUint(*message.ReplyToMessageID, 10)
+		replyTo = &value
+	}
+	attachmentID := ""
+	if message.AttachmentID != nil {
+		attachmentID = strconv.FormatUint(*message.AttachmentID, 10)
+	}
+	recalledBy := ""
+	if message.RecalledBy != nil {
+		recalledBy = strconv.FormatUint(*message.RecalledBy, 10)
+	}
+	return messageHistoryResponse{
+		MessageID:          strconv.FormatUint(message.ID, 10),
+		ConversationID:     strconv.FormatUint(message.ConversationID, 10),
+		SenderID:           strconv.FormatUint(message.SenderID, 10),
+		Seq:                message.Seq,
+		MessageType:        message.MessageType,
+		Content:            message.Content,
+		ReplyToMessageID:   replyTo,
+		AttachmentID:       attachmentID,
+		AttachmentURL:      message.AttachmentURL,
+		AttachmentName:     message.AttachmentName,
+		AttachmentSize:     message.AttachmentSize,
+		AttachmentMIMEType: message.AttachmentMIMEType,
+		Recalled:           message.Recalled,
+		RecalledAt:         message.RecalledAt,
+		RecalledBy:         recalledBy,
+		CreatedAt:          message.CreatedAt,
+	}
 }
 
 // SearchMessages 处理 GET /api/v1/conversations/:conversation_id/messages/search。

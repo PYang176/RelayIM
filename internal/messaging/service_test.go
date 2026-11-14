@@ -124,6 +124,40 @@ func TestServiceListMessagesValidation(t *testing.T) {
 	}
 }
 
+// TestServiceListFilesValidation 覆盖会话附件列表的成员和分页参数校验
+func TestServiceListFilesValidation(t *testing.T) {
+	service := NewService(nil)
+	tests := []struct {
+		name    string
+		command ListFilesCommand
+	}{
+		{
+			name:    "缺少会话 ID",
+			command: ListFilesCommand{UserID: 1},
+		},
+		{
+			name:    "缺少用户 ID",
+			command: ListFilesCommand{ConversationID: 1},
+		},
+		{
+			name: "分页数量超过上限",
+			command: ListFilesCommand{
+				ConversationID: 1,
+				UserID:         1,
+				Limit:          maxHistoryLimit + 1,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.ListFiles(context.Background(), test.command)
+			if !errors.Is(err, ErrInvalidMessage) {
+				t.Fatalf("ListFiles() 错误 = %v，期望 ErrInvalidMessage", err)
+			}
+		})
+	}
+}
+
 // TestServiceSearchMessagesValidation 覆盖消息搜索的成员权限和关键词边界
 func TestServiceSearchMessagesValidation(t *testing.T) {
 	service := NewService(nil)

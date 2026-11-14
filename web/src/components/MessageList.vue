@@ -120,7 +120,7 @@ defineExpose({scrollToBottom})
                     },
                 ]"
         >
-            <span class="message-seq" aria-label="消息序号">{{ message.seq }}</span>
+            <span class="message-seq sr-only">{{ message.seq }}</span>
             <div class="message-bubble">
                 <p v-if="message.recalled" class="message-recalled" role="status">
                     该消息已撤回

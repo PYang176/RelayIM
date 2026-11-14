@@ -385,6 +385,30 @@
         ],
         "type": "object"
       },
+      "ConversationFilePage": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/MessageHistory"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_before_seq": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "files",
+          "next_before_seq",
+          "has_more"
+        ],
+        "type": "object"
+      },
       "ConversationListPage": {
         "properties": {
           "conversations": {
@@ -933,8 +957,16 @@
           "attachment_id": {
             "$ref": "#/components/schemas/SnowflakeID"
           },
+          "attachment_mime_type": {
+            "type": "string"
+          },
           "attachment_name": {
             "type": "string"
+          },
+          "attachment_size": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
           },
           "attachment_url": {
             "description": "短时预签名地址，不能持久化",
@@ -2065,6 +2097,69 @@
         "summary": "解散群聊",
         "tags": [
           "Conversation"
+        ]
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/files": {
+      "get": {
+        "operationId": "listConversationFiles",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConversationID"
+          },
+          {
+            "description": "返回该消息序号之前的一页附件",
+            "in": "query",
+            "name": "before_seq",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationFilePage"
+                }
+              }
+            },
+            "description": "按消息序号倒序返回的会话附件页"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "summary": "查询会话图片和文件",
+        "tags": [
+          "Message"
         ]
       }
     },
