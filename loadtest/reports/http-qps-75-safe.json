@@ -1,0 +1,100 @@
+{
+  "scenario": {
+    "executor": "constant-vus",
+    "vus": 75,
+    "duration": "30s",
+    "sleepSeconds": 0.8,
+    "targetAttemptQPS": 93.75,
+    "senderUsers": 75
+  },
+  "fixture": {
+    "memberCount": 90,
+    "conversationType": "group"
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 4364,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "fails": 2182,
+        "rate": 0,
+        "passes": 0
+      },
+      "thresholds": {}
+    },
+    "http_req_failed{endpoint:qps_send}": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 2182
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 2182,
+        "rate": 70.18888541988704
+      },
+      "thresholds": {}
+    },
+    "iterations": {
+      "type": "counter",
+      "values": {
+        "count": 2182,
+        "rate": 70.18888541988704
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "max": 1046.96347,
+        "avg": 248.64795111823994,
+        "min": 51.791113,
+        "med": 222.5797465,
+        "p(90)": 301.86860029999997,
+        "p(95)": 326.2245489,
+        "p(99)": 756.5133880500008
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{endpoint:qps_send}": {
+      "type": "trend",
+      "values": {
+        "p(90)": 301.86860029999997,
+        "p(95)": 326.2245489,
+        "p(99)": 756.5133880500008,
+        "max": 1046.96347,
+        "avg": 248.64795111823994,
+        "min": 51.791113,
+        "med": 222.5797465
+      },
+      "thresholds": {
+        "p(99)<2000": {
+          "ok": true
+        },
+        "p(95)<1000": {
+          "ok": true
+        }
+      }
+    }
+  }
+}

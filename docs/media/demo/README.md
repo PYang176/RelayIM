@@ -5,6 +5,7 @@
 当前截图：
 
 ```text
+00-home.png
 01-home-login.png
 02-private-chat.png
 03-group-chat.png
@@ -13,6 +14,7 @@
 06-group-invitations.png
 07-group-management.png
 08-mobile-group-chat.png
+09-observability-grafana.png
 ```
 
 素材要求：

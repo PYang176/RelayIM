@@ -1,0 +1,100 @@
+{
+  "scenario": {
+    "executor": "constant-vus",
+    "vus": 90,
+    "duration": "30s",
+    "sleepSeconds": 0.2,
+    "targetAttemptQPS": 450,
+    "senderUsers": 90
+  },
+  "fixture": {
+    "memberCount": 90,
+    "conversationType": "group"
+  },
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "values": {
+        "rate": 1,
+        "passes": 5082,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate>0.99": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "values": {
+        "passes": 0,
+        "fails": 2541,
+        "rate": 0
+      },
+      "thresholds": {}
+    },
+    "http_req_failed{endpoint:qps_send}": {
+      "type": "rate",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 2541
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "values": {
+        "count": 2541,
+        "rate": 81.61593660398427
+      },
+      "thresholds": {}
+    },
+    "iterations": {
+      "type": "counter",
+      "values": {
+        "count": 2541,
+        "rate": 81.61593660398427
+      },
+      "thresholds": {}
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "values": {
+        "med": 842.882241,
+        "p(90)": 1152.92517,
+        "p(95)": 1268.720369,
+        "p(99)": 1535.1185157999992,
+        "max": 2053.113727,
+        "avg": 880.2999308284121,
+        "min": 49.47188
+      },
+      "thresholds": {}
+    },
+    "http_req_duration{endpoint:qps_send}": {
+      "type": "trend",
+      "values": {
+        "p(99)": 1535.1185157999992,
+        "max": 2053.113727,
+        "avg": 880.2999308284121,
+        "min": 49.47188,
+        "med": 842.882241,
+        "p(90)": 1152.92517,
+        "p(95)": 1268.720369
+      },
+      "thresholds": {
+        "p(95)<1000": {
+          "ok": false
+        },
+        "p(99)<2000": {
+          "ok": true
+        }
+      }
+    }
+  }
+}

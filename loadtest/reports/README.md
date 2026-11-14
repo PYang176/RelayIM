@@ -11,6 +11,7 @@
 | [WebSocket 连接阶梯](./websocket-connections.md) | 100、500、1,000、2,000、5,000 连接 | [连接报告 JSON](./websocket-connections-5000.json) |
 | [WebSocket 投递基线](./websocket-baseline.md) | 20 个在线接收端的实时群消息投递 | [投递 JSON](./websocket-baseline.json) |
 | [HTTP 消息基线](./http-baseline.md) | 独立账号的消息 Accepted 链路 | [HTTP JSON](./http-baseline.json) |
+| [HTTP 消息 QPS：2026-11-15](./http-qps-2026-11-15.md) | 90 人同群、最高约 82 成功 QPS 与 Outbox 排空 | [75 VU](./http-qps-75-safe.json)、[90 VU](./http-qps-90-saturated.json) |
 | [两实例实时投递](./two-instance-e2e.md) | 跨实例定向投递功能验证 | 端到端脚本输出 |
 | [Ticket 限流](./ticket-rate-limit.md) | 滑动窗口超限和恢复 | [限流 JSON](./ticket-rate-limit.json) |
 | [代码审查与异常压测](./audit-2026-11-11.md) | 边界、失败场景和首轮性能基线 | 对应 JSON 文件 |

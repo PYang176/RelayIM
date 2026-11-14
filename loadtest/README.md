@@ -4,6 +4,7 @@
 
 ```text
 loadtest/k6/http-message.js
+loadtest/k6/http-qps.js
 loadtest/k6/group-capacity.js
 ```
 
